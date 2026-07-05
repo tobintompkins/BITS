@@ -66,6 +66,7 @@ model Organization {
   id                  String   @id @default(uuid()) @db.Uuid
   clerkOrganizationId String?  @unique
   name                String
+  displayName         String?
   slug                String   @unique
   ein                 String?
   mailingAddressLine1 String
@@ -76,6 +77,7 @@ model Organization {
   country             String   @default("US")
   contactEmail        String?
   contactPhone        String?
+  websiteUrl          String?
   logoStorageKey      String?
   statementFooterText String?
   timeZone            String   @default("America/New_York")
