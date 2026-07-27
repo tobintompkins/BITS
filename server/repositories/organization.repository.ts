@@ -16,6 +16,7 @@ export type OrganizationWriteInput = {
   websiteUrl: string | null;
   timeZone: string;
   statementFooterText: string | null;
+  logoStorageKey?: string | null;
 };
 
 export async function findPrimaryOrganization() {
@@ -53,5 +54,15 @@ export async function updateOrganization(
       id,
     },
     data,
+  });
+}
+
+export async function updateOrganizationLogo(
+  id: string,
+  logoStorageKey: string | null,
+) {
+  return prisma.organization.update({
+    where: { id },
+    data: { logoStorageKey },
   });
 }

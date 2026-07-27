@@ -3,7 +3,15 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AppShellNav } from "@/components/layout/app-shell-nav";
+import {
+  AppShellNav,
+  type NavGroup,
+} from "@/components/layout/app-shell-nav";
+import { getCareAccess } from "@/lib/auth/care-permissions";
+import { getEventAccess } from "@/lib/auth/event-permissions";
+import { getMemberEngagementAccess } from "@/lib/auth/member-engagement-permissions";
+import { getMemberLifecycleAccess } from "@/lib/auth/member-lifecycle-permissions";
+import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
 export default async function StaffLayout({
   children,
@@ -16,15 +24,114 @@ export default async function StaffLayout({
     redirect("/sign-in");
   }
 
+  const organization = await findPrimaryOrganization();
+  const careAccess = organization
+    ? await getCareAccess(organization.id)
+    : null;
+  const engagementAccess = organization
+    ? await getMemberEngagementAccess(organization.id)
+    : null;
+  const lifecycleAccess = organization
+    ? await getMemberLifecycleAccess(organization.id)
+    : null;
+  const eventAccess = organization
+    ? await getEventAccess(organization.id)
+    : null;
+
+  const navGroups: NavGroup[] = [
+    {
+      label: "Home",
+      items: [{ href: "/dashboard", label: "Leadership Home" }],
+    },
+    {
+      label: "People",
+      items: [
+        { href: "/members", label: "Members" },
+        { href: "/households", label: "Households" },
+        ...(engagementAccess?.canViewSkillsInterests
+          ? [{ href: "/members/skills", label: "Member Skills" }]
+          : []),
+        ...(lifecycleAccess?.canViewArchived
+          ? [{ href: "/members?recordStatus=ARCHIVED", label: "Archived Members" }]
+          : []),
+        ...(lifecycleAccess?.canReviewDuplicates
+          ? [{ href: "/members/duplicates", label: "Duplicate Review" }]
+          : []),
+      ],
+    },
+    {
+      label: "Ministry",
+      items: engagementAccess?.canViewMinistries
+        ? [{ href: "/ministries", label: "Ministries" }]
+        : [],
+    },
+    {
+      label: "Pastoral Care",
+      items: [
+        ...(careAccess?.canViewPrayerRequests
+          ? [{ href: "/prayer-requests", label: "Prayer Requests" }]
+          : []),
+        ...(careAccess?.canViewFollowUps
+          ? [{ href: "/follow-ups", label: "Follow-Ups" }]
+          : []),
+        ...(careAccess?.canViewPastoralCare
+          ? [{ href: "/pastoral-care", label: "Pastoral Care" }]
+          : []),
+      ],
+    },
+    {
+      label: "Church Life",
+      items: [
+        ...(eventAccess?.canView
+          ? [
+              { href: "/events", label: "Events" },
+              { href: "/events/calendar", label: "Calendar" },
+            ]
+          : []),
+        ...(careAccess?.canViewAttendance
+          ? [{ href: "/attendance", label: "Attendance" }]
+          : []),
+      ],
+    },
+    {
+      label: "Giving",
+      items: [
+        { href: "/donors", label: "Donors" },
+        { href: "/batches", label: "Batches" },
+        { href: "/statements", label: "Statements" },
+      ],
+    },
+    {
+      label: "Reports",
+      items: [{ href: "/reports", label: "Reports" }],
+    },
+    {
+      label: "Administration",
+      items: [
+        { href: "/settings/organization", label: "Organization Settings" },
+        ...(engagementAccess?.canManageSpiritualGiftCatalog ||
+        engagementAccess?.canViewSpiritualGifts
+          ? [{ href: "/settings/spiritual-gifts", label: "Spiritual Gifts" }]
+          : []),
+        ...(eventAccess?.canManageCategories
+          ? [{ href: "/settings/event-categories", label: "Event Categories" }]
+          : []),
+        ...(eventAccess?.canManageLocations
+          ? [{ href: "/settings/event-locations", label: "Event Locations" }]
+          : []),
+      ],
+    },
+  ];
+
   return (
-    <div className="min-h-full bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
+    <div className="min-h-full bg-[var(--bits-page)]">
+      <header className="border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white shadow-sm">
+        <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-              BITS
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-[var(--bits-gold)]">
+              BITS · Leadership Portal
             </p>
-            <h1 className="text-lg font-semibold text-zinc-900">
+            <h1 className="text-lg font-semibold text-white">
               Bring In The Sheaves
             </h1>
           </div>
@@ -32,7 +139,7 @@ export default async function StaffLayout({
           <div className="flex items-center gap-4">
             <Link
               href="/"
-              className="text-sm font-medium text-zinc-600 underline-offset-4 hover:text-zinc-900 hover:underline"
+              className="hidden text-sm font-medium text-white/85 underline-offset-4 hover:text-white hover:underline sm:inline"
             >
               Public site
             </Link>
@@ -41,19 +148,20 @@ export default async function StaffLayout({
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="h-fit rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <div className="mb-4">
-            <h2 className="text-sm font-semibold text-zinc-900">Navigation</h2>
-            <p className="mt-1 text-xs leading-5 text-zinc-500">
-              Placeholder staff areas for the BITS application shell.
+      <div className="mx-auto grid w-full max-w-[1440px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8">
+        <aside className="h-fit lg:sticky lg:top-5">
+          <div className="hidden rounded-2xl bg-[var(--bits-navy-deep)] p-4 shadow-lg lg:block">
+            <p className="mb-3 px-3 text-xs leading-5 text-white/60">
+              Secure access for authorized church leadership.
             </p>
+            <AppShellNav groups={navGroups} />
           </div>
-
-          <AppShellNav />
+          <div className="lg:hidden">
+            <AppShellNav groups={navGroups} />
+          </div>
         </aside>
 
-        <main>{children}</main>
+        <main className="min-w-0">{children}</main>
       </div>
     </div>
   );

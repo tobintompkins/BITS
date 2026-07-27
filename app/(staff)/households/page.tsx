@@ -1,10 +1,32 @@
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { redirect } from "next/navigation";
 
-export default function HouseholdsPage() {
+import { HouseholdDirectory } from "@/components/households/household-directory";
+import {
+  getHouseholdAccess,
+  requireHouseholdViewAccess,
+} from "@/lib/auth/household-permissions";
+import { getHouseholds } from "@/app/(staff)/household/actions";
+import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+
+type HouseholdsPageProps = {
+  searchParams: Promise<{ search?: string }>;
+};
+
+export default async function HouseholdsPage({
+  searchParams,
+}: HouseholdsPageProps) {
+  const organization = await findPrimaryOrganization();
+
+  if (!organization) {
+    redirect("/settings/organization");
+  }
+
+  await requireHouseholdViewAccess(organization.id);
+  const access = await getHouseholdAccess(organization.id);
+  const { search } = await searchParams;
+  const households = await getHouseholds({ search });
+
   return (
-    <PlaceholderPage
-      title="Households"
-      description="Household membership and shared statement preferences will be added in a later step."
-    />
+    <HouseholdDirectory households={households} canCreate={access.canCreate} />
   );
 }

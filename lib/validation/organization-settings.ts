@@ -7,6 +7,10 @@ const supportedTimeZones =
     ? new Set(Intl.supportedValuesOf("timeZone"))
     : new Set<string>();
 
+const US_ZIP_REGEX = /^\d{5}(-\d{4})?$/;
+const US_PHONE_REGEX =
+  /^(\+1[\s.-]?)?(\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}$/;
+
 function optionalTrimmedString() {
   return z
     .string()
@@ -14,23 +18,19 @@ function optionalTrimmedString() {
     .transform((value) => (value === "" ? undefined : value));
 }
 
-const optionalEmailString = z
-  .string()
-  .trim()
-  .refine(
-    (value) => value === "" || z.email().safeParse(value).success,
-    "Enter a valid email address.",
-  )
-  .transform((value) => (value === "" ? undefined : value));
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, "");
 
-const optionalUrlString = z
-  .string()
-  .trim()
-  .refine(
-    (value) => value === "" || z.url().safeParse(value).success,
-    "Enter a valid website URL, including https://",
-  )
-  .transform((value) => (value === "" ? undefined : value));
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+
+  return value.trim();
+}
 
 const optionalEinString = z
   .string()
@@ -56,6 +56,7 @@ export type OrganizationSettingsFormValues = {
   website: string;
   timeZone: string;
   statementFooter: string;
+  logoUrl: string;
 };
 
 export const emptyOrganizationSettingsValues: OrganizationSettingsFormValues = {
@@ -73,6 +74,7 @@ export const emptyOrganizationSettingsValues: OrganizationSettingsFormValues = {
   website: "",
   timeZone: "America/New_York",
   statementFooter: "",
+  logoUrl: "",
 };
 
 export const organizationSettingsSchema = z.object({
@@ -83,11 +85,39 @@ export const organizationSettingsSchema = z.object({
   addressLine2: optionalTrimmedString(),
   city: z.string().trim().min(1, "City is required."),
   state: z.string().trim().min(1, "State is required."),
-  zipCode: z.string().trim().min(1, "ZIP Code is required."),
+  zipCode: z
+    .string()
+    .trim()
+    .min(1, "ZIP Code is required.")
+    .refine(
+      (value) => US_ZIP_REGEX.test(value),
+      "Enter a valid US ZIP code, such as 37203 or 37203-1234.",
+    ),
   country: z.string().trim().min(1, "Country is required."),
-  phone: optionalTrimmedString(),
-  email: optionalEmailString,
-  website: optionalUrlString,
+  phone: z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === "" || US_PHONE_REGEX.test(value),
+      "Enter a valid phone number, such as (615) 555-0100.",
+    )
+    .transform((value) => (value === "" ? undefined : normalizePhone(value))),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required.")
+    .refine(
+      (value) => z.email().safeParse(value).success,
+      "Enter a valid email address.",
+    ),
+  website: z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === "" || z.url().safeParse(value).success,
+      "Enter a valid website URL, including https://",
+    )
+    .transform((value) => (value === "" ? undefined : value)),
   timeZone: z
     .string()
     .trim()
@@ -142,6 +172,7 @@ export function toOrganizationSettingsFormValues(
     | "websiteUrl"
     | "timeZone"
     | "statementFooterText"
+    | "logoStorageKey"
   > | null,
 ): OrganizationSettingsFormValues {
   if (!organization) {
@@ -163,5 +194,37 @@ export function toOrganizationSettingsFormValues(
     website: organization.websiteUrl ?? "",
     timeZone: organization.timeZone,
     statementFooter: organization.statementFooterText ?? "",
+    logoUrl: organization.logoStorageKey ?? "",
   };
+}
+
+export function buildOrganizationAuditChanges(
+  previous: OrganizationSettingsFormValues,
+  next: OrganizationSettingsFormValues,
+) {
+  const fields: Array<keyof OrganizationSettingsFormValues> = [
+    "churchName",
+    "displayName",
+    "ein",
+    "addressLine1",
+    "addressLine2",
+    "city",
+    "state",
+    "zipCode",
+    "country",
+    "phone",
+    "email",
+    "website",
+    "timeZone",
+    "statementFooter",
+    "logoUrl",
+  ];
+
+  return fields
+    .filter((field) => previous[field] !== next[field])
+    .map((field) => ({
+      field,
+      oldValue: previous[field] || null,
+      newValue: next[field] || null,
+    }));
 }

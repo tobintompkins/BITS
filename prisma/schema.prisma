@@ -58,6 +58,358 @@ enum StatementAccessAction {
   VOIDED
 }
 
+enum MembershipStatus {
+  VISITOR
+  REGULAR_ATTENDER
+  MEMBER
+  INACTIVE
+  TRANSFERRED
+  DECEASED
+}
+
+enum MemberRecordStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+  DECEASED
+  MERGED
+}
+
+enum PreferredContactMethod {
+  EMAIL
+  SMS
+  PHONE
+  POSTAL_MAIL
+  IN_PERSON
+  NO_PREFERENCE
+  DO_NOT_CONTACT
+}
+
+enum MemberConsentType {
+  EMAIL
+  SMS
+  PHONE_CALLS
+  POSTAL_MAIL
+  DIRECTORY_LISTING
+  PHOTO_USE
+  GENERAL_COMMUNICATION
+}
+
+enum ConsentChangeSource {
+  MEMBER_REQUEST
+  STAFF_UPDATE
+  IMPORT
+  ONLINE_FORM
+  ADMINISTRATIVE
+  OTHER
+}
+
+enum DuplicateCandidateStatus {
+  PENDING
+  CONFIRMED_DUPLICATE
+  NOT_DUPLICATE
+  MERGED
+  DISMISSED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+  ARCHIVED
+}
+
+enum EventVisibility {
+  PUBLIC
+  MEMBERS_ONLY
+  STAFF_ONLY
+  PRIVATE
+}
+
+enum EventOrganizerRole {
+  PRIMARY_CONTACT
+  HOST
+  COORDINATOR
+  PASTOR
+  MINISTRY_LEADER
+  VOLUNTEER_LEAD
+  OTHER
+}
+
+enum EventRegistrationVisibility {
+  PUBLIC
+  MEMBERS_ONLY
+  STAFF_ONLY
+}
+
+enum EventWaitlistPromotionMode {
+  AUTOMATIC
+  STAFF_APPROVAL
+}
+
+enum EventRegistrationStatus {
+  PENDING
+  CONFIRMED
+  WAITLISTED
+  OFFERED
+  CANCELLED
+  DECLINED
+  EXPIRED
+  CHECKED_IN
+  NO_SHOW
+}
+
+enum EventRegistrationSource {
+  MEMBER_PORTAL
+  PUBLIC_GUEST
+  STAFF
+  IMPORT
+}
+
+enum EventWaitlistEntryStatus {
+  WAITING
+  OFFERED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+enum EventAttendeeStatus {
+  REGISTERED
+  WAITLISTED
+  CONFIRMED
+  CANCELLED
+  CHECKED_IN
+  NO_SHOW
+}
+
+enum EventAttendeeType {
+  MEMBER
+  GUEST
+  CHILD
+  VOLUNTEER
+  OTHER
+}
+
+enum EventCheckInStationStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum EventQrPassPurpose {
+  EVENT_CHECK_IN
+}
+
+enum EventQrPassStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  REPLACED
+}
+
+enum EventAttendanceStatus {
+  EXPECTED
+  PRESENT
+  CHECKED_OUT
+  NO_SHOW
+  CANCELLED
+}
+
+enum EventAttendanceSource {
+  STAFF_SEARCH
+  STAFF_QR
+  SELF_QR
+  WALK_IN
+  IMPORT
+  ADMIN_CORRECTION
+}
+
+enum EventAttendanceActionType {
+  CHECKED_IN
+  CHECKED_OUT
+  REENTERED
+  MARKED_NO_SHOW
+  UNDO_CHECK_IN
+  STATUS_CORRECTED
+}
+
+enum HouseholdRelationship {
+  SELF
+  SPOUSE
+  CHILD
+  PARENT
+  GRANDPARENT
+  SIBLING
+  OTHER_RELATIVE
+  ROOMMATE
+  OTHER
+}
+
+enum AttendanceType {
+  PRESENT
+  ABSENT
+  EXCUSED
+  ONLINE
+  VOLUNTEER
+  GUEST
+}
+
+enum FollowUpType {
+  VISITOR_WELCOME
+  PHONE_CALL
+  EMAIL
+  TEXT_MESSAGE
+  HOME_VISIT
+  PASTORAL_CARE
+  PRAYER_FOLLOW_UP
+  MEMBERSHIP_FOLLOW_UP
+  BAPTISM_FOLLOW_UP
+  GENERAL
+}
+
+enum FollowUpStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum FollowUpPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum PastoralCareCategory {
+  GENERAL
+  HOSPITAL_VISIT
+  BEREAVEMENT
+  COUNSELING
+  FAMILY_SUPPORT
+  FINANCIAL_ASSISTANCE
+  SPIRITUAL_GUIDANCE
+  MARRIAGE_SUPPORT
+  HEALTH_CONCERN
+  OTHER
+}
+
+enum PrayerRequestStatus {
+  ACTIVE
+  IN_PRAYER
+  ANSWERED
+  ARCHIVED
+}
+
+enum PrayerPrivacyLevel {
+  PUBLIC
+  PRAYER_TEAM
+  PASTORAL_STAFF
+  PRIVATE
+}
+
+enum CommunicationType {
+  PHONE
+  EMAIL
+  TEXT
+  IN_PERSON
+  VIDEO_CALL
+  LETTER
+  OTHER
+}
+
+enum CommunicationDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MembershipMilestoneType {
+  SALVATION
+  BAPTISM
+  MEMBERSHIP
+  BABY_DEDICATION
+  CHILD_DEDICATION
+  MARRIAGE
+  ORDINATION
+  LICENSED_MINISTRY
+  FIRST_VISIT
+  TRANSFER_IN
+  TRANSFER_OUT
+  DECEASED
+  OTHER
+}
+
+enum GiftProficiencyLevel {
+  DISCOVERING
+  DEVELOPING
+  CONFIDENT
+  STRONG
+  MENTOR
+}
+
+enum MinistryType {
+  WORSHIP
+  CHILDREN
+  YOUTH
+  OUTREACH
+  HOSPITALITY
+  PRAYER
+  DISCIPLESHIP
+  MISSIONS
+  MEDIA
+  TECHNOLOGY
+  ADMINISTRATION
+  PASTORAL_CARE
+  SECURITY
+  FACILITIES
+  TRANSPORTATION
+  OTHER
+}
+
+enum MemberMinistryRole {
+  PARTICIPANT
+  VOLUNTEER
+  TEAM_MEMBER
+  TEAM_LEAD
+  COORDINATOR
+  DIRECTOR
+  PASTOR
+  OTHER
+}
+
+enum MemberMinistryStatus {
+  INTERESTED
+  ACTIVE
+  PAUSED
+  INACTIVE
+  COMPLETED
+}
+
+enum SkillProficiencyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum MemberDocumentType {
+  BAPTISM_CERTIFICATE
+  MEMBERSHIP_FORM
+  BACKGROUND_CHECK
+  VOLUNTEER_APPLICATION
+  TRAINING_CERTIFICATE
+  PASTORAL_DOCUMENT
+  MEDICAL_FORM
+  PERMISSION_FORM
+  IDENTIFICATION
+  MARRIAGE_CERTIFICATE
+  ORDINATION_DOCUMENT
+  OTHER
+}
+
 // ---------------------------------------------------------------------------
 // Tenant and authentication projection
 // ---------------------------------------------------------------------------
@@ -86,17 +438,44 @@ model Organization {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  memberships            OrganizationMembership[]
-  households             Household[]
-  donors                 Donor[]
-  householdMemberships   HouseholdMembership[]
-  offeringTypes          OfferingType[]
-  offeringBatches        OfferingBatch[]
-  donations              Donation[]
-  donationAllocations    DonationAllocation[]
-  contributionStatements ContributionStatement[]
-  statementAccessEvents  StatementAccessEvent[]
-  auditEvents            AuditEvent[]
+  memberships               OrganizationMembership[]
+  households                Household[]
+  donors                    Donor[]
+  householdMemberships      HouseholdMembership[]
+  offeringTypes             OfferingType[]
+  offeringBatches           OfferingBatch[]
+  donations                 Donation[]
+  donationAllocations       DonationAllocation[]
+  contributionStatements    ContributionStatement[]
+  statementAccessEvents     StatementAccessEvent[]
+  auditEvents               AuditEvent[]
+  members                   Member[]
+  memberHouseholdUnits      MemberHouseholdUnit[]
+  memberHouseholdLinks      MemberHousehold[]
+  memberAttendances         MemberAttendance[]
+  memberFollowUps           MemberFollowUp[]
+  pastoralCareNotes         PastoralCareNote[]
+  prayerRequests            PrayerRequest[]
+  memberCommunications      MemberCommunication[]
+  spiritualGifts            SpiritualGift[]
+  ministries                Ministry[]
+  memberMilestones          MemberMilestone[]
+  memberDocuments           MemberDocument[]
+  memberDuplicateCandidates MemberDuplicateCandidate[]
+  eventCategories           EventCategory[]
+  eventLocations            EventLocation[]
+  events                    Event[]
+  eventRegistrationSettings EventRegistrationSettings[]
+  eventRegistrations        EventRegistration[]
+  eventAttendees            EventAttendee[]
+  eventWaitlistEntries      EventWaitlistEntry[]
+  eventPromotionOffers      EventPromotionOffer[]
+  eventCheckInSettings      EventCheckInSettings[]
+  eventCheckInStations      EventCheckInStation[]
+  eventAttendanceRecords    EventAttendanceRecord[]
+  eventAttendanceActions    EventAttendanceAction[]
+  eventQrPasses             EventQrPass[]
+  eventCheckInIdempotency   EventCheckInIdempotency[]
 
   @@map("organizations")
 }
@@ -111,12 +490,41 @@ model UserAccount {
   updatedAt    DateTime  @updatedAt
   lastSeenAt   DateTime?
 
-  memberships            OrganizationMembership[]
-  linkedDonors           Donor[]
-  createdOfferingBatches OfferingBatch[]
-  generatedStatements    ContributionStatement[]
-  statementAccessEvents  StatementAccessEvent[]
-  auditEvents            AuditEvent[]
+  memberships                 OrganizationMembership[]
+  linkedDonors                Donor[]
+  createdOfferingBatches      OfferingBatch[]
+  generatedStatements         ContributionStatement[]
+  statementAccessEvents       StatementAccessEvent[]
+  auditEvents                 AuditEvent[]
+  attendanceCheckIns          MemberAttendance[]         @relation("AttendanceCheckedInBy")
+  followUpsAssigned           MemberFollowUp[]           @relation("FollowUpAssignedTo")
+  followUpsCreated            MemberFollowUp[]           @relation("FollowUpCreatedBy")
+  pastoralCareAssigned        PastoralCareNote[]         @relation("PastoralCareAssignedPastor")
+  pastoralCareCreated         PastoralCareNote[]         @relation("PastoralCareCreatedBy")
+  prayerRequestsAssigned      PrayerRequest[]            @relation("PrayerRequestAssignedTo")
+  prayerRequestsCreated       PrayerRequest[]            @relation("PrayerRequestCreatedBy")
+  communicationsContacted     MemberCommunication[]      @relation("CommunicationContactedBy")
+  milestonesCreated           MemberMilestone[]          @relation("MilestoneCreatedBy")
+  ministriesLed               Ministry[]                 @relation("MinistryLeader")
+  documentsUploaded           MemberDocument[]           @relation("DocumentUploadedBy")
+  membersArchived             Member[]                   @relation("MemberArchivedBy")
+  memberConsentChanges        MemberConsentHistory[]     @relation("ConsentChangedBy")
+  membersMerged               Member[]                   @relation("MemberMergedBy")
+  memberMergesPerformed       MemberMerge[]              @relation("MemberMergePerformedBy")
+  duplicateCandidatesReviewed MemberDuplicateCandidate[] @relation("DuplicateReviewedBy")
+  memberConsentUpdated        Member[]                   @relation("MemberConsentUpdatedBy")
+  eventsCreated               Event[]                    @relation("EventCreatedBy")
+  eventsUpdated               Event[]                    @relation("EventUpdatedBy")
+  eventOrganizerAssignments   EventOrganizer[]           @relation("EventOrganizerUser")
+  eventRegistrationsCreated   EventRegistration[]        @relation("RegistrationRegisteredBy")
+  eventRegistrationsCancelled EventRegistration[]        @relation("RegistrationCancelledBy")
+  eventAttendeesCheckedIn     EventAttendee[]            @relation("AttendeeCheckedInBy")
+  eventCheckInStationsOpened  EventCheckInStation[]      @relation("CheckInStationOpenedBy")
+  eventCheckInStationsClosed  EventCheckInStation[]      @relation("CheckInStationClosedBy")
+  eventAttendanceCheckedIn    EventAttendanceRecord[]    @relation("EventAttendanceCheckedInBy")
+  eventAttendanceCheckedOut   EventAttendanceRecord[]    @relation("EventAttendanceCheckedOutBy")
+  eventAttendanceActions      EventAttendanceAction[]    @relation("EventAttendanceActionActor")
+  eventQrPassesRevoked        EventQrPass[]              @relation("EventQrPassRevokedBy")
 
   @@map("user_accounts")
 }
@@ -427,4 +835,1098 @@ model AuditEvent {
   @@index([organizationId, entityType, entityId])
   @@index([actorUserAccountId])
   @@map("audit_events")
+}
+
+// ---------------------------------------------------------------------------
+// Member management (Blueprint 6)
+// ---------------------------------------------------------------------------
+
+model Member {
+  id               String           @id @default(uuid()) @db.Uuid
+  organizationId   String           @db.Uuid
+  firstName        String
+  middleName       String?
+  lastName         String
+  preferredName    String?
+  suffix           String?
+  email            String?
+  phone            String?
+  alternatePhone   String?
+  dateOfBirth      DateTime?        @db.Date
+  gender           String?
+  maritalStatus    String?
+  membershipStatus MembershipStatus @default(VISITOR)
+  memberSince      DateTime?        @db.Date
+  baptismDate      DateTime?        @db.Date
+  salvationDate    DateTime?        @db.Date
+  addressLine1     String?
+  addressLine2     String?
+  city             String?
+  state            String?
+  postalCode       String?
+  country          String?          @default("US")
+  profilePhotoUrl  String?
+  profilePhotoKey  String?
+  notes            String?
+
+  recordStatus           MemberRecordStatus      @default(ACTIVE)
+  archivedAt             DateTime?
+  archivedByUserId       String?                 @db.Uuid
+  archiveReason          String?
+  deceasedDate           DateTime?               @db.Date
+  deceasedNotes          String?
+  preferredContactMethod PreferredContactMethod?
+  allowEmail             Boolean                 @default(true)
+  allowSms               Boolean                 @default(true)
+  allowPhoneCalls        Boolean                 @default(true)
+  allowPostalMail        Boolean                 @default(true)
+  allowDirectoryListing  Boolean                 @default(true)
+  allowPhotoUse          Boolean                 @default(true)
+  emailOptOutDate        DateTime?
+  smsOptOutDate          DateTime?
+  directoryOptOutDate    DateTime?
+  photoOptOutDate        DateTime?
+  consentUpdatedAt       DateTime?
+  consentUpdatedByUserId String?                 @db.Uuid
+  mergedIntoMemberId     String?                 @db.Uuid
+  mergedAt               DateTime?
+  mergedByUserId         String?                 @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization                Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  archivedBy                  UserAccount?               @relation("MemberArchivedBy", fields: [archivedByUserId], references: [id], onDelete: SetNull)
+  consentUpdatedBy            UserAccount?               @relation("MemberConsentUpdatedBy", fields: [consentUpdatedByUserId], references: [id], onDelete: SetNull)
+  mergedIntoMember            Member?                    @relation("MemberMergedInto", fields: [mergedIntoMemberId], references: [id], onDelete: SetNull)
+  mergedFromMembers           Member[]                   @relation("MemberMergedInto")
+  mergedBy                    UserAccount?               @relation("MemberMergedBy", fields: [mergedByUserId], references: [id], onDelete: SetNull)
+  householdLinks              MemberHousehold[]
+  primaryContactForHouseholds MemberHouseholdUnit[]      @relation("MemberHouseholdPrimaryContact")
+  emergencyContacts           MemberEmergencyContact[]
+  attendances                 MemberAttendance[]
+  followUps                   MemberFollowUp[]
+  pastoralCareNotes           PastoralCareNote[]
+  prayerRequests              PrayerRequest[]
+  communications              MemberCommunication[]
+  milestones                  MemberMilestone[]
+  spiritualGifts              MemberSpiritualGift[]
+  ministries                  MemberMinistry[]
+  skills                      MemberSkill[]
+  interests                   MemberInterest[]
+  documents                   MemberDocument[]
+  consentHistory              MemberConsentHistory[]
+  mergesAsPrimary             MemberMerge[]              @relation("MergePrimaryMember")
+  mergesAsDuplicate           MemberMerge[]              @relation("MergeDuplicateMember")
+  duplicateCandidatesAsA      MemberDuplicateCandidate[] @relation("DuplicateMemberA")
+  duplicateCandidatesAsB      MemberDuplicateCandidate[] @relation("DuplicateMemberB")
+  eventOrganizerAssignments   EventOrganizer[]           @relation("EventOrganizerMember")
+  eventRegistrations          EventRegistration[]        @relation("RegistrationMember")
+  eventAttendeeRecords        EventAttendee[]            @relation("AttendeeMember")
+  eventAttendanceRecords      EventAttendanceRecord[]    @relation("EventAttendanceMember")
+
+  @@index([organizationId])
+  @@index([organizationId, membershipStatus])
+  @@index([organizationId, recordStatus])
+  @@index([organizationId, lastName, firstName])
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
+  @@index([organizationId, archivedAt])
+  @@index([organizationId, deceasedDate])
+  @@index([organizationId, createdAt])
+  @@index([mergedIntoMemberId])
+  @@map("members")
+}
+
+model MemberConsentHistory {
+  id              String              @id @default(uuid()) @db.Uuid
+  memberId        String              @db.Uuid
+  consentType     MemberConsentType
+  previousValue   String?
+  newValue        String
+  source          ConsentChangeSource
+  notes           String?
+  changedByUserId String?             @db.Uuid
+  changedAt       DateTime            @default(now())
+
+  member    Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  changedBy UserAccount? @relation("ConsentChangedBy", fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([memberId, changedAt])
+  @@index([consentType])
+  @@map("member_consent_history")
+}
+
+model MemberMerge {
+  id                   String   @id @default(uuid()) @db.Uuid
+  primaryMemberId      String   @db.Uuid
+  duplicateMemberId    String   @db.Uuid
+  mergedByUserId       String   @db.Uuid
+  mergeSummary         String
+  fieldSelections      Json
+  relatedRecordSummary Json
+  createdAt            DateTime @default(now())
+
+  primaryMember   Member      @relation("MergePrimaryMember", fields: [primaryMemberId], references: [id], onDelete: Restrict)
+  duplicateMember Member      @relation("MergeDuplicateMember", fields: [duplicateMemberId], references: [id], onDelete: Restrict)
+  mergedBy        UserAccount @relation("MemberMergePerformedBy", fields: [mergedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([primaryMemberId])
+  @@index([duplicateMemberId])
+  @@map("member_merges")
+}
+
+model MemberDuplicateCandidate {
+  id               String                   @id @default(uuid()) @db.Uuid
+  organizationId   String                   @db.Uuid
+  memberAId        String                   @db.Uuid
+  memberBId        String                   @db.Uuid
+  matchScore       Int
+  matchReasons     Json
+  status           DuplicateCandidateStatus @default(PENDING)
+  reviewedByUserId String?                  @db.Uuid
+  reviewedAt       DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberA      Member       @relation("DuplicateMemberA", fields: [memberAId], references: [id], onDelete: Cascade)
+  memberB      Member       @relation("DuplicateMemberB", fields: [memberBId], references: [id], onDelete: Cascade)
+  reviewedBy   UserAccount? @relation("DuplicateReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([memberAId, memberBId])
+  @@index([organizationId, status])
+  @@index([organizationId, matchScore])
+  @@index([memberAId])
+  @@index([memberBId])
+  @@map("member_duplicate_candidates")
+}
+
+/// Member-management household unit (distinct from giving `Household` model).
+model MemberHouseholdUnit {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @db.Uuid
+  householdName    String
+  primaryContactId String?  @db.Uuid
+  addressLine1     String?
+  addressLine2     String?
+  city             String?
+  state            String?
+  postalCode       String?
+  country          String?  @default("US")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  primaryContact Member?             @relation("MemberHouseholdPrimaryContact", fields: [primaryContactId], references: [id], onDelete: SetNull)
+  memberLinks    MemberHousehold[]
+  registrations  EventRegistration[]
+
+  @@index([organizationId])
+  @@map("member_household_units")
+}
+
+model MemberHousehold {
+  id                      String                 @id @default(uuid()) @db.Uuid
+  organizationId          String                 @db.Uuid
+  memberId                String                 @db.Uuid
+  householdId             String                 @db.Uuid
+  relationshipToHousehold HouseholdRelationship?
+  isPrimaryContact        Boolean                @default(false)
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  household    MemberHouseholdUnit @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, householdId])
+  @@index([organizationId])
+  @@index([householdId])
+  @@index([memberId])
+  @@map("member_households")
+}
+
+model MemberEmergencyContact {
+  id           String   @id @default(uuid()) @db.Uuid
+  memberId     String   @db.Uuid
+  name         String
+  relationship String
+  phone        String
+  email        String?
+  isPrimary    Boolean  @default(false)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@map("member_emergency_contacts")
+}
+
+// ---------------------------------------------------------------------------
+// Member care & engagement (Blueprint 6.4)
+// ---------------------------------------------------------------------------
+
+model MemberAttendance {
+  id                String         @id @default(uuid()) @db.Uuid
+  organizationId    String         @db.Uuid
+  memberId          String         @db.Uuid
+  attendanceDate    DateTime       @db.Date
+  serviceName       String
+  eventId           String?        @db.Uuid
+  attendanceType    AttendanceType @default(PRESENT)
+  checkInTime       DateTime?
+  checkOutTime      DateTime?
+  checkedInByUserId String?        @db.Uuid
+  notes             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  checkedInBy  UserAccount? @relation("AttendanceCheckedInBy", fields: [checkedInByUserId], references: [id], onDelete: SetNull)
+  event        Event?       @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, attendanceDate])
+  @@index([memberId, attendanceDate])
+  @@index([organizationId, serviceName])
+  @@index([organizationId, attendanceType])
+  @@index([eventId])
+  @@map("member_attendances")
+}
+
+model MemberFollowUp {
+  id               String           @id @default(uuid()) @db.Uuid
+  organizationId   String           @db.Uuid
+  memberId         String           @db.Uuid
+  followUpType     FollowUpType
+  status           FollowUpStatus   @default(OPEN)
+  priority         FollowUpPriority @default(NORMAL)
+  assignedToUserId String?          @db.Uuid
+  dueDate          DateTime?        @db.Date
+  completedAt      DateTime?
+  subject          String
+  notes            String?
+  outcome          String?
+  createdByUserId  String           @db.Uuid
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  assignedTo   UserAccount? @relation("FollowUpAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  createdBy    UserAccount  @relation("FollowUpCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status])
+  @@index([organizationId, dueDate])
+  @@index([organizationId, priority])
+  @@index([memberId])
+  @@index([assignedToUserId])
+  @@map("member_follow_ups")
+}
+
+model PastoralCareNote {
+  id                   String               @id @default(uuid()) @db.Uuid
+  organizationId       String               @db.Uuid
+  memberId             String               @db.Uuid
+  category             PastoralCareCategory @default(GENERAL)
+  title                String
+  note                 String
+  isConfidential       Boolean              @default(false)
+  assignedPastorUserId String?              @db.Uuid
+  followUpDate         DateTime?            @db.Date
+  resolvedAt           DateTime?
+  createdByUserId      String               @db.Uuid
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  assignedPastor UserAccount? @relation("PastoralCareAssignedPastor", fields: [assignedPastorUserId], references: [id], onDelete: SetNull)
+  createdBy      UserAccount  @relation("PastoralCareCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, resolvedAt])
+  @@index([organizationId, category])
+  @@index([organizationId, followUpDate])
+  @@index([organizationId, isConfidential])
+  @@index([memberId])
+  @@index([assignedPastorUserId])
+  @@map("pastoral_care_notes")
+}
+
+model PrayerRequest {
+  id               String              @id @default(uuid()) @db.Uuid
+  organizationId   String              @db.Uuid
+  memberId         String?             @db.Uuid
+  requesterName    String?
+  requesterContact String?
+  request          String
+  status           PrayerRequestStatus @default(ACTIVE)
+  privacyLevel     PrayerPrivacyLevel  @default(PRAYER_TEAM)
+  isPublic         Boolean             @default(false)
+  publicPublishedAt DateTime?
+  publicExpiresAt   DateTime?
+  assignedToUserId String?             @db.Uuid
+  answeredAt       DateTime?
+  answerNotes      String?
+  createdByUserId  String?             @db.Uuid
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  assignedTo   UserAccount? @relation("PrayerRequestAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  createdBy    UserAccount? @relation("PrayerRequestCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, privacyLevel])
+  @@index([organizationId, isPublic, publicExpiresAt])
+  @@index([memberId])
+  @@index([assignedToUserId])
+  @@map("prayer_requests")
+}
+
+model MemberCommunication {
+  id                String                 @id @default(uuid()) @db.Uuid
+  organizationId    String                 @db.Uuid
+  memberId          String                 @db.Uuid
+  communicationType CommunicationType
+  direction         CommunicationDirection
+  subject           String?
+  messageSummary    String
+  communicationDate DateTime
+  contactedByUserId String                 @db.Uuid
+  outcome           String?
+  followUpRequired  Boolean                @default(false)
+  followUpDate      DateTime?              @db.Date
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  contactedBy  UserAccount  @relation("CommunicationContactedBy", fields: [contactedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, communicationDate])
+  @@index([organizationId, communicationType])
+  @@index([organizationId, followUpDate])
+  @@index([memberId, communicationDate])
+  @@map("member_communications")
+}
+
+// ---------------------------------------------------------------------------
+// Member milestones, gifts, ministries, skills, documents (Blueprint 6.5)
+// ---------------------------------------------------------------------------
+
+model MemberMilestone {
+  id                String                  @id @default(uuid()) @db.Uuid
+  organizationId    String                  @db.Uuid
+  memberId          String                  @db.Uuid
+  milestoneType     MembershipMilestoneType
+  title             String
+  milestoneDate     DateTime                @db.Date
+  location          String?
+  officiant         String?
+  certificateNumber String?
+  notes             String?
+  documentUrl       String?
+  documentKey       String?
+  createdByUserId   String                  @db.Uuid
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  createdBy    UserAccount  @relation("MilestoneCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, milestoneType])
+  @@index([memberId, milestoneDate])
+  @@map("member_milestones")
+}
+
+model SpiritualGift {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  description    String?
+  category       String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignments  MemberSpiritualGift[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, isActive])
+  @@map("spiritual_gifts")
+}
+
+model MemberSpiritualGift {
+  id               String               @id @default(uuid()) @db.Uuid
+  memberId         String               @db.Uuid
+  spiritualGiftId  String               @db.Uuid
+  proficiencyLevel GiftProficiencyLevel @default(DISCOVERING)
+  isPrimary        Boolean              @default(false)
+  notes            String?
+  identifiedDate   DateTime?            @db.Date
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  member        Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  spiritualGift SpiritualGift @relation(fields: [spiritualGiftId], references: [id], onDelete: Restrict)
+
+  @@unique([memberId, spiritualGiftId])
+  @@index([spiritualGiftId])
+  @@map("member_spiritual_gifts")
+}
+
+model Ministry {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid
+  name            String
+  description     String?
+  ministryType    MinistryType
+  leaderUserId    String?      @db.Uuid
+  isActive        Boolean      @default(true)
+  meetingSchedule String?
+  location        String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leader       UserAccount?     @relation("MinistryLeader", fields: [leaderUserId], references: [id], onDelete: SetNull)
+  members      MemberMinistry[]
+  events       EventMinistry[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, ministryType])
+  @@index([organizationId, isActive])
+  @@map("ministries")
+}
+
+model MemberMinistry {
+  id         String               @id @default(uuid()) @db.Uuid
+  memberId   String               @db.Uuid
+  ministryId String               @db.Uuid
+  role       MemberMinistryRole   @default(VOLUNTEER)
+  status     MemberMinistryStatus @default(ACTIVE)
+  joinedDate DateTime?            @db.Date
+  endedDate  DateTime?            @db.Date
+  notes      String?
+  isLeader   Boolean              @default(false)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  ministry Ministry @relation(fields: [ministryId], references: [id], onDelete: Restrict)
+
+  @@unique([memberId, ministryId])
+  @@index([ministryId, status])
+  @@map("member_ministries")
+}
+
+model MemberSkill {
+  id                 String                @id @default(uuid()) @db.Uuid
+  memberId           String                @db.Uuid
+  skillName          String
+  skillCategory      String?
+  proficiencyLevel   SkillProficiencyLevel @default(BEGINNER)
+  yearsExperience    Int?
+  isAvailableToServe Boolean               @default(false)
+  notes              String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([skillName])
+  @@map("member_skills")
+}
+
+model MemberInterest {
+  id               String   @id @default(uuid()) @db.Uuid
+  memberId         String   @db.Uuid
+  interestName     String
+  interestCategory String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@map("member_interests")
+}
+
+model MemberDocument {
+  id               String             @id @default(uuid()) @db.Uuid
+  organizationId   String             @db.Uuid
+  memberId         String             @db.Uuid
+  documentType     MemberDocumentType
+  title            String
+  description      String?
+  fileName         String
+  fileUrl          String
+  fileKey          String
+  mimeType         String
+  fileSize         Int
+  isConfidential   Boolean            @default(false)
+  expirationDate   DateTime?          @db.Date
+  uploadedByUserId String             @db.Uuid
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  uploadedBy   UserAccount  @relation("DocumentUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, documentType])
+  @@index([organizationId, isConfidential])
+  @@index([memberId])
+  @@index([expirationDate])
+  @@map("member_documents")
+}
+
+// ---------------------------------------------------------------------------
+// Events and calendar (Blueprint 7.1)
+// ---------------------------------------------------------------------------
+
+model EventCategory {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  description    String?
+  color          String?
+  icon           String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  events       Event[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, isActive])
+  @@map("event_categories")
+}
+
+model EventLocation {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @db.Uuid
+  name             String
+  description      String?
+  address1         String?
+  address2         String?
+  city             String?
+  state            String?
+  zip              String?
+  country          String?  @default("US")
+  roomName         String?
+  capacity         Int?
+  isOnline         Boolean  @default(false)
+  onlineMeetingUrl String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  events       Event[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, isActive])
+  @@map("event_locations")
+}
+
+model Event {
+  id                       String          @id @default(uuid()) @db.Uuid
+  organizationId           String          @db.Uuid
+  title                    String
+  slug                     String
+  description              String?
+  shortDescription         String?
+  categoryId               String?         @db.Uuid
+  locationId               String?         @db.Uuid
+  eventStatus              EventStatus     @default(DRAFT)
+  visibility               EventVisibility @default(STAFF_ONLY)
+  startDateTime            DateTime
+  endDateTime              DateTime
+  timezone                 String          @default("America/Chicago")
+  isAllDay                 Boolean         @default(false)
+  registrationRequired     Boolean         @default(false)
+  registrationOpenDate     DateTime?
+  registrationCloseDate    DateTime?
+  registrationCapacity     Int?
+  waitlistEnabled          Boolean         @default(false)
+  registrationFee          Decimal?        @db.Decimal(10, 2)
+  registrationInstructions String?
+  contactName              String?
+  contactEmail             String?
+  contactPhone             String?
+  featuredImageUrl         String?
+  featuredImageKey         String?
+  isRecurring              Boolean         @default(false)
+  recurrenceRule           String?
+  recurrenceEndDate        DateTime?
+  parentEventId            String?         @db.Uuid
+  createdByUserId          String          @db.Uuid
+  updatedByUserId          String?         @db.Uuid
+  publishedAt              DateTime?
+  cancelledAt              DateTime?
+  archivedAt               DateTime?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+
+  organization         Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category             EventCategory?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  location             EventLocation?             @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  parentEvent          Event?                     @relation("EventOccurrences", fields: [parentEventId], references: [id], onDelete: Restrict)
+  occurrences          Event[]                    @relation("EventOccurrences")
+  createdBy            UserAccount                @relation("EventCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy            UserAccount?               @relation("EventUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  organizers           EventOrganizer[]
+  ministries           EventMinistry[]
+  attendances          MemberAttendance[]
+  registrationSettings EventRegistrationSettings?
+  registrations        EventRegistration[]
+  attendees            EventAttendee[]
+  waitlistEntries      EventWaitlistEntry[]
+  promotionOffers      EventPromotionOffer[]
+  checkInSettings      EventCheckInSettings?
+  checkInStations      EventCheckInStation[]
+  attendanceRecords    EventAttendanceRecord[]
+  attendanceActions    EventAttendanceAction[]
+  qrPasses             EventQrPass[]
+  checkInIdempotency   EventCheckInIdempotency[]
+
+  @@unique([organizationId, slug])
+  /// Enables tenant-aware composite FKs (e.g. EventQrPass).
+  @@unique([organizationId, id])
+  @@index([organizationId, eventStatus])
+  @@index([organizationId, visibility])
+  @@index([organizationId, startDateTime])
+  @@index([organizationId, endDateTime])
+  @@index([categoryId])
+  @@index([locationId])
+  @@index([parentEventId])
+  @@map("events")
+}
+
+model EventRegistrationSettings {
+  id                          String                      @id @default(uuid()) @db.Uuid
+  organizationId              String                      @db.Uuid
+  eventId                     String                      @unique @db.Uuid
+  isEnabled                   Boolean                     @default(false)
+  visibility                  EventRegistrationVisibility @default(PUBLIC)
+  opensAt                     DateTime?
+  closesAt                    DateTime?
+  capacity                    Int?
+  waitlistEnabled             Boolean                     @default(false)
+  waitlistCapacity            Int?
+  promotionMode               EventWaitlistPromotionMode  @default(AUTOMATIC)
+  maxAttendeesPerRegistration Int                         @default(1)
+  allowHouseholdRegistration  Boolean                     @default(true)
+  allowGuestRegistration      Boolean                     @default(true)
+  requireAuthentication       Boolean                     @default(false)
+  requireEmail                Boolean                     @default(true)
+  requirePhone                Boolean                     @default(false)
+  requireDateOfBirth          Boolean                     @default(false)
+  requireEmergencyContact     Boolean                     @default(false)
+  requireGuardianForMinors    Boolean                     @default(false)
+  allowCancellation           Boolean                     @default(true)
+  cancellationDeadline        DateTime?
+  confirmationMessage         String?
+  instructions                String?
+  checkInEnabled              Boolean                     @default(true)
+  qrCheckInEnabled            Boolean                     @default(false)
+  showCapacityPublicly        Boolean                     @default(true)
+  showWaitlistPublicly        Boolean                     @default(false)
+  confirmationRequired        Boolean                     @default(false)
+  promotionOfferTtlMinutes    Int                         @default(1440)
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isEnabled])
+  @@map("event_registration_settings")
+}
+
+model EventRegistration {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  organizationId      String                  @db.Uuid
+  eventId             String                  @db.Uuid
+  status              EventRegistrationStatus @default(PENDING)
+  source              EventRegistrationSource @default(PUBLIC_GUEST)
+  confirmationCode    String
+  memberId            String?                 @db.Uuid
+  householdId         String?                 @db.Uuid
+  registeredByUserId  String?                 @db.Uuid
+  cancelledByUserId   String?                 @db.Uuid
+  primaryContactName  String
+  primaryContactEmail String?
+  primaryContactPhone String?
+  notes               String?
+  partySize           Int                     @default(1)
+  waitlistPosition    Int?
+  offeredAt           DateTime?
+  offerExpiresAt      DateTime?
+  cancelledAt         DateTime?
+  cancellationReason  String?
+  confirmedAt         DateTime?
+  checkedInAt         DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event                     @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  member       Member?                   @relation("RegistrationMember", fields: [memberId], references: [id], onDelete: SetNull)
+  household    MemberHouseholdUnit?      @relation(fields: [householdId], references: [id], onDelete: SetNull)
+  registeredBy UserAccount?              @relation("RegistrationRegisteredBy", fields: [registeredByUserId], references: [id], onDelete: SetNull)
+  cancelledBy  UserAccount?              @relation("RegistrationCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  attendees    EventAttendee[]
+  waitlistEntry EventWaitlistEntry?
+  promotionOffers EventPromotionOffer[]
+  attendanceRecords EventAttendanceRecord[]
+  qrPasses     EventQrPass[]
+
+  @@unique([organizationId, confirmationCode])
+  /// Enables tenant+event composite FKs (e.g. EventQrPass).
+  @@unique([organizationId, eventId, id])
+  @@index([organizationId, eventId, status])
+  @@index([organizationId, eventId, createdAt])
+  @@index([organizationId, eventId, primaryContactEmail])
+  @@index([eventId, waitlistPosition])
+  @@index([memberId])
+  @@map("event_registrations")
+}
+
+model EventAttendee {
+  id                    String            @id @default(uuid()) @db.Uuid
+  organizationId        String            @db.Uuid
+  registrationId        String            @db.Uuid
+  eventId               String            @db.Uuid
+  status                EventAttendeeStatus @default(REGISTERED)
+  attendeeType          EventAttendeeType @default(GUEST)
+  memberId              String?           @db.Uuid
+  firstName             String
+  lastName              String
+  email                 String?
+  phone                 String?
+  dateOfBirth           DateTime?         @db.Date
+  isGuest               Boolean           @default(false)
+  isMinor               Boolean           @default(false)
+  guardianName          String?
+  guardianPhone         String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  accommodationRequest  String?
+  dietaryNotes          String?
+  internalNotes         String?
+  waitlistPosition      Int?
+  checkedInAt           DateTime?
+  checkedInByUserId     String?           @db.Uuid
+  checkInToken          String?
+  notes                 String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  event        Event             @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  member       Member?           @relation("AttendeeMember", fields: [memberId], references: [id], onDelete: SetNull)
+  checkedInBy  UserAccount?      @relation("AttendeeCheckedInBy", fields: [checkedInByUserId], references: [id], onDelete: SetNull)
+  attendanceRecords EventAttendanceRecord[]
+  qrPasses     EventQrPass[]
+
+  @@unique([eventId, checkInToken])
+  /// Enables tenant+event+registration composite FKs (e.g. EventQrPass).
+  @@unique([organizationId, eventId, registrationId, id])
+  @@index([organizationId, eventId, status])
+  @@index([organizationId, eventId, memberId])
+  @@index([organizationId, eventId, lastName, firstName])
+  @@index([registrationId])
+  @@index([memberId])
+  @@map("event_attendees")
+}
+
+model EventWaitlistEntry {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String                   @db.Uuid
+  eventId        String                   @db.Uuid
+  registrationId String                   @unique @db.Uuid
+  position       Int
+  partySize      Int
+  status         EventWaitlistEntryStatus @default(WAITING)
+  joinedAt       DateTime                 @default(now())
+  offeredAt      DateTime?
+  offerExpiresAt DateTime?
+  acceptedAt     DateTime?
+  declinedAt     DateTime?
+  expiredAt      DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event             @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, position])
+  @@index([organizationId, eventId, status, position])
+  @@index([eventId, offerExpiresAt])
+  @@map("event_waitlist_entries")
+}
+
+model EventPromotionOffer {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  eventId        String    @db.Uuid
+  registrationId String    @db.Uuid
+  tokenHash      String
+  purpose        String    @default("WAITLIST_PROMOTION")
+  expiresAt      DateTime
+  usedAt         DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event             @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, tokenHash])
+  @@index([registrationId])
+  @@index([expiresAt])
+  @@map("event_promotion_offers")
+}
+
+model EventCheckInSettings {
+  id                   String    @id @default(uuid()) @db.Uuid
+  organizationId       String    @db.Uuid
+  eventId              String    @unique @db.Uuid
+  checkInEnabled       Boolean   @default(false)
+  checkInOpensAt       DateTime?
+  checkInClosesAt      DateTime?
+  allowSelfCheckIn     Boolean   @default(false)
+  allowWalkIns         Boolean   @default(false)
+  allowCheckOut        Boolean   @default(false)
+  allowReentry         Boolean   @default(false)
+  requireRegistration  Boolean   @default(true)
+  qrPassEnabled        Boolean   @default(true)
+  stationNameRequired  Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, checkInEnabled])
+  @@map("event_check_in_settings")
+}
+
+model EventCheckInStation {
+  id              String                    @id @default(uuid()) @db.Uuid
+  organizationId  String                    @db.Uuid
+  eventId         String                    @db.Uuid
+  name            String                    @db.VarChar(80)
+  /// lower(trim(name)) — used for case-normalized uniqueness among ACTIVE stations
+  nameNormalized  String                    @db.VarChar(80)
+  status          EventCheckInStationStatus @default(ACTIVE)
+  deviceLabel     String?                   @db.VarChar(80)
+  openedByUserId  String                    @db.Uuid
+  openedAt        DateTime                  @default(now())
+  closedByUserId  String?                   @db.Uuid
+  closedAt        DateTime?
+  lastActivityAt  DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  openedBy     UserAccount            @relation("CheckInStationOpenedBy", fields: [openedByUserId], references: [id], onDelete: Restrict)
+  closedBy     UserAccount?           @relation("CheckInStationClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  attendanceRecords EventAttendanceRecord[]
+  attendanceActions EventAttendanceAction[]
+
+  /// Enables tenant+event composite FKs from attendance rows/actions.
+  @@unique([organizationId, eventId, id])
+  @@index([organizationId, eventId, status])
+  @@index([organizationId, eventId, nameNormalized])
+  @@index([organizationId, openedByUserId])
+  @@map("event_check_in_stations")
+}
+
+model EventAttendanceRecord {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  organizationId     String                 @db.Uuid
+  eventId            String                 @db.Uuid
+  registrationId     String?                @db.Uuid
+  attendeeId         String?                @db.Uuid
+  memberId           String?                @db.Uuid
+  status             EventAttendanceStatus  @default(EXPECTED)
+  /// Null until a check-in (or correction) action sets a source.
+  source             EventAttendanceSource?
+  firstCheckedInAt   DateTime?
+  lastCheckedInAt    DateTime?
+  checkedOutAt       DateTime?
+  checkInCount       Int                    @default(0)
+  /// Station of the most recent effective check-in (null when none / unattributed).
+  stationId          String?                @db.Uuid
+  checkedInByUserId  String?                @db.Uuid
+  checkedOutByUserId String?                @db.Uuid
+  walkInFirstName    String?
+  walkInLastName     String?
+  walkInEmail        String?
+  walkInPhone        String?
+  notes              String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event                  @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  registration EventRegistration?     @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  attendee     EventAttendee?         @relation(fields: [attendeeId], references: [id], onDelete: SetNull)
+  member       Member?                @relation("EventAttendanceMember", fields: [memberId], references: [id], onDelete: SetNull)
+  station      EventCheckInStation?   @relation(fields: [organizationId, eventId, stationId], references: [organizationId, eventId, id], onDelete: Restrict)
+  checkedInBy  UserAccount?           @relation("EventAttendanceCheckedInBy", fields: [checkedInByUserId], references: [id], onDelete: SetNull)
+  checkedOutBy UserAccount?           @relation("EventAttendanceCheckedOutBy", fields: [checkedOutByUserId], references: [id], onDelete: SetNull)
+  actions      EventAttendanceAction[]
+
+  @@unique([organizationId, eventId, attendeeId])
+  @@index([organizationId, eventId, status])
+  @@index([organizationId, eventId, memberId])
+  @@index([organizationId, eventId, registrationId])
+  @@index([organizationId, eventId, stationId])
+  @@index([organizationId, eventId, lastCheckedInAt])
+  @@index([organizationId, eventId, walkInLastName, walkInFirstName])
+  @@map("event_attendance_records")
+}
+
+model EventAttendanceAction {
+  id             String                    @id @default(uuid()) @db.Uuid
+  organizationId String                    @db.Uuid
+  eventId        String                    @db.Uuid
+  attendanceId   String                    @db.Uuid
+  action         EventAttendanceActionType
+  source         EventAttendanceSource
+  /// Station where this action occurred (null when unattributed).
+  stationId      String?                   @db.Uuid
+  actorUserId    String?                   @db.Uuid
+  occurredAt     DateTime                  @default(now())
+  reason         String?
+  metadata       Json?
+  createdAt      DateTime                  @default(now())
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event                @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  attendance   EventAttendanceRecord @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  station      EventCheckInStation? @relation(fields: [organizationId, eventId, stationId], references: [organizationId, eventId, id], onDelete: Restrict)
+  actor        UserAccount?         @relation("EventAttendanceActionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, eventId, occurredAt])
+  @@index([organizationId, eventId, stationId, occurredAt])
+  @@index([attendanceId, occurredAt])
+  @@map("event_attendance_actions")
+}
+
+model EventQrPass {
+  id                String             @id @default(uuid()) @db.Uuid
+  organizationId    String             @db.Uuid
+  eventId           String             @db.Uuid
+  registrationId    String             @db.Uuid
+  /// Null for party-level passes bound only to the registration.
+  attendeeId        String?            @db.Uuid
+  /// SHA-256 hex of the opaque bearer token — never store the raw token.
+  tokenHash         String
+  /// SHA-256 hex of the human-entry fallback code — never store plaintext.
+  fallbackCodeHash  String
+  purpose           EventQrPassPurpose @default(EVENT_CHECK_IN)
+  status            EventQrPassStatus  @default(ACTIVE)
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  revokedByUserId   String?            @db.Uuid
+  rotatedAt         DateTime?
+  /// Points at the successor pass when this row was rotated/replaced.
+  replacedByTokenId String?            @db.Uuid
+  lastUsedAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event             @relation(fields: [organizationId, eventId], references: [organizationId, id], onDelete: Restrict)
+  registration EventRegistration @relation(fields: [organizationId, eventId, registrationId], references: [organizationId, eventId, id], onDelete: Cascade)
+  attendee     EventAttendee?    @relation(fields: [organizationId, eventId, registrationId, attendeeId], references: [organizationId, eventId, registrationId, id], onDelete: SetNull)
+  revokedBy    UserAccount?      @relation("EventQrPassRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  replacedBy   EventQrPass?      @relation("EventQrPassReplacement", fields: [replacedByTokenId], references: [id], onDelete: SetNull)
+  replaces     EventQrPass[]     @relation("EventQrPassReplacement")
+
+  @@unique([tokenHash])
+  @@unique([fallbackCodeHash])
+  @@index([organizationId, purpose, tokenHash])
+  @@index([organizationId, eventId, registrationId])
+  @@index([organizationId, eventId, attendeeId])
+  @@index([organizationId, eventId, status, expiresAt])
+  @@index([replacedByTokenId])
+  @@index([registrationId, status, createdAt])
+  @@map("event_qr_passes")
+}
+
+model EventCheckInIdempotency {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  eventId        String   @db.Uuid
+  operationKey   String
+  attendanceId   String?
+  resultSummary  String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, eventId, operationKey])
+  @@index([eventId, createdAt])
+  @@map("event_check_in_idempotency")
+}
+
+model EventOrganizer {
+  id             String             @id @default(uuid()) @db.Uuid
+  eventId        String             @db.Uuid
+  userId         String?            @db.Uuid
+  memberId       String?            @db.Uuid
+  organizerName  String?
+  organizerEmail String?
+  organizerPhone String?
+  role           EventOrganizerRole @default(OTHER)
+  isPrimary      Boolean            @default(false)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  event  Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user   UserAccount? @relation("EventOrganizerUser", fields: [userId], references: [id], onDelete: SetNull)
+  member Member?      @relation("EventOrganizerMember", fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([memberId])
+  @@map("event_organizers")
+}
+
+model EventMinistry {
+  id         String   @id @default(uuid()) @db.Uuid
+  eventId    String   @db.Uuid
+  ministryId String   @db.Uuid
+  isPrimary  Boolean  @default(false)
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ministry Ministry @relation(fields: [ministryId], references: [id], onDelete: Restrict)
+
+  @@unique([eventId, ministryId])
+  @@index([ministryId])
+  @@map("event_ministries")
 }

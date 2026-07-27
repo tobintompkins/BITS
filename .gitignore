@@ -43,5 +43,11 @@ next-env.d.ts
 
 /app/generated/prisma
 
+# uploaded organization assets
+/public/uploads/
+
+# private member document storage (local adapter)
+/storage/
+
 # clerk configuration (can include secrets)
 /.clerk/

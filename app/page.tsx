@@ -1,149 +1,266 @@
-import {
-  Show,
-  SignInButton,
-  SignUpButton,
-  UserButton,
-} from "@clerk/nextjs";
+import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 
-export default function Home() {
+import {
+  ChurchPhotoCarousel,
+  type ChurchPhoto,
+} from "@/components/home/church-photo-carousel";
+import { PrayerWall } from "@/components/home/prayer-wall";
+import { findPublicPrayerWallRequests } from "@/server/repositories/care-engagement.repository";
+import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+
+const churchPhotos: ChurchPhoto[] = [];
+
+const guestOptions = [
+  {
+    icon: "⌂",
+    title: "Plan Your Visit",
+    description:
+      "Find service information, directions, and what to expect when you arrive.",
+    href: "/visit",
+  },
+  {
+    icon: "✦",
+    title: "Prayer Request",
+    description:
+      "Share a request with church leadership or the church prayer team.",
+    href: "/prayer",
+  },
+  {
+    icon: "◷",
+    title: "Events",
+    description:
+      "See upcoming worship services, Bible studies, and church activities.",
+    href: "/church-events",
+  },
+  {
+    icon: "＋",
+    title: "I’m New Here",
+    description:
+      "Introduce yourself and let our church family know how we can serve you.",
+    href: "/new-here",
+  },
+  {
+    icon: "▤",
+    title: "Giving Statements",
+    description:
+      "Sign in to view your giving history and available contribution statements.",
+    href: "/giving-statements",
+  },
+];
+
+export default async function Home() {
+  const organization = await findPrimaryOrganization();
+  const publicPrayerRequests = organization
+    ? await findPublicPrayerWallRequests(organization.id).catch(() => [])
+    : [];
+
   return (
-    <main className="bg-zinc-50">
-      <div className="mx-auto flex min-h-full w-full max-w-7xl flex-1 flex-col gap-12 px-6 py-16">
-        <header className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-              BITS
-            </p>
-            <h1 className="text-2xl font-semibold text-zinc-900">
-              Bring In The Sheaves
-            </h1>
-          </div>
+    <main className="min-h-screen bg-[var(--bits-page)]">
+      <header className="border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white shadow-md">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <Link href="/" className="group flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="grid h-11 w-11 place-items-center rounded-full border-2 border-[var(--bits-gold)] text-2xl font-semibold text-[var(--bits-gold)]"
+            >
+              ✝
+            </span>
+            <span>
+              <span className="block text-xs font-bold uppercase tracking-[0.2em] text-[var(--bits-gold)]">
+                BITS
+              </span>
+              <span className="block text-lg font-semibold text-white">
+                Bring In The Sheaves
+              </span>
+            </span>
+          </Link>
+
           <div className="flex items-center gap-3">
             <Show when="signed-out">
               <SignInButton mode="redirect">
                 <button
                   type="button"
-                  className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-900"
+                  className="rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white hover:text-[var(--bits-navy)]"
                 >
-                  Sign in
+                  Member Sign In
                 </button>
               </SignInButton>
-              <SignUpButton mode="redirect">
-                <button
-                  type="button"
-                  className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
-                >
-                  Sign up
-                </button>
-              </SignUpButton>
             </Show>
             <Show when="signed-in">
-              <div className="flex items-center gap-3">
-                <Link
-                  href="/dashboard"
-                  className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
-                >
-                  Open dashboard
-                </Link>
-                <UserButton />
-              </div>
+              <Link
+                href="/dashboard"
+                className="rounded-xl bg-[var(--bits-gold)] px-4 py-2 text-sm font-bold text-[var(--bits-navy-deep)] transition hover:bg-white"
+              >
+                Leadership Portal
+              </Link>
+              <UserButton />
             </Show>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <section className="grid gap-8 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)] lg:p-12">
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-                Church Giving Management
+      <section className="relative overflow-hidden bg-[var(--bits-navy-deep)] text-white">
+        <div
+          aria-hidden="true"
+          className="absolute -right-24 -top-32 h-96 w-96 rounded-full border-[70px] border-white/5"
+        />
+        <div className="relative mx-auto grid w-full max-w-7xl items-stretch gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8 lg:py-6">
+          <div className="flex items-center gap-4 py-1 sm:gap-6">
+            <span
+              aria-hidden="true"
+              className="hidden h-16 w-16 shrink-0 place-items-center rounded-full border-2 border-[var(--bits-gold)] bg-white/5 text-3xl text-[var(--bits-gold)] shadow-xl sm:grid"
+            >
+              ✝
+            </span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--bits-gold)] sm:text-sm">
+                First UPC of Saco
               </p>
-              <h2 className="max-w-3xl text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl">
-                A modern foundation for donors, households, giving, and
-                contribution statements.
-              </h2>
+              <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
+                Welcome Home
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-white/85 sm:text-base">
+                Where Everybody is Somebody
+                <span className="block">and Jesus Christ is Lord</span>
+              </p>
+              <p className="mt-2 text-sm leading-5 text-white/65">
+                We’re glad you’re here. How can we help you today?
+              </p>
             </div>
+          </div>
 
-            <p className="max-w-2xl text-base leading-7 text-zinc-600">
-              BITS is being built as a secure, multi-tenant application for
-              churches and charitable faith organizations to manage donor
-              records, offering batches, reporting, and statement delivery.
+          <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-xl">
+            <ChurchPhotoCarousel photos={churchPhotos} />
+          </div>
+        </div>
+      </section>
+
+      <PrayerWall requests={publicPrayerRequests} />
+
+      <section
+        id="guest-services"
+        className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12"
+      >
+        <article className="flex flex-col items-center gap-4 rounded-2xl border border-[var(--bits-gold)] bg-[var(--bits-gold)] p-5 text-center shadow-lg ring-4 ring-[var(--bits-gold)]/15 sm:p-6 lg:flex-row lg:text-left">
+          <span
+            aria-hidden="true"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--bits-navy)] text-lg text-white"
+          >
+            ♥
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xl font-bold text-[var(--bits-navy-deep)] sm:text-2xl">
+              Give Tithes &amp; Offerings
+            </h2>
+            <p className="mt-1 text-sm leading-5 text-[var(--bits-navy-deep)]/75">
+              Give securely toward tithes, general offerings, missions,
+              building fund, Sunday school, and special offerings.
             </p>
+          </div>
+          <span className="inline-flex shrink-0 rounded-xl bg-[var(--bits-navy)] px-6 py-3 text-sm font-bold text-white shadow-sm">
+            Give Online
+          </span>
+        </article>
 
-            <div className="flex flex-wrap gap-3">
-              <Show when="signed-out">
-                <SignInButton mode="redirect">
-                  <button
-                    type="button"
-                    className="rounded-md bg-zinc-900 px-5 py-3 text-sm font-medium text-white"
-                  >
-                    Sign in to BITS
-                  </button>
-                </SignInButton>
-                <SignUpButton mode="redirect">
-                  <button
-                    type="button"
-                    className="rounded-md border border-zinc-300 bg-white px-5 py-3 text-sm font-medium text-zinc-900"
-                  >
-                    Create an account
-                  </button>
-                </SignUpButton>
-              </Show>
-              <Show when="signed-in">
-                <Link
-                  href="/dashboard"
-                  className="rounded-md bg-zinc-900 px-5 py-3 text-sm font-medium text-white"
+        <div className="mt-6 grid gap-5 sm:grid-cols-2">
+          {guestOptions.map((option) => {
+            const content = (
+              <>
+              <span
+                aria-hidden="true"
+                className="grid h-12 w-12 place-items-center rounded-xl bg-[var(--bits-navy)] text-xl font-bold text-[var(--bits-gold)]"
+              >
+                {option.icon}
+              </span>
+              <h3 className="mt-5 text-lg font-semibold text-[var(--bits-navy)]">
+                {option.title}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
+                {option.description}
+              </p>
+                {option.href ? (
+                  <span className="mt-auto pt-5 text-xs font-bold uppercase tracking-wide text-[var(--bits-gold-hover)]">
+                    View details <span aria-hidden="true">→</span>
+                  </span>
+                ) : null}
+              </>
+            );
+
+            return option.href ? (
+              <Link
+                key={option.title}
+                href={option.href}
+                className="relative flex min-h-52 flex-col items-center rounded-2xl border border-[var(--bits-border)] bg-white p-6 text-center shadow-sm transition hover:-translate-y-1 hover:border-[var(--bits-gold)] hover:shadow-lg"
+              >
+                {content}
+              </Link>
+            ) : (
+              <article
+                key={option.title}
+                className="relative flex min-h-52 flex-col items-center rounded-2xl border border-[var(--bits-border)] bg-white p-6 text-center shadow-sm"
+              >
+                {content}
+              </article>
+            );
+          })}
+        </div>
+        <p className="mt-6 text-center text-sm text-[var(--bits-muted)]">
+          Guest service forms and secure online giving will be connected in the
+          next small development patches.
+        </p>
+      </section>
+
+      <section className="border-y border-[var(--bits-border)] bg-white">
+        <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-[1fr_auto] md:items-center lg:px-8">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-[var(--bits-gold-hover)]">
+              Members & Leadership
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-[var(--bits-navy-deep)]">
+              Member and Leadership Access
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--bits-muted)]">
+              Sign in to reach the private area available for your approved
+              church role.
+            </p>
+          </div>
+          <div>
+            <Show when="signed-out">
+              <SignInButton mode="redirect">
+                <button
+                  type="button"
+                  className="rounded-xl bg-[var(--bits-navy)] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--bits-navy-deep)]"
                 >
-                  Open dashboard
-                </Link>
-              </Show>
-            </div>
+                  Secure Portal Sign In
+                </button>
+              </SignInButton>
+            </Show>
+            <Show when="signed-in">
+              <Link
+                href="/dashboard"
+                className="inline-flex rounded-xl bg-[var(--bits-navy)] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--bits-navy-deep)]"
+              >
+                Open Leadership Portal
+              </Link>
+            </Show>
           </div>
+        </div>
+      </section>
 
-          <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-6">
-            <h3 className="text-base font-semibold text-zinc-900">
-              Current foundation
-            </h3>
-            <ul className="mt-4 space-y-3 text-sm leading-6 text-zinc-600">
-              <li>Authenticated staff shell with protected placeholder routes</li>
-              <li>Navigation for core giving and reporting sections</li>
-              <li>Prisma schema foundation for the Version 1 data model</li>
-            </ul>
+      <footer className="bg-[var(--bits-navy-deep)] text-white">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-8 text-center sm:px-6 md:flex-row md:items-center md:justify-between md:text-left lg:px-8">
+          <div>
+            <p className="font-semibold">First UPC of Saco</p>
+            <p className="mt-1 text-sm text-white/65">
+              Where everybody is somebody and Jesus Christ is Lord.
+            </p>
           </div>
-        </section>
-
-        <section className="grid gap-4 md:grid-cols-3">
-          <article className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h3 className="text-base font-semibold text-zinc-900">
-              Donors and Households
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              Track individual donors and family relationships without mixing
-              authentication and giving records.
-            </p>
-          </article>
-
-          <article className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h3 className="text-base font-semibold text-zinc-900">
-              Batches and Giving
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              Capture offerings accurately with room for identified and
-              anonymous gifts, multiple allocations, and reconciliation.
-            </p>
-          </article>
-
-          <article className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h3 className="text-base font-semibold text-zinc-900">
-              Reports and Statements
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              Prepare for contribution reporting and donor statements while the
-              business workflows are built in later steps.
-            </p>
-          </article>
-        </section>
-      </div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--bits-gold)]">
+            BITS · Bring In The Sheaves
+          </p>
+        </div>
+      </footer>
     </main>
   );
 }
