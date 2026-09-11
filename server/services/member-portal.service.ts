@@ -133,7 +133,7 @@ export async function getMemberPortalDashboard() {
   };
 }
 
-export async function getMemberPortalStatements() {
+export async function getMemberPortalStatements(requestedYear?: number) {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
@@ -154,6 +154,16 @@ export async function getMemberPortalStatements() {
       accountEmail: userAccount.primaryEmail,
     };
   }
+
+  const currentYear = new Date().getFullYear();
+  const year =
+    Number.isInteger(requestedYear) &&
+    requestedYear! >= 2000 &&
+    requestedYear! <= currentYear
+      ? requestedYear!
+      : currentYear;
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year + 1, 0, 1);
 
   const authorizedHouseholds =
     await findAuthorizedHouseholdIdsForStatementRecipient({
@@ -189,6 +199,7 @@ export async function getMemberPortalStatements() {
       where: {
         organizationId: organization.id,
         donorId: donor.id,
+        offeringDate: { gte: yearStart, lt: yearEnd },
       },
       orderBy: [{ offeringDate: "desc" }, { id: "desc" }],
       take: 100,
@@ -210,9 +221,32 @@ export async function getMemberPortalStatements() {
     }),
   ]);
 
+  const officialGifts = gifts.filter((gift) => !gift.isTest);
+  const fundTotals = new Map<string, number>();
+  for (const gift of officialGifts) {
+    for (const allocation of gift.allocations) {
+      const fund = allocation.offeringType.name;
+      fundTotals.set(fund, (fundTotals.get(fund) ?? 0) + Number(allocation.amount));
+    }
+  }
+
   return {
     status: "READY" as const,
     donor,
+    year,
+    availableYears: Array.from({ length: 6 }, (_, index) => currentYear - index),
+    annualGiving: {
+      giftCount: officialGifts.length,
+      totalAmount: officialGifts
+        .reduce((total, gift) => total + Number(gift.totalAmount), 0)
+        .toString(),
+      deductibleAmount: officialGifts
+        .reduce((total, gift) => total + Number(gift.deductibleAmount), 0)
+        .toString(),
+      funds: [...fundTotals.entries()]
+        .map(([fund, amount]) => ({ fund, amount: amount.toString() }))
+        .sort((a, b) => Number(b.amount) - Number(a.amount)),
+    },
     statements: statements.map((statement) => ({
       id: statement.id,
       statementIdentifier: statement.statementIdentifier,

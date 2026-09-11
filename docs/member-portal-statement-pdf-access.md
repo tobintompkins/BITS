@@ -1,13 +1,17 @@
-# Member Portal — Secure Individual Statement PDF Access
+# Member Portal — Secure Statement PDF Access
 
-Signed-in members can view or download their own **published individual**
-contribution-statement PDFs from `/portal/statements`.
+Signed-in members can view or download their own **published** contribution
+statement PDFs from `/portal/statements`.
 
 ## Ownership boundary
 
 Authorization always starts from the signed-in Clerk user → BITS user account
-→ **active donor** linked in the current organization. The statement query then
-requires all of:
+→ **active donor** linked in the current organization. A known UUID is never
+enough.
+
+### Individual statements
+
+The query requires all of:
 
 - current `organizationId`
 - connected `donorId`
@@ -16,18 +20,31 @@ requires all of:
 - `status = PUBLISHED`
 - requested statement UUID
 
-A known UUID is never enough. Another donor, another organization, a household
-statement, or an unpublished row all resolve to the same not-found result.
+### Household statements
+
+Household IDs are resolved on the server. The donor must be the active
+preferred statement recipient of an active household in the current
+organization, with `HouseholdMembership.endDate` null. The statement query
+then requires:
+
+- current `organizationId`
+- `statementType = HOUSEHOLD`
+- `status = PUBLISHED`
+- `donorId` is null
+- `householdId` contained in that authorized list
+
+If no household is authorized, the household branch is omitted so the query
+cannot become an unscoped household lookup. `primaryDonorId` is never used as
+a fallback. See `docs/member-portal-household-statement-authorization.md`.
+
+Another donor, another organization, a non-recipient household member, an
+unpublished row, or a malformed relationship all resolve to the same
+not-found result.
 
 ## Published-only rule
 
 `GENERATED` and `VOIDED` statements are not retrievable through this API.
 Leadership generation and publishing remain a separate workflow.
-
-## Individual-only limitation
-
-Household statements are denied in this increment. Explicit household-statement
-authorization rules are the next Member Portal increment.
 
 ## Private storage boundary
 
@@ -55,8 +72,9 @@ cannot be recorded as a successful access.
 
 - Signed out → `401`
 - Invalid statement UUID or mode → `400`
-- Missing, unpublished, unauthorized, cross-organization, household, or
-  unavailable files → the same `404` `{ "error": "Not found" }`
+- Missing, unpublished, unauthorized, cross-organization, inactive-household,
+  ended-membership, malformed, or unavailable files → the same `404`
+  `{ "error": "Not found" }`
 - Responses include `Cache-Control: private, no-store` and
   `X-Content-Type-Options: nosniff`
 

@@ -14,8 +14,14 @@ function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(value);
 }
 
-export default async function MyStatementsPage() {
-  const portal = await getMemberPortalStatements();
+export default async function MyStatementsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string | string[] }>;
+}) {
+  const query = await searchParams;
+  const requestedYear = Number(Array.isArray(query.year) ? query.year[0] : query.year);
+  const portal = await getMemberPortalStatements(requestedYear);
   if (portal.status === "SIGNED_OUT") redirect("/sign-in");
 
   if (portal.status === "NO_ORGANIZATION") {
@@ -58,6 +64,70 @@ export default async function MyStatementsPage() {
           Member Portal Home
         </Link>
       </header>
+
+      <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
+        <form className="flex flex-wrap items-end gap-3" action="/portal/statements">
+          <label className="grid gap-1 text-sm font-medium text-[var(--bits-navy)]">
+            Statement year
+            <select
+              name="year"
+              defaultValue={portal.year}
+              className="min-w-36 rounded-xl border border-[var(--bits-border)] bg-white px-3 py-2"
+            >
+              {portal.availableYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            className="rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white"
+          >
+            View year
+          </button>
+        </form>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-3">
+        {[
+          ["Total Giving", formatMoney(portal.annualGiving.totalAmount)],
+          ["Tax-Deductible Giving", formatMoney(portal.annualGiving.deductibleAmount)],
+          ["Gifts Recorded", String(portal.annualGiving.giftCount)],
+        ].map(([label, value]) => (
+          <div
+            key={label}
+            className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm"
+          >
+            <p className="text-sm text-[var(--bits-muted)]">{label}</p>
+            <p className="mt-2 text-2xl font-semibold text-[var(--bits-navy)]">{value}</p>
+            <p className="mt-1 text-xs text-[var(--bits-muted)]">{portal.year}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-semibold text-[var(--bits-navy)]">
+          {portal.year} Giving by Fund
+        </h2>
+        {portal.annualGiving.funds.length ? (
+          <dl className="mt-4 divide-y divide-[var(--bits-border)]">
+            {portal.annualGiving.funds.map((fund) => (
+              <div key={fund.fund} className="flex justify-between gap-4 py-3 text-sm">
+                <dt>{fund.fund}</dt>
+                <dd className="font-semibold text-[var(--bits-navy)]">
+                  {formatMoney(fund.amount)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p className="mt-4 text-sm text-[var(--bits-muted)]">
+            No official giving was recorded for {portal.year}.
+          </p>
+        )}
+      </section>
 
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
         <h2 className="text-xl font-semibold text-[var(--bits-navy)]">
@@ -128,7 +198,7 @@ export default async function MyStatementsPage() {
 
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
         <h2 className="text-xl font-semibold text-[var(--bits-navy)]">
-          Giving Receipts
+          {portal.year} Giving Receipts
         </h2>
         <p className="mt-1 text-xs leading-5 text-[var(--bits-muted)]">
           Sandbox gifts are clearly marked and are not official tax records.

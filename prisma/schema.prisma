@@ -58,6 +58,14 @@ enum StatementAccessAction {
   VOIDED
 }
 
+enum StripeWebhookEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
 enum MembershipStatus {
   VISITOR
   REGULAR_ATTENDER
@@ -476,6 +484,7 @@ model Organization {
   eventAttendanceActions    EventAttendanceAction[]
   eventQrPasses             EventQrPass[]
   eventCheckInIdempotency   EventCheckInIdempotency[]
+  stripeWebhookEvents       StripeWebhookEvent[]
 
   @@map("organizations")
 }
@@ -724,6 +733,9 @@ model Donation {
   goodsOrServicesDescription      String?
   goodsOrServicesEstimatedValue   Decimal?      @db.Decimal(12, 2)
   intangibleReligiousBenefitsOnly Boolean       @default(false)
+  stripeCheckoutSessionId         String?        @unique
+  stripePaymentIntentId           String?
+  isTest                          Boolean        @default(false)
   createdAt                       DateTime      @default(now())
   updatedAt                       DateTime      @updatedAt
 
@@ -739,6 +751,7 @@ model Donation {
   @@index([batchId])
   @@index([organizationId, paymentMethod])
   @@index([organizationId, anonymous])
+  @@index([organizationId, isTest])
   @@map("donations")
 }
 
@@ -758,6 +771,29 @@ model DonationAllocation {
   @@index([offeringTypeId])
   @@index([organizationId, offeringTypeId])
   @@map("donation_allocations")
+}
+
+model StripeWebhookEvent {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String                   @db.Uuid
+  stripeEventId  String                   @unique
+  eventType      String
+  stripeObjectId String?
+  livemode       Boolean
+  status         StripeWebhookEventStatus @default(RECEIVED)
+  attemptCount   Int                      @default(0)
+  lastErrorCode  String?
+  processedAt    DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, eventType])
+  @@index([organizationId, createdAt])
+  @@map("stripe_webhook_events")
 }
 
 // ---------------------------------------------------------------------------

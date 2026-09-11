@@ -168,6 +168,11 @@ describe("authorizePortalStatementPdf", () => {
         }),
       ]),
     );
+
+    mocks.statementFindFirst.mockResolvedValue(authorizedPdf(HOUSEHOLD_STMT));
+    await expect(
+      authorizePortalStatementPdf(HOUSEHOLD_STMT, "download"),
+    ).resolves.toMatchObject({ status: "AUTHORIZED", mode: "download" });
   });
 
   it("does not use primaryDonorId in the household authorization query", () => {
@@ -186,30 +191,132 @@ describe("authorizePortalStatementPdf", () => {
       authorizePortalStatementPdf(HOUSEHOLD_STMT, "view"),
     ).resolves.toEqual({ status: "NOT_AVAILABLE" });
     expect(mocks.accessCreate).not.toHaveBeenCalled();
+    expect(authorizedHouseholdRecipientWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+    }).preferredStatementRecipientId).toBe(DONOR_ID);
   });
 
-  it("denies missing membership, ended membership, inactive household, and other org via empty authorized households", async () => {
+  it("denies a preferred recipient with no active household membership", async () => {
+    const where = authorizedHouseholdRecipientWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+    });
+    expect(where.memberships.some.endDate).toBeNull();
+    mocks.householdFindMany.mockResolvedValue([]);
+    mocks.statementFindFirst.mockResolvedValue(null);
+    await expect(
+      authorizePortalStatementPdf(HOUSEHOLD_STMT, "view"),
+    ).resolves.toEqual({ status: "NOT_AVAILABLE" });
+    expect(mocks.accessCreate).not.toHaveBeenCalled();
+  });
+
+  it("denies an ended household membership", async () => {
+    expect(
+      authorizedHouseholdRecipientWhere({
+        organizationId: ORG_ID,
+        donorId: DONOR_ID,
+      }).memberships.some,
+    ).toEqual({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+      endDate: null,
+    });
     mocks.householdFindMany.mockResolvedValue([]);
     mocks.statementFindFirst.mockResolvedValue(null);
     await expect(
       authorizePortalStatementPdf(HOUSEHOLD_STMT, "download"),
     ).resolves.toEqual({ status: "NOT_AVAILABLE" });
-    expect(mocks.householdFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          organizationId: ORG_ID,
-          active: true,
-          preferredStatementRecipientId: DONOR_ID,
+    expect(mocks.accessCreate).not.toHaveBeenCalled();
+  });
+
+  it("denies an inactive household", async () => {
+    expect(
+      authorizedHouseholdRecipientWhere({
+        organizationId: ORG_ID,
+        donorId: DONOR_ID,
+      }).active,
+    ).toBe(true);
+    mocks.householdFindMany.mockResolvedValue([]);
+    mocks.statementFindFirst.mockResolvedValue(null);
+    await expect(
+      authorizePortalStatementPdf(HOUSEHOLD_STMT, "view"),
+    ).resolves.toEqual({ status: "NOT_AVAILABLE" });
+  });
+
+  it("denies another organization", async () => {
+    const householdWhere = authorizedHouseholdRecipientWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+    });
+    const statementWhere = portalPublishedStatementAccessWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+      authorizedHouseholdIds: [HOUSEHOLD_ID],
+      statementId: HOUSEHOLD_STMT,
+    });
+    expect(householdWhere.organizationId).toBe(ORG_ID);
+    expect(householdWhere.organizationId).not.toBe(OTHER_ORG);
+    expect(statementWhere.organizationId).toBe(ORG_ID);
+    expect(statementWhere.organizationId).not.toBe(OTHER_ORG);
+    mocks.householdFindMany.mockResolvedValue([]);
+    mocks.statementFindFirst.mockResolvedValue(null);
+    await expect(
+      authorizePortalStatementPdf(HOUSEHOLD_STMT, "view"),
+    ).resolves.toEqual({ status: "NOT_AVAILABLE" });
+  });
+
+  it("denies GENERATED and VOIDED household statements", () => {
+    const where = portalPublishedStatementAccessWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+      authorizedHouseholdIds: [HOUSEHOLD_ID],
+      statementId: HOUSEHOLD_STMT,
+    });
+    expect(where.OR).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          statementType: "HOUSEHOLD",
+          status: "PUBLISHED",
         }),
-      }),
+      ]),
     );
-    expect(OTHER_ORG).not.toBe(ORG_ID);
+    expect(JSON.stringify(where)).not.toContain("GENERATED");
+    expect(JSON.stringify(where)).not.toContain("VOIDED");
+  });
+
+  it("denies a household statement with donorId populated as malformed", () => {
+    const household = portalPublishedStatementAccessWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+      authorizedHouseholdIds: [HOUSEHOLD_ID],
+    }).OR.find((branch) => branch.statementType === "HOUSEHOLD");
+    expect(household).toMatchObject({ donorId: null, statementType: "HOUSEHOLD" });
+  });
+
+  it("denies an individual statement with householdId populated as malformed", () => {
+    const individual = portalPublishedIndividualStatementWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+      statementId: STATEMENT_ID,
+    });
+    expect(individual.householdId).toBeNull();
+    expect(individual.statementType).toBe("INDIVIDUAL");
   });
 
   it("treats UUID tampering as the same generic not-found result", async () => {
     mocks.statementFindFirst.mockResolvedValue(null);
     await expect(
       authorizePortalStatementPdf("00000000-0000-4000-8000-00000000ffff", "view"),
+    ).resolves.toEqual({ status: "NOT_AVAILABLE" });
+    expect(mocks.accessCreate).not.toHaveBeenCalled();
+  });
+
+  it("does not create an access event for rejected household requests", async () => {
+    mocks.householdFindMany.mockResolvedValue([]);
+    mocks.statementFindFirst.mockResolvedValue(null);
+    await expect(
+      authorizePortalStatementPdf(HOUSEHOLD_STMT, "download"),
     ).resolves.toEqual({ status: "NOT_AVAILABLE" });
     expect(mocks.accessCreate).not.toHaveBeenCalled();
   });

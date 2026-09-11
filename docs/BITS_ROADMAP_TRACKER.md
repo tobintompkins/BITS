@@ -2,7 +2,7 @@
 
 **Last updated:** September 10, 2026
 
-**Current handoff:** Explicit household-statement authorization rules
+**Current handoff:** Match online gifts to donors and provide staff review for unmatched gifts
 **Status basis:** Cursor reported 7.3V–7.3X complete in-repo. Prior items remain reported complete unless noted.
 
 ## Earlier work
@@ -57,13 +57,14 @@ testing before selecting the next major BITS roadmap area.
 | Foundation | Private `/portal`, account ownership boundary, dashboard, safe pending state | Implemented; see `docs/member-portal-foundation.md` |
 | Account linking | Admin/treasurer donor connection and create-and-connect workflow | Implemented |
 | Statement PDF access | Secure view/download of published individual statement PDFs | Implemented; see `docs/member-portal-statement-pdf-access.md` |
-| **Next increment** | **Explicit household-statement authorization rules** | **Next** |
+| Household statement authorization | Preferred-recipient household PDF list/view/download | Implemented; see `docs/member-portal-household-statement-authorization.md` |
+| Stripe webhook security | Signature verification and duplicate-event protection | Implemented; see `docs/stripe-webhook-security.md` |
+| **Next increment** | **Match online gifts to donors and provide staff review for unmatched gifts** | **Next** |
 
 Planned small increments after user testing:
 
 1. Full personal giving-history page.
 2. Limited self-service profile editing.
-3. Explicit household-statement authorization rules.
 
 Statement generation and publishing remain a separate leadership workflow and
 are not marked complete.
@@ -79,6 +80,7 @@ requirements throughout every phase rather than one-time finishing tasks.
 1. Leadership Statements and Online Giving management screen. **Implemented
    as a read-only first increment.**
 2. Stripe webhook signature verification and duplicate-event protection.
+   **Implemented.** See `docs/stripe-webhook-security.md`.
 3. Match online gifts to donors and provide staff review for unmatched gifts.
 4. Offering batches, reconciliation, deposit tracking, corrections, and
    approvals.

@@ -16,9 +16,10 @@ The first private Member Portal milestone is available at `/portal`.
   do not.
 - The public homepage now sends signed-in people to the Member Portal first.
 
-Published individual statement PDFs can be viewed or downloaded from
-`/portal/statements` after ownership checks. See
-`docs/member-portal-statement-pdf-access.md`.
+Published individual and authorized household statement PDFs can be viewed or
+downloaded from `/portal/statements` after ownership checks. See
+`docs/member-portal-statement-pdf-access.md` and
+`docs/member-portal-household-statement-authorization.md`.
 
-Profile editing, full giving history, household-statement authorization, and
-staff account-link management remain future small patches.
+Profile editing, full giving history, and additional self-service household
+tools remain future small patches.

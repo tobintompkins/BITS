@@ -156,9 +156,56 @@ describe("member portal ownership foundation", () => {
     );
     expect(mocks.donationFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { organizationId: "org-1", donorId: "donor-1" },
+        where: expect.objectContaining({
+          organizationId: "org-1",
+          donorId: "donor-1",
+          offeringDate: expect.objectContaining({
+            gte: expect.any(Date),
+            lt: expect.any(Date),
+          }),
+        }),
       }),
     );
+  });
+
+  it("lists published individual statements with the individual badge", async () => {
+    mocks.getOrCreateUserAccount.mockResolvedValue({
+      id: "user-1",
+      primaryEmail: "member@example.com",
+      displayName: "Member One",
+    });
+    mocks.donorFindFirst.mockResolvedValue({
+      id: "donor-1",
+      firstName: "Member",
+      lastName: "One",
+    });
+    mocks.statementFindMany.mockResolvedValue([
+      {
+        id: "stmt-ind",
+        statementIdentifier: "IND-2025",
+        statementType: "INDIVIDUAL",
+        householdId: null,
+        periodStart: new Date("2025-01-01"),
+        periodEnd: new Date("2025-12-31"),
+        taxYear: 2025,
+        deductibleTotal: 40,
+        generatedAt: new Date("2026-01-02"),
+        pdfStorageKey: "private/statements/org-1/stmt-ind/file.pdf",
+      },
+    ]);
+    mocks.donationFindMany.mockResolvedValue([]);
+
+    const result = await getMemberPortalStatements();
+    expect(result.status).toBe("READY");
+    if (result.status !== "READY") return;
+    expect(result.statements).toEqual([
+      expect.objectContaining({
+        id: "stmt-ind",
+        kindLabel: "Individual statement",
+        householdName: null,
+        hasPdf: true,
+      }),
+    ]);
   });
 
   it("lists a published household statement only for the preferred recipient", async () => {
@@ -216,5 +263,93 @@ describe("member portal ownership foundation", () => {
         }),
       }),
     );
+  });
+
+  it("hides household statements when the donor is not the preferred recipient", async () => {
+    mocks.getOrCreateUserAccount.mockResolvedValue({
+      id: "user-1",
+      primaryEmail: "member@example.com",
+    });
+    mocks.donorFindFirst.mockResolvedValue({
+      id: "donor-1",
+      firstName: "Member",
+      lastName: "One",
+    });
+    mocks.householdFindMany.mockResolvedValue([]);
+    mocks.statementFindMany.mockResolvedValue([]);
+    mocks.donationFindMany.mockResolvedValue([]);
+
+    const result = await getMemberPortalStatements();
+    expect(result.status).toBe("READY");
+    expect(mocks.statementFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          organizationId: "org-1",
+          OR: [
+            {
+              statementType: "INDIVIDUAL",
+              donorId: "donor-1",
+              householdId: null,
+              status: "PUBLISHED",
+            },
+          ],
+        },
+      }),
+    );
+    const where = mocks.statementFindMany.mock.calls[0]?.[0].where;
+    expect(JSON.stringify(where)).not.toContain("HOUSEHOLD");
+    expect(JSON.stringify(where)).not.toContain('"in":[]');
+  });
+
+  it("keeps the annual year selector and excludes Stripe test gifts from totals", async () => {
+    mocks.getOrCreateUserAccount.mockResolvedValue({
+      id: "user-1",
+      primaryEmail: "member@example.com",
+    });
+    mocks.donorFindFirst.mockResolvedValue({
+      id: "donor-1",
+      firstName: "Member",
+      lastName: "One",
+    });
+    mocks.statementFindMany.mockResolvedValue([]);
+    mocks.donationFindMany.mockResolvedValue([
+      {
+        id: "gift-1",
+        offeringDate: new Date("2025-02-01"),
+        totalAmount: 100,
+        deductibleAmount: 80,
+        paymentMethod: "CARD",
+        isTest: false,
+        stripeCheckoutSessionId: null,
+        allocations: [{ amount: 100, offeringType: { name: "General" } }],
+      },
+      {
+        id: "gift-test",
+        offeringDate: new Date("2025-03-01"),
+        totalAmount: 25,
+        deductibleAmount: 25,
+        paymentMethod: "CARD",
+        isTest: true,
+        stripeCheckoutSessionId: "test-session",
+        allocations: [{ amount: 25, offeringType: { name: "General" } }],
+      },
+    ]);
+
+    const result = await getMemberPortalStatements(2025);
+
+    expect(result).toMatchObject({
+      status: "READY",
+      year: 2025,
+      availableYears: expect.arrayContaining([new Date().getFullYear()]),
+      annualGiving: {
+        giftCount: 1,
+        totalAmount: "100",
+        deductibleAmount: "80",
+        funds: [{ fund: "General", amount: "100" }],
+      },
+    });
+    if (result.status !== "READY") return;
+    expect(result.gifts).toHaveLength(2);
+    expect(result.gifts.some((gift) => gift.isTest)).toBe(true);
   });
 });

@@ -20,6 +20,7 @@ const REQUIRED_DELEGATES = [
   "memberAttendance",
   "event",
   "eventRegistration",
+  "stripeWebhookEvent",
 ] as const;
 
 function createPrismaClient() {
