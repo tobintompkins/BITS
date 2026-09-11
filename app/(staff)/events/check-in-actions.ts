@@ -388,6 +388,7 @@ export async function listAttendanceAction(formData: FormData) {
   const result = await listEventAttendance(eventId, {
     query: String(formData.get("query") ?? ""),
     status: (String(formData.get("status") ?? "") || undefined) as never,
+    source: (String(formData.get("source") ?? "") || undefined) as never,
     page: Number(formData.get("page") ?? 1),
     pageSize: Number(formData.get("pageSize") ?? 25),
   });

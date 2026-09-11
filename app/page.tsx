@@ -45,7 +45,7 @@ const guestOptions = [
     title: "Giving Statements",
     description:
       "Sign in to view your giving history and available contribution statements.",
-    href: "/giving-statements",
+    href: "/portal/statements",
   },
 ];
 
@@ -89,10 +89,10 @@ export default async function Home() {
             </Show>
             <Show when="signed-in">
               <Link
-                href="/dashboard"
+                href="/portal"
                 className="rounded-xl bg-[var(--bits-gold)] px-4 py-2 text-sm font-bold text-[var(--bits-navy-deep)] transition hover:bg-white"
               >
-                Leadership Portal
+                Member Portal
               </Link>
               <UserButton />
             </Show>
@@ -158,9 +158,12 @@ export default async function Home() {
               building fund, Sunday school, and special offerings.
             </p>
           </div>
-          <span className="inline-flex shrink-0 rounded-xl bg-[var(--bits-navy)] px-6 py-3 text-sm font-bold text-white shadow-sm">
+          <Link
+            href="/give"
+            className="inline-flex shrink-0 rounded-xl bg-[var(--bits-navy)] px-6 py-3 text-sm font-bold text-white shadow-sm"
+          >
             Give Online
-          </span>
+          </Link>
         </article>
 
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
@@ -238,10 +241,10 @@ export default async function Home() {
             </Show>
             <Show when="signed-in">
               <Link
-                href="/dashboard"
+                href="/portal"
                 className="inline-flex rounded-xl bg-[var(--bits-navy)] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--bits-navy-deep)]"
               >
-                Open Leadership Portal
+                Open Member Portal
               </Link>
             </Show>
           </div>

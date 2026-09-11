@@ -48,6 +48,12 @@ export default async function EventStaffCheckInPage({
         >
           Registrations
         </Link>
+        <Link
+          href={`/events/${dto.event.id}/attendance`}
+          className="underline"
+        >
+          Check-out &amp; re-entry
+        </Link>
       </nav>
 
       <StaffCheckInPanel
