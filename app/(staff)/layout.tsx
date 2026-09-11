@@ -9,6 +9,7 @@ import {
 } from "@/components/layout/app-shell-nav";
 import { getCareAccess } from "@/lib/auth/care-permissions";
 import { getEventAccess } from "@/lib/auth/event-permissions";
+import { getGivingAccess } from "@/lib/auth/giving-permissions";
 import { getMemberEngagementAccess } from "@/lib/auth/member-engagement-permissions";
 import { getMemberLifecycleAccess } from "@/lib/auth/member-lifecycle-permissions";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
@@ -36,6 +37,9 @@ export default async function StaffLayout({
     : null;
   const eventAccess = organization
     ? await getEventAccess(organization.id)
+    : null;
+  const givingAccess = organization
+    ? await getGivingAccess(organization.id)
     : null;
 
   const navGroups: NavGroup[] = [
@@ -96,14 +100,25 @@ export default async function StaffLayout({
     {
       label: "Giving",
       items: [
-        { href: "/donors", label: "Donors" },
-        { href: "/batches", label: "Batches" },
-        { href: "/statements", label: "Statements" },
+        ...(givingAccess?.canViewGiving
+          ? [
+              { href: "/donors", label: "Donors" },
+              { href: "/batches", label: "Batches" },
+            ]
+          : []),
+        ...(givingAccess?.canViewStatements
+          ? [
+              { href: "/statements", label: "Statements & Online Giving" },
+              { href: "/statements/unmatched", label: "Unmatched Gifts" },
+            ]
+          : []),
       ],
     },
     {
       label: "Reports",
-      items: [{ href: "/reports", label: "Reports" }],
+      items: givingAccess?.canExportGiving
+        ? [{ href: "/reports", label: "Reports" }]
+        : [],
     },
     {
       label: "Administration",
@@ -118,6 +133,15 @@ export default async function StaffLayout({
           : []),
         ...(eventAccess?.canManageLocations
           ? [{ href: "/settings/event-locations", label: "Event Locations" }]
+          : []),
+        ...(eventAccess?.roleCode === "ORG_ADMIN" ||
+        eventAccess?.roleCode === "TREASURER"
+          ? [
+              {
+                href: "/settings/member-portal-links",
+                label: "Member Portal Connections",
+              },
+            ]
           : []),
       ],
     },

@@ -16,12 +16,21 @@ export type CreateAuditEventInput = {
   changes: AuditChange[];
 };
 
-export async function createAuditEvent(input: CreateAuditEventInput) {
+type AuditWriter = {
+  auditEvent: {
+    create: typeof prisma.auditEvent.create;
+  };
+};
+
+export async function createAuditEvent(
+  input: CreateAuditEventInput,
+  db: AuditWriter = prisma,
+) {
   const changeMetadata: Prisma.InputJsonValue = {
     changes: input.changes,
   };
 
-  return prisma.auditEvent.create({
+  return db.auditEvent.create({
     data: {
       organizationId: input.organizationId,
       actorUserAccountId: input.actorUserAccountId,

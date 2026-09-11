@@ -14,5 +14,7 @@ financial overview.
 - The screen does not charge, refund, publish, export, or alter Stripe data.
 
 Signed Stripe webhook processing with duplicate-event protection is implemented.
-See `docs/stripe-webhook-security.md`. The next financial increment is matching
-online gifts to donors and providing staff review for unmatched gifts.
+See `docs/stripe-webhook-security.md`. Staff review and donor matching for
+unmatched online gifts is implemented at `/statements/unmatched`. See
+`docs/unmatched-online-gift-review.md`. The next financial increment is offering
+batches, reconciliation, deposit tracking, corrections, and approvals.

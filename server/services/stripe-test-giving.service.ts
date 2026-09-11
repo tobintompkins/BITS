@@ -43,6 +43,7 @@ export type NormalizedStripeTestCheckout = {
   paymentStatus: "paid";
   paymentIntentId: string | null;
   email: string | null;
+  donorName: string | null;
   fund: string;
   metadata: Record<string, string>;
 };
@@ -110,6 +111,7 @@ export function validateStripeTestCheckoutSession(
       paymentStatus: "paid",
       paymentIntentId: paymentIntentId(session.payment_intent),
       email: session.customer_details?.email?.trim().toLowerCase() ?? null,
+      donorName: session.metadata?.donor_name?.trim() || null,
       fund,
       metadata: session.metadata,
     },
@@ -180,7 +182,13 @@ export async function persistStripeTestDonation(
         stripeCheckoutSessionId: checkout.id,
         stripePaymentIntentId: checkout.paymentIntentId,
         isTest: true,
-        note: `Stripe sandbox test gift${checkout.email ? ` · ${checkout.email}` : ""}`,
+        note: [
+          "Stripe sandbox test gift",
+          checkout.donorName,
+          checkout.email,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         allocations: {
           create: {
             organizationId,

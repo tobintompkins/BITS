@@ -2,7 +2,7 @@
 
 **Last updated:** September 10, 2026
 
-**Current handoff:** Match online gifts to donors and provide staff review for unmatched gifts
+**Current handoff:** Offering batches, reconciliation, deposit tracking, corrections, and approvals
 **Status basis:** Cursor reported 7.3V–7.3X complete in-repo. Prior items remain reported complete unless noted.
 
 ## Earlier work
@@ -59,7 +59,8 @@ testing before selecting the next major BITS roadmap area.
 | Statement PDF access | Secure view/download of published individual statement PDFs | Implemented; see `docs/member-portal-statement-pdf-access.md` |
 | Household statement authorization | Preferred-recipient household PDF list/view/download | Implemented; see `docs/member-portal-household-statement-authorization.md` |
 | Stripe webhook security | Signature verification and duplicate-event protection | Implemented; see `docs/stripe-webhook-security.md` |
-| **Next increment** | **Match online gifts to donors and provide staff review for unmatched gifts** | **Next** |
+| Unmatched gift review | Staff donor matching for unmatched Stripe gifts | Implemented; see `docs/unmatched-online-gift-review.md` |
+| **Next increment** | **Offering batches, reconciliation, deposit tracking, corrections, and approvals** | **Next** |
 
 Planned small increments after user testing:
 
@@ -82,6 +83,7 @@ requirements throughout every phase rather than one-time finishing tasks.
 2. Stripe webhook signature verification and duplicate-event protection.
    **Implemented.** See `docs/stripe-webhook-security.md`.
 3. Match online gifts to donors and provide staff review for unmatched gifts.
+   **Implemented.** See `docs/unmatched-online-gift-review.md`.
 4. Offering batches, reconciliation, deposit tracking, corrections, and
    approvals.
 5. Individual and household statement generation, review, and publishing.
