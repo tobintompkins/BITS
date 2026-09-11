@@ -64,16 +64,26 @@ export default async function MyStatementsPage() {
           Published Contribution Statements
         </h2>
         <p className="mt-2 text-xs leading-5 text-[var(--bits-muted)]">
-          View and download links open only your published individual
-          statements. If a PDF does not open, the file may be unavailable —
-          contact the church office.
+          Household statements appear only when the church has selected you as
+          the statement recipient. If a PDF does not open, the file may be
+          unavailable — contact the church office.
         </p>
         {portal.statements.length ? (
           <ul className="mt-4 divide-y divide-[var(--bits-border)]">
             {portal.statements.map((statement) => (
               <li key={statement.id} className="grid gap-2 py-4 text-sm sm:grid-cols-[1fr_auto]">
                 <div>
-                  <p className="font-semibold">{statement.statementIdentifier}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold">{statement.statementIdentifier}</p>
+                    <span className="rounded-full bg-[var(--bits-page)] px-2 py-0.5 text-xs font-semibold text-[var(--bits-navy)]">
+                      {statement.kindLabel}
+                    </span>
+                  </div>
+                  {statement.householdName ? (
+                    <p className="mt-1 text-[var(--bits-muted)]">
+                      {statement.householdName}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-[var(--bits-muted)]">
                     {formatDate(statement.periodStart)}–{formatDate(statement.periodEnd)}
                     {statement.taxYear ? ` · Tax year ${statement.taxYear}` : ""}
@@ -83,7 +93,7 @@ export default async function MyStatementsPage() {
                   <p className="font-semibold text-[var(--bits-navy)]">
                     {formatMoney(statement.deductibleTotal)}
                   </p>
-                  {statement.statementType === "INDIVIDUAL" && statement.hasPdf ? (
+                  {statement.hasPdf ? (
                     <div className="flex flex-wrap gap-2">
                       <a
                         href={`/api/portal/statements/${statement.id}/pdf?mode=view`}
@@ -100,11 +110,11 @@ export default async function MyStatementsPage() {
                         Download PDF
                       </a>
                     </div>
-                  ) : statement.statementType === "INDIVIDUAL" ? (
+                  ) : (
                     <p className="text-xs text-[var(--bits-muted)]">
                       A PDF is not available for this statement yet.
                     </p>
-                  ) : null}
+                  )}
                 </div>
               </li>
             ))}

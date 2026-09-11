@@ -17,16 +17,100 @@ export type PortalStatementPdfMode = z.infer<typeof portalStatementPdfModeSchema
 export function portalPublishedIndividualStatementWhere(input: {
   organizationId: string;
   donorId: string;
-  statementId: string;
+  statementId?: string;
 }) {
   return {
-    id: input.statementId,
+    ...(input.statementId ? { id: input.statementId } : {}),
     organizationId: input.organizationId,
     donorId: input.donorId,
     householdId: null,
     statementType: "INDIVIDUAL" as const,
     status: "PUBLISHED" as const,
   };
+}
+
+/**
+ * Household IDs the connected donor may see statements for.
+ * Requires preferred recipient + active membership + active household.
+ * Does not use primaryDonorId.
+ */
+export function authorizedHouseholdRecipientWhere(input: {
+  organizationId: string;
+  donorId: string;
+}) {
+  return {
+    organizationId: input.organizationId,
+    active: true,
+    preferredStatementRecipientId: input.donorId,
+    memberships: {
+      some: {
+        organizationId: input.organizationId,
+        donorId: input.donorId,
+        endDate: null,
+      },
+    },
+  };
+}
+
+export function portalPublishedHouseholdStatementWhere(input: {
+  organizationId: string;
+  authorizedHouseholdIds: string[];
+  statementId?: string;
+}) {
+  return {
+    ...(input.statementId ? { id: input.statementId } : {}),
+    organizationId: input.organizationId,
+    donorId: null,
+    householdId: { in: input.authorizedHouseholdIds },
+    statementType: "HOUSEHOLD" as const,
+    status: "PUBLISHED" as const,
+  };
+}
+
+/**
+ * Combined individual + household ownership query.
+ * If no household is authorized, the household branch is omitted so the
+ * query cannot become an unscoped household lookup.
+ */
+export function portalPublishedStatementAccessWhere(input: {
+  organizationId: string;
+  donorId: string;
+  authorizedHouseholdIds: string[];
+  statementId?: string;
+}) {
+  const individual = {
+    statementType: "INDIVIDUAL" as const,
+    donorId: input.donorId,
+    householdId: null,
+    status: "PUBLISHED" as const,
+  };
+  const household =
+    input.authorizedHouseholdIds.length > 0
+      ? {
+          statementType: "HOUSEHOLD" as const,
+          donorId: null,
+          householdId: { in: input.authorizedHouseholdIds },
+          status: "PUBLISHED" as const,
+        }
+      : null;
+
+  return {
+    ...(input.statementId ? { id: input.statementId } : {}),
+    organizationId: input.organizationId,
+    OR: household ? [individual, household] : [individual],
+  };
+}
+
+export async function findAuthorizedHouseholdIdsForStatementRecipient(input: {
+  organizationId: string;
+  donorId: string;
+}) {
+  const rows = await prisma.household.findMany({
+    where: authorizedHouseholdRecipientWhere(input),
+    select: { id: true, displayName: true },
+    orderBy: { displayName: "asc" },
+  });
+  return rows;
 }
 
 export type AuthorizedPortalStatementPdf =
@@ -76,10 +160,17 @@ export async function authorizePortalStatementPdf(
     return { status: "NOT_AVAILABLE" };
   }
 
-  const statement = await prisma.contributionStatement.findFirst({
-    where: portalPublishedIndividualStatementWhere({
+  const authorizedHouseholds =
+    await findAuthorizedHouseholdIdsForStatementRecipient({
       organizationId: organization.id,
       donorId: donor.id,
+    });
+
+  const statement = await prisma.contributionStatement.findFirst({
+    where: portalPublishedStatementAccessWhere({
+      organizationId: organization.id,
+      donorId: donor.id,
+      authorizedHouseholdIds: authorizedHouseholds.map((row) => row.id),
       statementId: idParsed.data,
     }),
     select: {

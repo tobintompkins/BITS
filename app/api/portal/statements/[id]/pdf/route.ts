@@ -25,7 +25,7 @@ function notFound() {
 /**
  * GET /api/portal/statements/{id}/pdf?mode=view|download
  *
- * Streams an ownership-scoped published individual statement PDF.
+ * Streams an ownership-scoped published individual or household statement PDF.
  * Never returns a storage key or filesystem path.
  */
 export async function GET(request: Request, context: RouteContext) {

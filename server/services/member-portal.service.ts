@@ -2,6 +2,10 @@ import { RoleCode } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import {
+  findAuthorizedHouseholdIdsForStatementRecipient,
+  portalPublishedStatementAccessWhere,
+} from "@/server/services/member-portal-statement-pdf.service";
 
 const LEADERSHIP_ROLES: RoleCode[] = [
   RoleCode.ORG_ADMIN,
@@ -151,18 +155,28 @@ export async function getMemberPortalStatements() {
     };
   }
 
+  const authorizedHouseholds =
+    await findAuthorizedHouseholdIdsForStatementRecipient({
+      organizationId: organization.id,
+      donorId: donor.id,
+    });
+  const householdNames = new Map(
+    authorizedHouseholds.map((row) => [row.id, row.displayName]),
+  );
+
   const [statements, gifts] = await Promise.all([
     prisma.contributionStatement.findMany({
-      where: {
+      where: portalPublishedStatementAccessWhere({
         organizationId: organization.id,
         donorId: donor.id,
-        status: "PUBLISHED",
-      },
+        authorizedHouseholdIds: authorizedHouseholds.map((row) => row.id),
+      }),
       orderBy: [{ periodEnd: "desc" }, { id: "desc" }],
       select: {
         id: true,
         statementIdentifier: true,
         statementType: true,
+        householdId: true,
         periodStart: true,
         periodEnd: true,
         taxYear: true,
@@ -203,6 +217,14 @@ export async function getMemberPortalStatements() {
       id: statement.id,
       statementIdentifier: statement.statementIdentifier,
       statementType: statement.statementType,
+      kindLabel:
+        statement.statementType === "HOUSEHOLD"
+          ? "Household statement"
+          : "Individual statement",
+      householdName:
+        statement.statementType === "HOUSEHOLD" && statement.householdId
+          ? (householdNames.get(statement.householdId) ?? null)
+          : null,
       periodStart: statement.periodStart,
       periodEnd: statement.periodEnd,
       taxYear: statement.taxYear,
