@@ -150,6 +150,26 @@ export default async function StatementsPage() {
           Statement creation and publishing controls will be added in the next
           financial milestone.
         </p>
+        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+          <Link
+            href="/statements/readiness"
+            className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+          >
+            Review statement readiness
+          </Link>
+          <Link
+            href="/statements/recipients"
+            className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+          >
+            Review statement recipients
+          </Link>
+          <Link
+            href="/households"
+            className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+          >
+            Preview household statements
+          </Link>
+        </p>
         {data.statements.length ? (
           <ul className="mt-4 divide-y divide-[var(--bits-border)] text-sm">
             {data.statements.map((statement) => (
@@ -163,6 +183,16 @@ export default async function StatementsPage() {
                     {" · "}
                     {formatDate(statement.periodStart)}–{formatDate(statement.periodEnd)}
                   </p>
+                  {statement.household?.id ? (
+                    <p className="mt-2">
+                      <Link
+                        href={`/statements/households/${statement.household.id}?year=${statement.periodStart.getUTCFullYear()}`}
+                        className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+                      >
+                        Preview household statement
+                      </Link>
+                    </p>
+                  ) : null}
                 </div>
                 <p className="font-semibold text-[var(--bits-navy)]">
                   {formatMoney(statement.deductibleTotal)}

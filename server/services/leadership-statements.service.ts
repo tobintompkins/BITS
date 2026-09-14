@@ -82,7 +82,7 @@ export async function getLeadershipStatementsDashboard() {
           status: true,
           generatedAt: true,
           donor: { select: { firstName: true, lastName: true, email: true } },
-          household: { select: { displayName: true } },
+          household: { select: { id: true, displayName: true } },
         },
       }),
     ]);

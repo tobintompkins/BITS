@@ -101,14 +101,22 @@ export default async function StaffLayout({
       label: "Giving",
       items: [
         ...(givingAccess?.canViewGiving
-          ? [
-              { href: "/donors", label: "Donors" },
-              { href: "/batches", label: "Batches" },
-            ]
+          ? [{ href: "/donors", label: "Donors" }]
+          : []),
+        ...(givingAccess?.canViewBatches
+          ? [{ href: "/batches", label: "Batches" }]
+          : []),
+        ...(givingAccess?.canReviewFinancialCorrections
+          ? [{ href: "/batches/corrections", label: "Correction Review Queue" }]
           : []),
         ...(givingAccess?.canViewStatements
           ? [
               { href: "/statements", label: "Statements & Online Giving" },
+              { href: "/statements/readiness", label: "Statement Readiness" },
+              {
+                href: "/statements/recipients",
+                label: "Statement Recipient Review",
+              },
               { href: "/statements/unmatched", label: "Unmatched Gifts" },
             ]
           : []),

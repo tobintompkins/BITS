@@ -1,8 +1,8 @@
 # BITS Roadmap Tracker
 
-**Last updated:** September 10, 2026
+**Last updated:** September 11, 2026
 
-**Current handoff:** Offering batches, reconciliation, deposit tracking, corrections, and approvals
+**Current handoff:** Restricted financial correction requests and two-person approvals
 **Status basis:** Cursor reported 7.3V–7.3X complete in-repo. Prior items remain reported complete unless noted.
 
 ## Earlier work
@@ -60,7 +60,11 @@ testing before selecting the next major BITS roadmap area.
 | Household statement authorization | Preferred-recipient household PDF list/view/download | Implemented; see `docs/member-portal-household-statement-authorization.md` |
 | Stripe webhook security | Signature verification and duplicate-event protection | Implemented; see `docs/stripe-webhook-security.md` |
 | Unmatched gift review | Staff donor matching for unmatched Stripe gifts | Implemented; see `docs/unmatched-online-gift-review.md` |
-| **Next increment** | **Offering batches, reconciliation, deposit tracking, corrections, and approvals** | **Next** |
+| Offering Batch Foundation and Directory | Draft create, directory, details, and draft-only edit | Implemented; see `docs/offering-batch-foundation.md` |
+| Manual batch donation entry | Secure create and fund allocation inside DRAFT batches | Implemented; see `docs/manual-batch-donation-entry.md` |
+| Batch entry completion and reconciliation | DRAFT → ENTERED and ENTERED → RECONCILED | Implemented; see `docs/offering-batch-entry-and-reconciliation.md` |
+| Deposit tracking and reconciled-batch locking | Record one deposit on RECONCILED batches and lock permanently | Implemented; see `docs/offering-batch-deposit-and-locking.md` |
+| **Next increment** | **Restricted financial correction requests and two-person approvals** | **Next** |
 
 Planned small increments after user testing:
 
@@ -85,7 +89,11 @@ requirements throughout every phase rather than one-time finishing tasks.
 3. Match online gifts to donors and provide staff review for unmatched gifts.
    **Implemented.** See `docs/unmatched-online-gift-review.md`.
 4. Offering batches, reconciliation, deposit tracking, corrections, and
-   approvals.
+   approvals. **Offering Batch Foundation and Directory is implemented.**
+   **Manual donation entry inside DRAFT batches is implemented.** **Batch
+   entry completion and reconciliation is implemented.** **Deposit tracking
+   and reconciled-batch locking is implemented.** Next: restricted financial
+   correction requests and two-person approvals.
 5. Individual and household statement generation, review, and publishing.
 6. Secure member statement viewing and PDF downloads.
 7. Failed-payment, refund, and dispute handling before live payments.

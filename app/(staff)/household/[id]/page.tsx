@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { DeleteHouseholdButton } from "@/components/households/delete-household-button";
 import { HouseholdMemberTable } from "@/components/households/household-member-table";
+import { getGivingAccess } from "@/lib/auth/giving-permissions";
 import {
   getHouseholdAccess,
   requireHouseholdViewAccess,
@@ -46,6 +47,7 @@ export default async function HouseholdDetailPage({
 
   await requireHouseholdViewAccess(organization.id);
   const access = await getHouseholdAccess(organization.id);
+  const givingAccess = await getGivingAccess(organization.id);
   const household = await getHouseholdById(id);
 
   if (!household) {
@@ -83,6 +85,14 @@ export default async function HouseholdDetailPage({
         </div>
 
         <div className="flex flex-wrap gap-3">
+          {givingAccess.canViewStatements ? (
+            <Link
+              href="/households#giving-household-statements"
+              className="inline-flex items-center justify-center rounded-md border border-[var(--bits-border)] px-4 py-2 text-sm font-medium text-[var(--bits-navy)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+            >
+              Preview household statement
+            </Link>
+          ) : null}
           {access.canEdit ? (
             <Link
               href={`/household/${household.id}/edit`}
