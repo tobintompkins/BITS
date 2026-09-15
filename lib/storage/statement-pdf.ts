@@ -1,6 +1,6 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { open, realpath, stat } from "node:fs/promises";
+import { mkdir, open, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ReadStream } from "node:fs";
 
@@ -20,6 +20,13 @@ import type { ReadStream } from "node:fs";
 
 const PDF_MAGIC = Buffer.from("%PDF-", "ascii");
 const MAX_IDENTIFIER_LENGTH = 80;
+const MAX_STATEMENT_PDF_BYTES = 15 * 1024 * 1024;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string) {
+  return UUID_PATTERN.test(value);
+}
 
 function storageRoot() {
   return (
@@ -98,6 +105,26 @@ async function pathStaysInStatementRoot(
 
   const relative = path.relative(resolvedRoot, resolvedFile);
   return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+async function directoryStaysInOrgRoot(
+  absoluteDirectory: string,
+  organizationId: string,
+) {
+  const allowedRoot = path.join(
+    getPrivateStatementStorageRoot(),
+    organizationId,
+  );
+  let resolvedDir: string;
+  let resolvedRoot: string;
+  try {
+    resolvedDir = await realpath(absoluteDirectory);
+    resolvedRoot = await realpath(allowedRoot);
+  } catch {
+    return false;
+  }
+  const relative = path.relative(resolvedRoot, resolvedDir);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 async function readPdfHeader(absolutePath: string) {
@@ -198,4 +225,145 @@ export async function openAuthorizedStatementPdf(input: {
   } catch {
     return { ok: false, reason: "UNAVAILABLE" };
   }
+}
+
+export function buildPrivateStatementPdfStorageKey(
+  organizationId: string,
+  statementId: string,
+  fileName: string,
+) {
+  return `private/statements/${organizationId}/${statementId}/${sanitizeStatementPdfFileName(fileName)}`;
+}
+
+export type WritePrivateStatementPdfResult =
+  | { ok: true; checksum: string }
+  | {
+      ok: false;
+      reason: "UNSAFE_KEY" | "INVALID_PDF" | "ALREADY_EXISTS" | "UNAVAILABLE";
+    };
+
+/**
+ * Exclusive private write for a newly generated statement PDF.
+ * Never overwrites an existing file. Callers must not log the path or bytes.
+ */
+export async function writePrivateStatementPdf(input: {
+  organizationId: string;
+  statementId: string;
+  storageKey: string;
+  bytes: Uint8Array;
+}): Promise<WritePrivateStatementPdfResult> {
+  if (!isUuid(input.organizationId) || !isUuid(input.statementId)) {
+    return { ok: false, reason: "UNSAFE_KEY" };
+  }
+  if (
+    !isSafeStatementPdfStorageKey(
+      input.storageKey,
+      input.organizationId,
+      input.statementId,
+    )
+  ) {
+    return { ok: false, reason: "UNSAFE_KEY" };
+  }
+  if (
+    input.bytes.byteLength <= 0 ||
+    input.bytes.byteLength > MAX_STATEMENT_PDF_BYTES
+  ) {
+    return { ok: false, reason: "INVALID_PDF" };
+  }
+  const header = Buffer.from(
+    input.bytes.subarray(0, PDF_MAGIC.length),
+  );
+  if (!header.equals(PDF_MAGIC)) {
+    return { ok: false, reason: "INVALID_PDF" };
+  }
+
+  const absolutePath = resolveStatementPdfAbsolutePath(input.storageKey);
+  const destDir = path.dirname(absolutePath);
+  const orgRoot = path.join(
+    getPrivateStatementStorageRoot(),
+    input.organizationId,
+  );
+
+  try {
+    await mkdir(orgRoot, { recursive: true });
+    await mkdir(destDir, { recursive: true });
+  } catch {
+    return { ok: false, reason: "UNAVAILABLE" };
+  }
+
+  if (!(await directoryStaysInOrgRoot(destDir, input.organizationId))) {
+    return { ok: false, reason: "UNAVAILABLE" };
+  }
+
+  const checksum = createHash("sha256").update(input.bytes).digest("hex");
+  const tempPath = path.join(
+    destDir,
+    `.${randomBytes(16).toString("hex")}.pdf.tmp`,
+  );
+
+  try {
+    await writeFile(tempPath, Buffer.from(input.bytes), { flag: "wx" });
+  } catch {
+    return { ok: false, reason: "UNAVAILABLE" };
+  }
+
+  let placeholderCreated = false;
+  try {
+    const placeholder = await open(absolutePath, "wx");
+    placeholderCreated = true;
+    await placeholder.close();
+    await rename(tempPath, absolutePath);
+  } catch (error) {
+    await unlink(tempPath).catch(() => undefined);
+    if (placeholderCreated) {
+      await unlink(absolutePath).catch(() => undefined);
+    }
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "EEXIST"
+    ) {
+      return { ok: false, reason: "ALREADY_EXISTS" };
+    }
+    return { ok: false, reason: "UNAVAILABLE" };
+  }
+
+  return { ok: true, checksum };
+}
+
+/**
+ * Compensating cleanup after a private PDF write if the database record
+ * cannot be created. Rejects unsafe keys and does nothing when the file is
+ * already gone.
+ */
+export async function deletePrivateStatementPdf(input: {
+  organizationId: string;
+  statementId: string;
+  storageKey: string;
+}): Promise<void> {
+  if (!isUuid(input.organizationId) || !isUuid(input.statementId)) return;
+  if (
+    !isSafeStatementPdfStorageKey(
+      input.storageKey,
+      input.organizationId,
+      input.statementId,
+    )
+  ) {
+    return;
+  }
+
+  const absolutePath = resolveStatementPdfAbsolutePath(input.storageKey);
+  try {
+    const fileStat = await stat(absolutePath);
+    if (!fileStat.isFile()) return;
+  } catch {
+    return;
+  }
+
+  if (!(await pathStaysInStatementRoot(absolutePath, input.organizationId))) {
+    return;
+  }
+
+  await unlink(absolutePath).catch(() => undefined);
 }

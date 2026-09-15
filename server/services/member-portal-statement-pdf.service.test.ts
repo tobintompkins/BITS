@@ -111,6 +111,32 @@ describe("authorizePortalStatementPdf", () => {
     });
   });
 
+  it("does not authorize GENERATED individual statements on the member portal", async () => {
+    const where = portalPublishedIndividualStatementWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+      statementId: STATEMENT_ID,
+    });
+    expect(where.status).toBe("PUBLISHED");
+    expect(JSON.stringify(where)).not.toContain("GENERATED");
+    expect(JSON.stringify(where)).not.toContain("VOIDED");
+
+    mocks.statementFindFirst.mockResolvedValue(null);
+    await expect(
+      authorizePortalStatementPdf(STATEMENT_ID, "download"),
+    ).resolves.toEqual({ status: "NOT_AVAILABLE" });
+    expect(mocks.statementFindFirst).toHaveBeenCalledWith({
+      where: portalPublishedStatementAccessWhere({
+        organizationId: ORG_ID,
+        donorId: DONOR_ID,
+        authorizedHouseholdIds: [],
+        statementId: STATEMENT_ID,
+      }),
+      select: expect.any(Object),
+    });
+    expect(mocks.accessCreate).not.toHaveBeenCalled();
+  });
+
   it("omits the household branch when no household is authorized", async () => {
     const where = portalPublishedStatementAccessWhere({
       organizationId: ORG_ID,

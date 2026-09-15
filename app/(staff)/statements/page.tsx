@@ -164,6 +164,12 @@ export default async function StatementsPage() {
             Review statement recipients
           </Link>
           <Link
+            href="/statements/run-review"
+            className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+          >
+            Statement Run Review
+          </Link>
+          <Link
             href="/households"
             className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
           >

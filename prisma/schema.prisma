@@ -30,6 +30,22 @@ enum OfferingBatchStatus {
   LOCKED
 }
 
+enum FinancialCorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum FinancialCorrectionType {
+  DONOR
+  AMOUNT
+  FUND_ALLOCATION
+  PAYMENT_METHOD
+  DEPOSIT
+  OTHER
+}
+
 enum PaymentMethod {
   CASH
   CHECK
@@ -485,6 +501,7 @@ model Organization {
   eventQrPasses             EventQrPass[]
   eventCheckInIdempotency   EventCheckInIdempotency[]
   stripeWebhookEvents       StripeWebhookEvent[]
+  financialCorrectionRequests FinancialCorrectionRequest[]
 
   @@map("organizations")
 }
@@ -534,6 +551,8 @@ model UserAccount {
   eventAttendanceCheckedOut   EventAttendanceRecord[]    @relation("EventAttendanceCheckedOutBy")
   eventAttendanceActions      EventAttendanceAction[]    @relation("EventAttendanceActionActor")
   eventQrPassesRevoked        EventQrPass[]              @relation("EventQrPassRevokedBy")
+  financialCorrectionsRequested FinancialCorrectionRequest[] @relation("FinancialCorrectionRequestedBy")
+  financialCorrectionsReviewed  FinancialCorrectionRequest[] @relation("FinancialCorrectionReviewedBy")
 
   @@map("user_accounts")
 }
@@ -708,11 +727,39 @@ model OfferingBatch {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdBy    UserAccount  @relation(fields: [createdByUserAccountId], references: [id], onDelete: Restrict)
   donations    Donation[]
+  correctionRequests FinancialCorrectionRequest[]
 
   @@index([organizationId])
   @@index([organizationId, status])
   @@index([organizationId, offeringDate])
   @@map("offering_batches")
+}
+
+model FinancialCorrectionRequest {
+  id                       String                    @id @default(uuid()) @db.Uuid
+  organizationId           String                    @db.Uuid
+  offeringBatchId          String                    @db.Uuid
+  type                     FinancialCorrectionType
+  status                   FinancialCorrectionStatus @default(PENDING)
+  reason                   String
+  requestedChange          String
+  requestedByUserAccountId String                    @db.Uuid
+  reviewedByUserAccountId  String?                   @db.Uuid
+  reviewNote               String?
+  reviewedAt               DateTime?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offeringBatch OfferingBatch @relation(fields: [offeringBatchId], references: [id], onDelete: Restrict)
+  requestedBy UserAccount    @relation("FinancialCorrectionRequestedBy", fields: [requestedByUserAccountId], references: [id], onDelete: Restrict)
+  reviewedBy  UserAccount?   @relation("FinancialCorrectionReviewedBy", fields: [reviewedByUserAccountId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt])
+  @@index([offeringBatchId, createdAt])
+  @@index([requestedByUserAccountId])
+  @@index([reviewedByUserAccountId])
+  @@map("financial_correction_requests")
 }
 
 model Donation {

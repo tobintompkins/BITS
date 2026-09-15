@@ -51,7 +51,12 @@ function hasUsableAddress(row: {
 }
 
 function pickIndividualStatement(
-  rows: Array<{ status: StatementStatus; statementIdentifier: string }>,
+  rows: Array<{
+    id: string;
+    status: StatementStatus;
+    statementIdentifier: string;
+    generatedByUserAccountId: string;
+  }>,
 ) {
   const rank: Record<StatementStatus, number> = {
     [StatementStatus.PUBLISHED]: 0,
@@ -81,15 +86,16 @@ async function requirePreviewContext() {
       "Church organization not found.",
     );
   }
+  let access;
   try {
-    await requireStatementViewAccess(organization.id);
+    access = await requireStatementViewAccess(organization.id);
   } catch {
     throw new IndividualStatementPreviewError(
       "FORBIDDEN",
       "You do not have permission to view contribution statements.",
     );
   }
-  return organization;
+  return { organization, actor, access };
 }
 
 export async function getIndividualStatementPreview(
@@ -97,7 +103,7 @@ export async function getIndividualStatementPreview(
   yearInput?: string | string[],
   now = new Date(),
 ) {
-  const organization = await requirePreviewContext();
+  const { organization, actor, access } = await requirePreviewContext();
   if (!donorIdSchema.safeParse(donorId).success) {
     throw new IndividualStatementPreviewError("NOT_FOUND", "Donor not found.");
   }
@@ -161,7 +167,12 @@ export async function getIndividualStatementPreview(
           { taxYear: null, periodStart: { gte: start, lt: end } },
         ],
       },
-      select: { status: true, statementIdentifier: true },
+      select: {
+        id: true,
+        status: true,
+        statementIdentifier: true,
+        generatedByUserAccountId: true,
+      },
     }),
   ]);
 
@@ -211,12 +222,22 @@ export async function getIndividualStatementPreview(
       gifts.map((gift) => gift.deductibleAmount.toString()),
     ),
     lines,
+    canManageStatements: access.canManageStatements,
+    viewerUserAccountId: actor.id,
     statement: existingStatement
       ? {
           exists: true,
+          id: existingStatement.id,
           status: existingStatement.status,
           statementIdentifier: existingStatement.statementIdentifier,
+          generatedByUserAccountId: existingStatement.generatedByUserAccountId,
         }
-      : { exists: false, status: null, statementIdentifier: null },
+      : {
+          exists: false,
+          id: null,
+          status: null,
+          statementIdentifier: null,
+          generatedByUserAccountId: null,
+        },
   };
 }

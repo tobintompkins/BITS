@@ -5,9 +5,12 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  buildPrivateStatementPdfStorageKey,
+  deletePrivateStatementPdf,
   isSafeStatementPdfStorageKey,
   openAuthorizedStatementPdf,
   sanitizeStatementPdfFileName,
+  writePrivateStatementPdf,
 } from "@/lib/storage/statement-pdf";
 
 const ORG_ID = "00000000-0000-4000-8000-00000000a001";
@@ -144,6 +147,119 @@ describe("statement PDF storage adapter", () => {
       organizationId: ORG_ID,
       statementId: STATEMENT_ID,
       storageKey: `private/statements/${ORG_ID}/${STATEMENT_ID}/escaped.pdf`,
+      checksum: null,
+    });
+    expect(opened.ok).toBe(false);
+  });
+
+  it("writes a PDF exclusively and returns a checksum", async () => {
+    await withTempRoot();
+    const bytes = pdfBytes();
+    const storageKey = buildPrivateStatementPdfStorageKey(
+      ORG_ID,
+      STATEMENT_ID,
+      "IND-2026-ABCD",
+    );
+    const written = await writePrivateStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey,
+      bytes,
+    });
+    expect(written.ok).toBe(true);
+    if (!written.ok) return;
+    expect(written.checksum).toBe(createHash("sha256").update(bytes).digest("hex"));
+
+    const opened = await openAuthorizedStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey,
+      checksum: written.checksum,
+    });
+    expect(opened.ok).toBe(true);
+    if (opened.ok) opened.stream.destroy();
+  });
+
+  it("does not overwrite an existing statement PDF", async () => {
+    await withTempRoot();
+    const storageKey = buildPrivateStatementPdfStorageKey(
+      ORG_ID,
+      STATEMENT_ID,
+      "statement",
+    );
+    const first = await writePrivateStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey,
+      bytes: pdfBytes("first"),
+    });
+    expect(first.ok).toBe(true);
+    const second = await writePrivateStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey,
+      bytes: pdfBytes("second"),
+    });
+    expect(second).toEqual({ ok: false, reason: "ALREADY_EXISTS" });
+  });
+
+  it("rejects traversal keys on write and cleanup", async () => {
+    await withTempRoot();
+    const unsafe = `private/statements/${ORG_ID}/${STATEMENT_ID}/../secret.pdf`;
+    await expect(
+      writePrivateStatementPdf({
+        organizationId: ORG_ID,
+        statementId: STATEMENT_ID,
+        storageKey: unsafe,
+        bytes: pdfBytes(),
+      }),
+    ).resolves.toEqual({ ok: false, reason: "UNSAFE_KEY" });
+    await deletePrivateStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey: unsafe,
+    });
+  });
+
+  it("rejects non-PDF bytes on write", async () => {
+    await withTempRoot();
+    await expect(
+      writePrivateStatementPdf({
+        organizationId: ORG_ID,
+        statementId: STATEMENT_ID,
+        storageKey: buildPrivateStatementPdfStorageKey(
+          ORG_ID,
+          STATEMENT_ID,
+          "note",
+        ),
+        bytes: Buffer.from("not a pdf"),
+      }),
+    ).resolves.toEqual({ ok: false, reason: "INVALID_PDF" });
+  });
+
+  it("cleans up a written PDF used to compensate a failed record create", async () => {
+    await withTempRoot();
+    const storageKey = buildPrivateStatementPdfStorageKey(
+      ORG_ID,
+      STATEMENT_ID,
+      "IND-2026-CLEAN",
+    );
+    const written = await writePrivateStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey,
+      bytes: pdfBytes(),
+    });
+    expect(written.ok).toBe(true);
+    await deletePrivateStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey,
+    });
+    const opened = await openAuthorizedStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey,
       checksum: null,
     });
     expect(opened.ok).toBe(false);

@@ -117,6 +117,10 @@ export default async function StaffLayout({
                 href: "/statements/recipients",
                 label: "Statement Recipient Review",
               },
+              {
+                href: "/statements/run-review",
+                label: "Statement Run Review",
+              },
               { href: "/statements/unmatched", label: "Unmatched Gifts" },
             ]
           : []),
@@ -157,7 +161,7 @@ export default async function StaffLayout({
 
   return (
     <div className="min-h-full bg-[var(--bits-page)]">
-      <header className="border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white shadow-sm">
+      <header className="staff-app-header border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white shadow-sm">
         <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-[var(--bits-gold)]">
@@ -180,8 +184,8 @@ export default async function StaffLayout({
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-[1440px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8">
-        <aside className="h-fit lg:sticky lg:top-5">
+      <div className="staff-app-shell mx-auto grid w-full max-w-[1440px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8">
+        <aside className="staff-app-nav h-fit lg:sticky lg:top-5">
           <div className="hidden rounded-2xl bg-[var(--bits-navy-deep)] p-4 shadow-lg lg:block">
             <p className="mb-3 px-3 text-xs leading-5 text-white/60">
               Secure access for authorized church leadership.

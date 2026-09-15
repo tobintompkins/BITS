@@ -46,6 +46,7 @@ type DonorRow = {
 };
 
 type StatementRow = {
+  id: string;
   organizationId: string;
   donorId: string;
   statementType: StatementType;
@@ -53,6 +54,7 @@ type StatementRow = {
   periodStart: Date;
   status: StatementStatus;
   statementIdentifier: string;
+  generatedByUserAccountId: string;
 };
 
 type OrganizationRow = {
@@ -211,8 +213,10 @@ vi.mock("@/lib/db/prisma", () => ({
             );
           })
           .map((row) => ({
+            id: row.id,
             status: row.status,
             statementIdentifier: row.statementIdentifier,
+            generatedByUserAccountId: row.generatedByUserAccountId,
           }));
       },
     },
@@ -230,6 +234,10 @@ const OTHER_ORG = "00000000-0000-4000-8000-00000000a002";
 const USER_ID = "00000000-0000-4000-8000-00000000c001";
 const DONOR_ANN = "00000000-0000-4000-8000-00000000d001";
 const DONOR_OTHER = "00000000-0000-4000-8000-00000000d002";
+const STMT_ANN = "00000000-0000-4000-8000-00000000b011";
+const STMT_OTHER = "00000000-0000-4000-8000-00000000b012";
+const STMT_PUB = "00000000-0000-4000-8000-00000000b013";
+const STMT_HH = "00000000-0000-4000-8000-00000000b014";
 const NOW = new Date("2026-09-11T16:00:00.000Z");
 
 function seedPreviewData() {
@@ -389,6 +397,7 @@ function seedPreviewData() {
   ];
   store.statements = [
     {
+      id: STMT_ANN,
       organizationId: ORG_ID,
       donorId: DONOR_ANN,
       statementType: StatementType.INDIVIDUAL,
@@ -396,8 +405,10 @@ function seedPreviewData() {
       periodStart: new Date("2026-01-01T00:00:00.000Z"),
       status: StatementStatus.GENERATED,
       statementIdentifier: "STMT-2026-ANN",
+      generatedByUserAccountId: USER_ID,
     },
     {
+      id: STMT_OTHER,
       organizationId: OTHER_ORG,
       donorId: DONOR_ANN,
       statementType: StatementType.INDIVIDUAL,
@@ -405,6 +416,7 @@ function seedPreviewData() {
       periodStart: new Date("2026-01-01T00:00:00.000Z"),
       status: StatementStatus.PUBLISHED,
       statementIdentifier: "STMT-OTHER",
+      generatedByUserAccountId: USER_ID,
     },
   ];
   store.organization = {
@@ -534,15 +546,29 @@ describe("individual statement preview", () => {
 
   it("returns the existing individual statement status and identifier", async () => {
     const result = await getIndividualStatementPreview(DONOR_ANN, "2026", NOW);
+    expect(result.canManageStatements).toBe(true);
+    expect(result.viewerUserAccountId).toBe(USER_ID);
     expect(result.statement).toEqual({
       exists: true,
+      id: STMT_ANN,
       status: StatementStatus.GENERATED,
       statementIdentifier: "STMT-2026-ANN",
+      generatedByUserAccountId: USER_ID,
     });
+  });
+
+  it("lets statement viewers preview without manage permission", async () => {
+    mocks.getGivingAccess.mockResolvedValue(
+      getGivingCapabilitiesForRole(RoleCode.REPORT_VIEWER),
+    );
+    const result = await getIndividualStatementPreview(DONOR_ANN, "2026", NOW);
+    expect(result.canManageStatements).toBe(false);
+    expect(result.viewerUserAccountId).toBe(USER_ID);
   });
 
   it("prefers a published individual statement over generated or voided", async () => {
     store.statements.push({
+      id: STMT_PUB,
       organizationId: ORG_ID,
       donorId: DONOR_ANN,
       statementType: StatementType.INDIVIDUAL,
@@ -550,18 +576,22 @@ describe("individual statement preview", () => {
       periodStart: new Date("2026-01-01T00:00:00.000Z"),
       status: StatementStatus.PUBLISHED,
       statementIdentifier: "STMT-2026-PUB",
+      generatedByUserAccountId: USER_ID,
     });
     const result = await getIndividualStatementPreview(DONOR_ANN, "2026", NOW);
     expect(result.statement).toEqual({
       exists: true,
+      id: STMT_PUB,
       status: StatementStatus.PUBLISHED,
       statementIdentifier: "STMT-2026-PUB",
+      generatedByUserAccountId: USER_ID,
     });
   });
 
   it("ignores household statements when selecting existing status", async () => {
     store.statements = [
       {
+        id: STMT_HH,
         organizationId: ORG_ID,
         donorId: DONOR_ANN,
         statementType: StatementType.HOUSEHOLD,
@@ -569,13 +599,16 @@ describe("individual statement preview", () => {
         periodStart: new Date("2026-01-01T00:00:00.000Z"),
         status: StatementStatus.PUBLISHED,
         statementIdentifier: "STMT-HH",
+        generatedByUserAccountId: USER_ID,
       },
     ];
     const result = await getIndividualStatementPreview(DONOR_ANN, "2026", NOW);
     expect(result.statement).toEqual({
       exists: false,
+      id: null,
       status: null,
       statementIdentifier: null,
+      generatedByUserAccountId: null,
     });
   });
 

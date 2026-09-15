@@ -167,6 +167,16 @@ export async function requireStatementViewAccess(organizationId: string) {
   return access;
 }
 
+export async function requireStatementManageAccess(organizationId: string) {
+  const access = await getGivingAccess(organizationId);
+  if (!access.canManageStatements) {
+    throw new Error(
+      "You do not have permission to manage contribution statements.",
+    );
+  }
+  return access;
+}
+
 export async function requireUnmatchedGiftViewAccess(organizationId: string) {
   const access = await getGivingAccess(organizationId);
   if (!access.canViewStatements) {

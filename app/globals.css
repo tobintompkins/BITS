@@ -65,3 +65,92 @@ body {
     animation: none;
   }
 }
+
+@media print {
+  @page {
+    margin: 0.6in;
+  }
+
+  body:has(.statement-preview) {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  body:has(.statement-preview) .staff-app-header,
+  body:has(.statement-preview) .staff-app-nav {
+    display: none !important;
+  }
+
+  body:has(.statement-preview) .staff-app-shell {
+    display: block;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    gap: 0;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-hidden {
+    display: none !important;
+  }
+
+  .print-show {
+    display: block !important;
+  }
+
+  .statement-preview,
+  .statement-preview * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .statement-preview a {
+    color: #000 !important;
+    text-decoration: none;
+  }
+
+  .statement-preview .print-letterhead {
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #ccc;
+  }
+
+  .statement-preview .print-letterhead h1 {
+    font-size: 1.5rem;
+    margin: 0.75rem 0 0.35rem;
+  }
+
+  .statement-preview table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .statement-preview thead {
+    display: table-header-group;
+  }
+
+  .statement-preview tfoot {
+    display: table-footer-group;
+  }
+
+  .statement-preview tr,
+  .statement-preview .print-keep {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .statement-preview h1,
+  .statement-preview h2 {
+    break-after: avoid;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
