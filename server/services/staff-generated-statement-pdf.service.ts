@@ -26,7 +26,7 @@ export type AuthorizedStaffGeneratedStatementPdf =
       statementId: string;
       userAccountId: string;
       statementIdentifier: string;
-      statementType: "INDIVIDUAL";
+      statementType: "INDIVIDUAL" | "HOUSEHOLD";
       statementStatus: "GENERATED";
       pdfStorageKey: string;
       pdfChecksum: string;
@@ -37,7 +37,7 @@ function hasValidChecksum(value: string | null | undefined) {
 }
 
 /**
- * Staff review of one unpublished INDIVIDUAL statement PDF.
+ * Staff review of one unpublished INDIVIDUAL or HOUSEHOLD statement PDF.
  * Publishing and member visibility are later patches.
  */
 export async function authorizeStaffGeneratedStatementPdf(
@@ -68,9 +68,17 @@ export async function authorizeStaffGeneratedStatementPdf(
     where: {
       id: idParsed.data,
       organizationId: organization.id,
-      statementType: StatementType.INDIVIDUAL,
       status: StatementStatus.GENERATED,
-      householdId: null,
+      OR: [
+        {
+          statementType: StatementType.INDIVIDUAL,
+          householdId: null,
+        },
+        {
+          statementType: StatementType.HOUSEHOLD,
+          donorId: null,
+        },
+      ],
     },
     select: {
       id: true,
@@ -85,6 +93,8 @@ export async function authorizeStaffGeneratedStatementPdf(
 
   if (
     !statement?.pdfStorageKey ||
+    (statement.statementType !== StatementType.INDIVIDUAL &&
+      statement.statementType !== StatementType.HOUSEHOLD) ||
     !hasValidChecksum(statement.pdfChecksum) ||
     !isSafeStatementPdfStorageKey(
       statement.pdfStorageKey,
@@ -101,7 +111,7 @@ export async function authorizeStaffGeneratedStatementPdf(
     statementId: statement.id,
     userAccountId: userAccount.id,
     statementIdentifier: statement.statementIdentifier,
-    statementType: "INDIVIDUAL",
+    statementType: statement.statementType,
     statementStatus: "GENERATED",
     pdfStorageKey: statement.pdfStorageKey,
     pdfChecksum: statement.pdfChecksum!.trim().toLowerCase(),
@@ -113,6 +123,7 @@ export async function recordStaffGeneratedStatementView(input: {
   statementId: string;
   userAccountId: string;
   statementIdentifier: string;
+  statementType: "INDIVIDUAL" | "HOUSEHOLD";
 }) {
   await createAuditEvent({
     organizationId: input.organizationId,
@@ -124,7 +135,7 @@ export async function recordStaffGeneratedStatementView(input: {
       {
         field: "statementType",
         oldValue: null,
-        newValue: StatementType.INDIVIDUAL,
+        newValue: input.statementType,
       },
       {
         field: "statementIdentifier",

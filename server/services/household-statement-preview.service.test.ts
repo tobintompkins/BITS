@@ -55,6 +55,7 @@ type HouseholdRow = {
 };
 
 type StatementRow = {
+  id: string;
   organizationId: string;
   householdId: string;
   statementType: StatementType;
@@ -62,6 +63,7 @@ type StatementRow = {
   periodStart: Date;
   status: StatementStatus;
   statementIdentifier: string;
+  generatedByUserAccountId: string;
 };
 
 type OrganizationRow = {
@@ -290,8 +292,10 @@ vi.mock("@/lib/db/prisma", () => ({
             );
           })
           .map((row) => ({
+            id: row.id,
             status: row.status,
             statementIdentifier: row.statementIdentifier,
+            generatedByUserAccountId: row.generatedByUserAccountId,
           }));
       },
     },
@@ -308,6 +312,8 @@ const ORG_ID = "00000000-0000-4000-8000-00000000a001";
 const OTHER_ORG = "00000000-0000-4000-8000-00000000a002";
 const USER_ID = "00000000-0000-4000-8000-00000000c001";
 const HOUSEHOLD_ID = "00000000-0000-4000-8000-00000000e001";
+const STMT_HH = "00000000-0000-4000-8000-00000000b011";
+const STMT_PUB = "00000000-0000-4000-8000-00000000b012";
 const OTHER_HOUSEHOLD = "00000000-0000-4000-8000-00000000e002";
 const DONOR_ANN = "00000000-0000-4000-8000-00000000d001";
 const DONOR_BEN = "00000000-0000-4000-8000-00000000d002";
@@ -524,6 +530,7 @@ function seedHouseholdPreview() {
   ];
   store.statements = [
     {
+      id: STMT_HH,
       organizationId: ORG_ID,
       householdId: HOUSEHOLD_ID,
       statementType: StatementType.HOUSEHOLD,
@@ -531,8 +538,10 @@ function seedHouseholdPreview() {
       periodStart: new Date("2026-01-01T00:00:00.000Z"),
       status: StatementStatus.GENERATED,
       statementIdentifier: "HH-2026-ADAMS",
+      generatedByUserAccountId: USER_ID,
     },
     {
+      id: "00000000-0000-4000-8000-00000000b013",
       organizationId: ORG_ID,
       householdId: HOUSEHOLD_ID,
       statementType: StatementType.INDIVIDUAL,
@@ -540,6 +549,7 @@ function seedHouseholdPreview() {
       periodStart: new Date("2026-01-01T00:00:00.000Z"),
       status: StatementStatus.PUBLISHED,
       statementIdentifier: "IND-SHOULD-IGNORE",
+      generatedByUserAccountId: USER_ID,
     },
   ];
   store.organization = {
@@ -656,10 +666,14 @@ describe("household statement preview", () => {
 
   it("returns the existing household statement status and identifier", async () => {
     const result = await getHouseholdStatementPreview(HOUSEHOLD_ID, "2026", NOW);
+    expect(result.canManageStatements).toBe(true);
+    expect(result.viewerUserAccountId).toBe(USER_ID);
     expect(result.statement).toEqual({
       exists: true,
+      id: STMT_HH,
       status: StatementStatus.GENERATED,
       statementIdentifier: "HH-2026-ADAMS",
+      generatedByUserAccountId: USER_ID,
     });
     expect(result.household.preferredStatementRecipient).toEqual({
       displayName: "Ann Adams",
@@ -668,6 +682,7 @@ describe("household statement preview", () => {
 
   it("prefers a published household statement over generated or voided", async () => {
     store.statements.push({
+      id: STMT_PUB,
       organizationId: ORG_ID,
       householdId: HOUSEHOLD_ID,
       statementType: StatementType.HOUSEHOLD,
@@ -675,12 +690,15 @@ describe("household statement preview", () => {
       periodStart: new Date("2026-01-01T00:00:00.000Z"),
       status: StatementStatus.PUBLISHED,
       statementIdentifier: "HH-2026-PUB",
+      generatedByUserAccountId: USER_ID,
     });
     const result = await getHouseholdStatementPreview(HOUSEHOLD_ID, "2026", NOW);
     expect(result.statement).toEqual({
       exists: true,
+      id: STMT_PUB,
       status: StatementStatus.PUBLISHED,
       statementIdentifier: "HH-2026-PUB",
+      generatedByUserAccountId: USER_ID,
     });
   });
 

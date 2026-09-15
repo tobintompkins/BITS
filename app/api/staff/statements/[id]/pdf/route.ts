@@ -25,8 +25,8 @@ function notFound() {
 /**
  * GET /api/staff/statements/{id}/pdf
  *
- * Streams a current-organization INDIVIDUAL statement PDF with status
- * GENERATED. Never returns a storage key, filesystem path, or checksum.
+ * Streams a current-organization INDIVIDUAL or HOUSEHOLD statement PDF with
+ * status GENERATED. Never returns a storage key, filesystem path, or checksum.
  */
 export async function GET(_request: Request, context: RouteContext) {
   const { userId } = await auth();
@@ -61,6 +61,7 @@ export async function GET(_request: Request, context: RouteContext) {
       statementId: authorized.statementId,
       userAccountId: authorized.userAccountId,
       statementIdentifier: authorized.statementIdentifier,
+      statementType: authorized.statementType,
     });
   } catch {
     opened.stream.destroy();

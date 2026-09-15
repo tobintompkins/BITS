@@ -66,6 +66,13 @@ enum StatementStatus {
   VOIDED
 }
 
+enum StatementVoidRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 enum StatementAccessAction {
   GENERATED
   VIEWED
@@ -502,6 +509,7 @@ model Organization {
   eventCheckInIdempotency   EventCheckInIdempotency[]
   stripeWebhookEvents       StripeWebhookEvent[]
   financialCorrectionRequests FinancialCorrectionRequest[]
+  statementVoidRequests     StatementVoidRequest[]
 
   @@map("organizations")
 }
@@ -553,6 +561,8 @@ model UserAccount {
   eventQrPassesRevoked        EventQrPass[]              @relation("EventQrPassRevokedBy")
   financialCorrectionsRequested FinancialCorrectionRequest[] @relation("FinancialCorrectionRequestedBy")
   financialCorrectionsReviewed  FinancialCorrectionRequest[] @relation("FinancialCorrectionReviewedBy")
+  statementVoidRequestsRequested StatementVoidRequest[] @relation("StatementVoidRequestedBy")
+  statementVoidRequestsReviewed  StatementVoidRequest[] @relation("StatementVoidReviewedBy")
 
   @@map("user_accounts")
 }
@@ -871,6 +881,7 @@ model ContributionStatement {
   household    Household?             @relation("StatementHousehold", fields: [householdId], references: [id], onDelete: Restrict)
   generatedBy  UserAccount            @relation(fields: [generatedByUserAccountId], references: [id], onDelete: Restrict)
   accessEvents StatementAccessEvent[]
+  voidRequests StatementVoidRequest[]
 
   @@unique([organizationId, statementIdentifier])
   @@index([organizationId])
@@ -879,6 +890,32 @@ model ContributionStatement {
   @@index([donorId])
   @@index([householdId])
   @@map("contribution_statements")
+}
+
+model StatementVoidRequest {
+  id                       String                      @id @default(uuid()) @db.Uuid
+  organizationId           String                      @db.Uuid
+  contributionStatementId  String                      @db.Uuid
+  status                   StatementVoidRequestStatus  @default(PENDING)
+  reason                   String
+  requestedByUserAccountId String                      @db.Uuid
+  reviewedByUserAccountId  String?                     @db.Uuid
+  reviewNote               String?
+  reviewedAt               DateTime?
+  createdAt                DateTime                    @default(now())
+  updatedAt                DateTime                    @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  statement    ContributionStatement @relation(fields: [contributionStatementId], references: [id], onDelete: Restrict)
+  requestedBy  UserAccount           @relation("StatementVoidRequestedBy", fields: [requestedByUserAccountId], references: [id], onDelete: Restrict)
+  reviewedBy   UserAccount?          @relation("StatementVoidReviewedBy", fields: [reviewedByUserAccountId], references: [id], onDelete: Restrict)
+
+  // Partial unique index in SQL: one PENDING request per statement.
+  @@index([organizationId, status, createdAt])
+  @@index([contributionStatementId, createdAt])
+  @@index([requestedByUserAccountId])
+  @@index([reviewedByUserAccountId])
+  @@map("statement_void_requests")
 }
 
 model StatementAccessEvent {

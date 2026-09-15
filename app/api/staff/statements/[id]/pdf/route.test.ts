@@ -14,6 +14,7 @@ type StatementRow = {
   statementType: StatementType;
   status: StatementStatus;
   householdId: string | null;
+  donorId: string | null;
   statementIdentifier: string;
   pdfStorageKey: string;
   pdfChecksum: string | null;
@@ -85,22 +86,33 @@ vi.mock("@/lib/db/prisma", () => ({
         where: {
           id: string;
           organizationId: string;
-          statementType: StatementType;
           status: StatementStatus;
-          householdId: null;
+          OR?: Array<{
+            statementType: StatementType;
+            householdId?: null;
+            donorId?: null;
+          }>;
         };
         select: Record<string, boolean>;
       }) => {
         store.findFirstCalls += 1;
         store.lastFindFirstWhere = { where, select };
-        const row = store.statements.find(
-          (statement) =>
-            statement.id === where.id &&
-            statement.organizationId === where.organizationId &&
-            statement.statementType === where.statementType &&
-            statement.status === where.status &&
-            statement.householdId === where.householdId,
-        );
+        const row = store.statements.find((statement) => {
+          if (statement.id !== where.id) return false;
+          if (statement.organizationId !== where.organizationId) return false;
+          if (statement.status !== where.status) return false;
+          if (!where.OR?.length) return false;
+          return where.OR.some((branch) => {
+            if (statement.statementType !== branch.statementType) return false;
+            if (branch.householdId === null && statement.householdId !== null) {
+              return false;
+            }
+            if (branch.donorId === null && statement.donorId !== null) {
+              return false;
+            }
+            return true;
+          });
+        });
         if (!row) return null;
         return {
           id: row.id,
@@ -120,11 +132,14 @@ import { GET } from "@/app/api/staff/statements/[id]/pdf/route";
 import { VIEW_GENERATED_CONTRIBUTION_STATEMENT } from "@/server/services/staff-generated-statement-pdf.service";
 
 const STATEMENT_ID = "00000000-0000-4000-8000-00000000b001";
+const HOUSEHOLD_ID = "00000000-0000-4000-8000-00000000e001";
+const DONOR_ID = "00000000-0000-4000-8000-00000000d001";
 const ORG_ID = "00000000-0000-4000-8000-00000000a001";
 const OTHER_ORG = "00000000-0000-4000-8000-00000000a002";
 const USER_ID = "00000000-0000-4000-8000-00000000c001";
 const CHECKSUM = "a".repeat(64);
 const STORAGE_KEY = `private/statements/${ORG_ID}/${STATEMENT_ID}/IND-2026-ABCD.pdf`;
+const HOUSEHOLD_STORAGE_KEY = `private/statements/${ORG_ID}/${STATEMENT_ID}/HH-2026-ABCD.pdf`;
 
 function makeRequest() {
   return new Request(
@@ -145,6 +160,7 @@ function generatedStatement(
     statementType: StatementType.INDIVIDUAL,
     status: StatementStatus.GENERATED,
     householdId: null,
+    donorId: DONOR_ID,
     statementIdentifier: "IND-2026-ABCD",
     pdfStorageKey: STORAGE_KEY,
     pdfChecksum: CHECKSUM,
@@ -224,8 +240,17 @@ describe("GET /api/staff/statements/[id]/pdf", () => {
       where: {
         id: STATEMENT_ID,
         organizationId: ORG_ID,
-        statementType: StatementType.INDIVIDUAL,
         status: StatementStatus.GENERATED,
+        OR: expect.arrayContaining([
+          expect.objectContaining({
+            statementType: StatementType.INDIVIDUAL,
+            householdId: null,
+          }),
+          expect.objectContaining({
+            statementType: StatementType.HOUSEHOLD,
+            donorId: null,
+          }),
+        ]),
       },
     });
     expect(mocks.openAuthorizedStatementPdf).not.toHaveBeenCalled();
@@ -243,16 +268,88 @@ describe("GET /api/staff/statements/[id]/pdf", () => {
     },
   );
 
-  it("denies a household statement", async () => {
+  it("denies a published household statement through this generated-review route", async () => {
     store.statements = [
       generatedStatement({
         statementType: StatementType.HOUSEHOLD,
+        householdId: HOUSEHOLD_ID,
+        donorId: null,
+        status: StatementStatus.PUBLISHED,
+        statementIdentifier: "HH-2026-PUB",
+        pdfStorageKey: HOUSEHOLD_STORAGE_KEY,
       }),
     ];
     const response = await GET(makeRequest(), params());
     expect(response.status).toBe(404);
     expect(mocks.openAuthorizedStatementPdf).not.toHaveBeenCalled();
     expect(mocks.createAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("denies a malformed household statement with a donor id", async () => {
+    store.statements = [
+      generatedStatement({
+        statementType: StatementType.HOUSEHOLD,
+        householdId: HOUSEHOLD_ID,
+        donorId: DONOR_ID,
+        statementIdentifier: "HH-2026-BAD",
+        pdfStorageKey: HOUSEHOLD_STORAGE_KEY,
+      }),
+    ];
+    const response = await GET(makeRequest(), params());
+    expect(response.status).toBe(404);
+    expect(mocks.openAuthorizedStatementPdf).not.toHaveBeenCalled();
+    expect(mocks.createAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("streams a generated household PDF and records a household review audit", async () => {
+    store.statements = [
+      generatedStatement({
+        statementType: StatementType.HOUSEHOLD,
+        householdId: HOUSEHOLD_ID,
+        donorId: null,
+        statementIdentifier: "HH-2026-ABCD",
+        pdfStorageKey: HOUSEHOLD_STORAGE_KEY,
+      }),
+    ];
+    const { stream } = pdfStream();
+    mocks.openAuthorizedStatementPdf.mockResolvedValue({
+      ok: true,
+      absolutePath: "/tmp/hidden-statement.pdf",
+      stream,
+    });
+    const response = await GET(makeRequest(), params());
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("application/pdf");
+    expect(response.headers.get("Content-Disposition")).toBe(
+      'inline; filename="HH-2026-ABCD.pdf"',
+    );
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(mocks.createAuditEvent).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      actorUserAccountId: USER_ID,
+      action: VIEW_GENERATED_CONTRIBUTION_STATEMENT,
+      entityType: "ContributionStatement",
+      entityId: STATEMENT_ID,
+      changes: expect.arrayContaining([
+        expect.objectContaining({
+          field: "statementType",
+          newValue: "HOUSEHOLD",
+        }),
+        expect.objectContaining({
+          field: "statementIdentifier",
+          newValue: "HH-2026-ABCD",
+        }),
+        expect.objectContaining({ field: "status", newValue: "GENERATED" }),
+      ]),
+    });
+    const auditJson = JSON.stringify(mocks.createAuditEvent.mock.calls[0]?.[0]);
+    expect(auditJson).toContain("HOUSEHOLD");
+    expect(auditJson).not.toMatch(
+      /Adams Household|10 Oak|private\/statements|\/tmp\/hidden|checksum/i,
+    );
+    const body = await response.text();
+    expect(body.startsWith("%PDF-")).toBe(true);
   });
 
   it("denies a missing or unsafe storage file without auditing", async () => {

@@ -57,7 +57,12 @@ function displayName(row: { firstName: string; lastName: string }) {
 }
 
 function pickHouseholdStatement(
-  rows: Array<{ status: StatementStatus; statementIdentifier: string }>,
+  rows: Array<{
+    id: string;
+    status: StatementStatus;
+    statementIdentifier: string;
+    generatedByUserAccountId: string;
+  }>,
 ) {
   const rank: Record<StatementStatus, number> = {
     [StatementStatus.PUBLISHED]: 0,
@@ -87,19 +92,20 @@ async function requirePreviewContext() {
       "Church organization not found.",
     );
   }
+  let access;
   try {
-    await requireStatementViewAccess(organization.id);
+    access = await requireStatementViewAccess(organization.id);
   } catch {
     throw new HouseholdStatementPreviewError(
       "FORBIDDEN",
       "You do not have permission to view contribution statements.",
     );
   }
-  return organization;
+  return { organization, actor, access };
 }
 
 export async function listHouseholdsForStatementPreview() {
-  const organization = await requirePreviewContext();
+  const { organization } = await requirePreviewContext();
   return prisma.household.findMany({
     where: { organizationId: organization.id },
     orderBy: { displayName: "asc" },
@@ -113,7 +119,7 @@ export async function getHouseholdStatementPreview(
   yearInput?: string | string[],
   now = new Date(),
 ) {
-  const organization = await requirePreviewContext();
+  const { organization, actor, access } = await requirePreviewContext();
   if (!householdIdSchema.safeParse(householdId).success) {
     throw new HouseholdStatementPreviewError(
       "NOT_FOUND",
@@ -175,7 +181,12 @@ export async function getHouseholdStatementPreview(
           { taxYear: null, periodStart: { gte: start, lt: end } },
         ],
       },
-      select: { status: true, statementIdentifier: true },
+      select: {
+        id: true,
+        status: true,
+        statementIdentifier: true,
+        generatedByUserAccountId: true,
+      },
     }),
   ]);
 
@@ -293,13 +304,23 @@ export async function getHouseholdStatementPreview(
     deductibleTotal: sumMoneyAmounts(
       includedGifts.map((gift) => gift.deductibleAmount.toString()),
     ),
+    canManageStatements: access.canManageStatements,
+    viewerUserAccountId: actor.id,
     lines,
     statement: existingStatement
       ? {
           exists: true,
+          id: existingStatement.id,
           status: existingStatement.status,
           statementIdentifier: existingStatement.statementIdentifier,
+          generatedByUserAccountId: existingStatement.generatedByUserAccountId,
         }
-      : { exists: false, status: null, statementIdentifier: null },
+      : {
+          exists: false,
+          id: null,
+          status: null,
+          statementIdentifier: null,
+          generatedByUserAccountId: null,
+        },
   };
 }

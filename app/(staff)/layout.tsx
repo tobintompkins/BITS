@@ -121,6 +121,7 @@ export default async function StaffLayout({
                 href: "/statements/run-review",
                 label: "Statement Run Review",
               },
+              { href: "/statements/registry", label: "Statement Registry" },
               { href: "/statements/unmatched", label: "Unmatched Gifts" },
             ]
           : []),

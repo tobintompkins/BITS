@@ -170,6 +170,12 @@ export default async function StatementsPage() {
             Statement Run Review
           </Link>
           <Link
+            href="/statements/registry"
+            className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+          >
+            Statement Registry
+          </Link>
+          <Link
             href="/households"
             className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
           >

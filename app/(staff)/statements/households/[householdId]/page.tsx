@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { GenerateHouseholdStatementButton } from "@/components/statements/generate-household-statement-button";
 import { PrintStatementPreviewButton } from "@/components/statements/print-statement-preview-button";
+import { PublishHouseholdStatementButton } from "@/components/statements/publish-household-statement-button";
 import { formatMoney } from "@/lib/money/decimal";
 import { statementYearBounds } from "@/lib/validation/statement-readiness";
 import {
   HouseholdStatementPreviewError,
   getHouseholdStatementPreview,
 } from "@/server/services/household-statement-preview.service";
+import { TWO_PERSON_PUBLISH_MESSAGE } from "@/server/services/household-statement-publish.service";
 
 function formatUtcDate(value: Date) {
   return new Intl.DateTimeFormat("en-US", {
@@ -114,6 +117,32 @@ export default async function HouseholdStatementPreviewPage({
     throw error;
   }
 
+  const blockingStatus =
+    preview.statement.status === "GENERATED" ||
+    preview.statement.status === "PUBLISHED";
+  const canGenerate = preview.canManageStatements && !blockingStatus;
+  const canReviewGeneratedPdf =
+    preview.canManageStatements &&
+    preview.statement.status === "GENERATED" &&
+    Boolean(preview.statement.id);
+  const isGenerator =
+    preview.statement.generatedByUserAccountId != null &&
+    preview.statement.generatedByUserAccountId === preview.viewerUserAccountId;
+  const canPublish =
+    preview.canManageStatements &&
+    preview.statement.status === "GENERATED" &&
+    Boolean(preview.statement.id) &&
+    !isGenerator;
+  const generatedNotice = Array.isArray(query.generated)
+    ? query.generated[0]
+    : query.generated;
+  const publishedNotice = Array.isArray(query.published)
+    ? query.published[0]
+    : query.published;
+  const einWarning = Array.isArray(query.einWarning)
+    ? query.einWarning[0]
+    : query.einWarning;
+
   const organizationAddressReady =
     present(preview.organization.mailingAddressLine1) &&
     present(preview.organization.city) &&
@@ -150,12 +179,91 @@ export default async function HouseholdStatementPreviewPage({
 
       <PrintStatementPreviewButton />
 
-      <p
-        role="status"
-        className="print-hidden rounded-2xl border border-[var(--bits-gold)] bg-[var(--bits-gold)]/10 p-5 text-sm font-semibold leading-6 text-[var(--bits-navy)]"
-      >
-        Preview only — no statement has been created or published
-      </p>
+      {publishedNotice && preview.statement.status === "PUBLISHED" ? (
+        <p
+          role="status"
+          className="print-hidden rounded-2xl border border-emerald-300 bg-emerald-50 p-5 text-sm leading-6 text-emerald-950"
+        >
+          Official household statement {publishedNotice} is published. Only the
+          authorized preferred household recipient can now view or download it
+          from their secure portal. It is not a public URL and was not emailed.
+        </p>
+      ) : generatedNotice && preview.statement.exists ? (
+        <p
+          role="status"
+          className="print-hidden rounded-2xl border border-emerald-300 bg-emerald-50 p-5 text-sm leading-6 text-emerald-950"
+        >
+          Official household statement {generatedNotice} was generated but not
+          published. It is private and cannot yet be viewed by household
+          members.
+          {einWarning === "1" || !preview.organization.einPresent
+            ? " No EIN is on file; generation was not blocked for that reason."
+            : null}
+        </p>
+      ) : blockingStatus ? (
+        <p
+          role="status"
+          className="print-hidden rounded-2xl border border-[var(--bits-border)] bg-white p-5 text-sm leading-6 text-[var(--bits-navy)]"
+        >
+          {preview.statement.status === "PUBLISHED"
+            ? "This official household statement is published. Only the authorized preferred household recipient can view or download it from their secure portal. It is not a public URL."
+            : "An official household statement has already been generated for this household and year. It is not published and cannot yet be viewed by household members. Duplicate generation is not offered."}{" "}
+          Identifier: {preview.statement.statementIdentifier}.
+        </p>
+      ) : (
+        <p
+          role="status"
+          className="print-hidden rounded-2xl border border-[var(--bits-gold)] bg-[var(--bits-gold)]/10 p-5 text-sm font-semibold leading-6 text-[var(--bits-navy)]"
+        >
+          Preview only — no statement has been created or published
+        </p>
+      )}
+
+      {canGenerate ? (
+        <GenerateHouseholdStatementButton
+          householdId={householdId}
+          year={preview.year}
+        />
+      ) : null}
+
+      {canReviewGeneratedPdf ? (
+        <div className="print-hidden rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
+          <a
+            href={`/api/staff/statements/${preview.statement.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+          >
+            Open generated household PDF for review
+          </a>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
+            This official household PDF is generated but not published. It is
+            private and is not visible to household members.
+          </p>
+        </div>
+      ) : null}
+
+      {canPublish &&
+      preview.statement.id &&
+      preview.statement.statementIdentifier ? (
+        <PublishHouseholdStatementButton
+          statementId={preview.statement.id}
+          statementIdentifier={preview.statement.statementIdentifier}
+        />
+      ) : null}
+
+      {preview.canManageStatements &&
+      preview.statement.status === "GENERATED" &&
+      isGenerator ? (
+        <p
+          role="status"
+          className="print-hidden rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950"
+        >
+          {TWO_PERSON_PUBLISH_MESSAGE} Open the generated household PDF for
+          review, then ask another authorized treasurer or administrator to
+          approve and publish it.
+        </p>
+      ) : null}
 
       <header className="print-only print-letterhead">
         <p role="note">

@@ -311,6 +311,24 @@ describe("authorizePortalStatementPdf", () => {
     expect(JSON.stringify(where)).not.toContain("VOIDED");
   });
 
+  it("does not authorize GENERATED household statements on the member portal", async () => {
+    mocks.householdFindMany.mockResolvedValue([{ id: HOUSEHOLD_ID }]);
+    mocks.statementFindFirst.mockResolvedValue(null);
+    await expect(
+      authorizePortalStatementPdf(HOUSEHOLD_STMT, "view"),
+    ).resolves.toEqual({ status: "NOT_AVAILABLE" });
+    expect(mocks.statementFindFirst).toHaveBeenCalledWith({
+      where: portalPublishedStatementAccessWhere({
+        organizationId: ORG_ID,
+        donorId: DONOR_ID,
+        authorizedHouseholdIds: [HOUSEHOLD_ID],
+        statementId: HOUSEHOLD_STMT,
+      }),
+      select: expect.any(Object),
+    });
+    expect(mocks.accessCreate).not.toHaveBeenCalled();
+  });
+
   it("denies a household statement with donorId populated as malformed", () => {
     const household = portalPublishedStatementAccessWhere({
       organizationId: ORG_ID,
