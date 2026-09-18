@@ -23,6 +23,7 @@ const ALLOWED_FIELDS = new Set([
   "deductibleTotal",
   "statementIdentifier",
   "requestStatus",
+  "priorStatementIdentifier",
 ]);
 
 export const GENERATE_CONTRIBUTION_STATEMENT = "GENERATE_CONTRIBUTION_STATEMENT";
@@ -31,6 +32,14 @@ export const VIEW_GENERATED_CONTRIBUTION_STATEMENT =
 export const PUBLISH_CONTRIBUTION_STATEMENT = "PUBLISH_CONTRIBUTION_STATEMENT";
 export const REQUEST_CONTRIBUTION_STATEMENT_VOID =
   "REQUEST_CONTRIBUTION_STATEMENT_VOID";
+export const APPROVE_CONTRIBUTION_STATEMENT_VOID_REQUEST =
+  "APPROVE_CONTRIBUTION_STATEMENT_VOID_REQUEST";
+export const REJECT_CONTRIBUTION_STATEMENT_VOID_REQUEST =
+  "REJECT_CONTRIBUTION_STATEMENT_VOID_REQUEST";
+export const VOID_CONTRIBUTION_STATEMENT = "VOID_CONTRIBUTION_STATEMENT";
+export const EXECUTE_CONTRIBUTION_STATEMENT_VOID_REQUEST =
+  "EXECUTE_CONTRIBUTION_STATEMENT_VOID_REQUEST";
+export const REISSUE_CONTRIBUTION_STATEMENT = "REISSUE_CONTRIBUTION_STATEMENT";
 export const UNKNOWN_STATEMENT_ACTIVITY_LABEL = "Recorded statement activity";
 
 export class StatementAuditTimelineError extends Error {
@@ -106,6 +115,8 @@ function fieldLabel(field: string) {
       return "Deductible total";
     case "statementIdentifier":
       return "Identifier";
+    case "priorStatementIdentifier":
+      return "Prior identifier";
     case "requestStatus":
       return "Request status";
     default:
@@ -152,7 +163,9 @@ function presentableValue(field: string, value: string | null) {
     }
   }
   if (field === "taxYear") return /^\d{4}$/.test(trimmed) ? trimmed : null;
-  if (field === "statementIdentifier") return trimmed;
+  if (field === "statementIdentifier" || field === "priorStatementIdentifier") {
+    return trimmed;
+  }
   return null;
 }
 
@@ -185,6 +198,39 @@ function getChanges(metadata: unknown): Array<{
   });
 }
 
+function relatedVoidedStatementLink(metadata: unknown) {
+  if (
+    !metadata ||
+    typeof metadata !== "object" ||
+    !("changes" in metadata) ||
+    !Array.isArray(metadata.changes)
+  ) {
+    return null;
+  }
+  let priorId: string | null = null;
+  let priorIdentifier: string | null = null;
+  for (const change of metadata.changes) {
+    if (!change || typeof change !== "object" || !("field" in change)) continue;
+    const field = typeof change.field === "string" ? change.field : "";
+    const value = asText("newValue" in change ? change.newValue : null);
+    if (!value) continue;
+    if (field === "priorStatementId") priorId = value;
+    if (field === "priorStatementIdentifier") priorIdentifier = value;
+  }
+  if (
+    !priorId ||
+    !statementIdSchema.safeParse(priorId).success ||
+    !priorIdentifier ||
+    looksSensitive(priorIdentifier)
+  ) {
+    return null;
+  }
+  return {
+    href: `/statements/registry/${priorId}`,
+    label: priorIdentifier,
+  };
+}
+
 export function statementAuditActionLabel(action: string) {
   switch (action) {
     case GENERATE_CONTRIBUTION_STATEMENT:
@@ -195,6 +241,16 @@ export function statementAuditActionLabel(action: string) {
       return "Publish contribution statement";
     case REQUEST_CONTRIBUTION_STATEMENT_VOID:
       return "Statement void requested";
+    case APPROVE_CONTRIBUTION_STATEMENT_VOID_REQUEST:
+      return "Approve statement void request";
+    case REJECT_CONTRIBUTION_STATEMENT_VOID_REQUEST:
+      return "Reject statement void request";
+    case VOID_CONTRIBUTION_STATEMENT:
+      return "Void contribution statement";
+    case EXECUTE_CONTRIBUTION_STATEMENT_VOID_REQUEST:
+      return "Execute statement void request";
+    case REISSUE_CONTRIBUTION_STATEMENT:
+      return "Replacement statement generated";
     default:
       return UNKNOWN_STATEMENT_ACTIVITY_LABEL;
   }
@@ -209,7 +265,8 @@ export function summarizeStatementAuditChanges(
     return "A statement activity was recorded.";
   }
 
-  const parts = getChanges(metadata).flatMap((change) => {
+  const changes = getChanges(metadata);
+  const parts = changes.flatMap((change) => {
     const label = fieldLabel(change.field);
     const from = presentableValue(change.field, change.oldValue);
     const to = presentableValue(change.field, change.newValue);
@@ -222,6 +279,37 @@ export function summarizeStatementAuditChanges(
     return parts.length
       ? `Statement void requested. ${parts.join(" ")}`
       : "Statement void requested.";
+  }
+  if (action === APPROVE_CONTRIBUTION_STATEMENT_VOID_REQUEST) {
+    return parts.length
+      ? `Statement void request approved. ${parts.join(" ")}`
+      : "Statement void request approved.";
+  }
+  if (action === REJECT_CONTRIBUTION_STATEMENT_VOID_REQUEST) {
+    return parts.length
+      ? `Statement void request rejected. ${parts.join(" ")}`
+      : "Statement void request rejected.";
+  }
+  if (action === VOID_CONTRIBUTION_STATEMENT) {
+    return parts.length
+      ? `Statement voided. ${parts.join(" ")}`
+      : "The statement was voided. Portal access is revoked. The record and PDF were retained for audit.";
+  }
+  if (action === EXECUTE_CONTRIBUTION_STATEMENT_VOID_REQUEST) {
+    return parts.length
+      ? `Approved void request executed. ${parts.join(" ")}`
+      : "The approved void request was executed.";
+  }
+  if (action === REISSUE_CONTRIBUTION_STATEMENT) {
+    const household = changes.some(
+      (change) =>
+        change.field === "statementType" &&
+        change.newValue === StatementType.HOUSEHOLD,
+    );
+    const prefix = household
+      ? "Replacement household statement generated."
+      : "Replacement statement generated.";
+    return parts.length ? `${prefix} ${parts.join(" ")}` : prefix;
   }
   if (parts.length) return parts.join(" ");
   if (action === VIEW_GENERATED_CONTRIBUTION_STATEMENT) {
@@ -323,7 +411,7 @@ export async function getStatementAuditTimeline(statementId: string) {
     throw new StatementAuditTimelineError("NOT_FOUND", "Statement not found.");
   }
 
-  const [events, voidRequestRows] = await Promise.all([
+  const [statementEvents, voidRequestRows] = await Promise.all([
     findEntityAuditEvents(
       organization.id,
       ENTITY_TYPE,
@@ -352,7 +440,31 @@ export async function getStatementAuditTimeline(statementId: string) {
       },
     }),
   ]);
-  const chronological = [...events].reverse();
+  const voidRequestIds = voidRequestRows.map((row) => row.id);
+  const voidRequestEvents =
+    voidRequestIds.length === 0
+      ? []
+      : await prisma.auditEvent.findMany({
+          where: {
+            organizationId: organization.id,
+            entityType: "StatementVoidRequest",
+            entityId: { in: voidRequestIds },
+          },
+          include: {
+            actor: {
+              select: { displayName: true, primaryEmail: true },
+            },
+          },
+          orderBy: { occurredAt: "desc" },
+          take: TIMELINE_LIMIT,
+        });
+  const chronological = [...statementEvents, ...voidRequestEvents]
+    .sort((left, right) => {
+      const byTime = left.occurredAt.getTime() - right.occurredAt.getTime();
+      if (byTime !== 0) return byTime;
+      return left.id.localeCompare(right.id);
+    })
+    .slice(-TIMELINE_LIMIT);
   const voidRequests = voidRequestRows.map((row) => ({
     id: row.id,
     status: row.status,
@@ -393,6 +505,10 @@ export async function getStatementAuditTimeline(statementId: string) {
         event.action,
         event.changeMetadata,
       ),
+      relatedStatement:
+        event.action === REISSUE_CONTRIBUTION_STATEMENT
+          ? relatedVoidedStatementLink(event.changeMetadata)
+          : null,
     })),
   };
 }

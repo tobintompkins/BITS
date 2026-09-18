@@ -61,9 +61,22 @@ function statusLabel(status: string) {
     case "PUBLISHED":
       return "Published";
     case "VOIDED":
-      return "Voided";
+      return "VOIDED";
     default:
       return status;
+  }
+}
+
+function statusClassName(status: string) {
+  switch (status) {
+    case "VOIDED":
+      return "rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-rose-900";
+    case "PUBLISHED":
+      return "rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800";
+    case "GENERATED":
+      return "rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900";
+    default:
+      return "rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold";
   }
 }
 
@@ -121,6 +134,16 @@ export default async function StatementRegistryPage({
           {registry.organizationName}. This page is read-only. It does not
           create, publish, void, or email statements.
         </p>
+        {registry.canManageStatements ? (
+          <p className="mt-3">
+            <Link
+              href="/statements/void-requests"
+              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+            >
+              Statement Void Requests
+            </Link>
+          </p>
+        ) : null}
       </header>
 
       <form
@@ -225,7 +248,10 @@ export default async function StatementRegistryPage({
                   </p>
                   <p className="mt-1 text-sm">{row.recipientLabel}</p>
                   <p className="mt-2 text-sm text-[var(--bits-muted)]">
-                    {typeLabel(row.statementType)} · {statusLabel(row.status)}
+                    {typeLabel(row.statementType)} ·{" "}
+                    <span className={statusClassName(row.status)}>
+                      {statusLabel(row.status)}
+                    </span>
                   </p>
                   <p className="mt-1 text-sm">
                     {formatUtcDate(row.periodStart)}–{formatUtcDate(row.periodEnd)}
@@ -316,7 +342,7 @@ export default async function StatementRegistryPage({
                         {formatMoney(row.deductibleTotal)}
                       </td>
                       <td className="px-3 py-3">
-                        <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold">
+                        <span className={statusClassName(row.status)}>
                           {statusLabel(row.status)}
                         </span>
                         {registry.canManageStatements &&

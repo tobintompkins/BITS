@@ -28,13 +28,15 @@ import { findPrimaryOrganization } from "@/server/repositories/organization.repo
 
 /**
  * Generates one unpublished individual contribution statement from current
- * official data. Status is GENERATED only. Publishing, email, and portal
- * visibility are later reviewed patches.
+ * official data. Status is GENERATED only. After a VOIDED individual
+ * statement, this same path creates a replacement with a new ID. Publishing,
+ * email, and portal visibility remain later reviewed steps.
  */
 
 const donorIdSchema = z.string().uuid();
 
 export const GENERATE_CONTRIBUTION_STATEMENT = "GENERATE_CONTRIBUTION_STATEMENT";
+export const REISSUE_CONTRIBUTION_STATEMENT = "REISSUE_CONTRIBUTION_STATEMENT";
 
 export class IndividualStatementGenerationError extends Error {
   constructor(
@@ -69,7 +71,7 @@ function hasUsableAddress(row: {
   );
 }
 
-function blockingIndividualStatementWhere(
+function individualStatementPeriodWhere(
   organizationId: string,
   donorId: string,
   year: number,
@@ -81,13 +83,38 @@ function blockingIndividualStatementWhere(
     statementType: StatementType.INDIVIDUAL,
     donorId,
     householdId: null,
-    status: {
-      in: [StatementStatus.GENERATED, StatementStatus.PUBLISHED],
-    },
     OR: [
       { taxYear: year },
       { taxYear: null, periodStart: { gte: start, lt: end } },
     ],
+  };
+}
+
+function blockingIndividualStatementWhere(
+  organizationId: string,
+  donorId: string,
+  year: number,
+  start: Date,
+  end: Date,
+) {
+  return {
+    ...individualStatementPeriodWhere(organizationId, donorId, year, start, end),
+    status: {
+      in: [StatementStatus.GENERATED, StatementStatus.PUBLISHED],
+    },
+  };
+}
+
+function voidedIndividualStatementWhere(
+  organizationId: string,
+  donorId: string,
+  year: number,
+  start: Date,
+  end: Date,
+) {
+  return {
+    ...individualStatementPeriodWhere(organizationId, donorId, year, start, end),
+    status: StatementStatus.VOIDED,
   };
 }
 
@@ -327,6 +354,21 @@ export async function generateIndividualContributionStatement(
         );
       }
 
+      const priorVoided = await tx.contributionStatement.findFirst({
+        where: voidedIndividualStatementWhere(
+          organization.id,
+          donor.id,
+          year,
+          start,
+          end,
+        ),
+        orderBy: [{ generatedAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true,
+          statementIdentifier: true,
+        },
+      });
+
       await tx.contributionStatement.create({
         data: {
           id: statementId,
@@ -369,6 +411,57 @@ export async function generateIndividualContributionStatement(
         },
         tx,
       );
+
+      if (priorVoided) {
+        await createAuditEvent(
+          {
+            organizationId: organization.id,
+            actorUserAccountId: actor.id,
+            action: REISSUE_CONTRIBUTION_STATEMENT,
+            entityType: "ContributionStatement",
+            entityId: statementId,
+            changes: [
+              {
+                field: "priorStatementId",
+                oldValue: null,
+                newValue: priorVoided.id,
+              },
+              {
+                field: "priorStatementIdentifier",
+                oldValue: null,
+                newValue: priorVoided.statementIdentifier,
+              },
+              {
+                field: "replacementStatementId",
+                oldValue: null,
+                newValue: statementId,
+              },
+              {
+                field: "statementIdentifier",
+                oldValue: null,
+                newValue: statementIdentifier,
+              },
+              {
+                field: "statementType",
+                oldValue: null,
+                newValue: StatementType.INDIVIDUAL,
+              },
+              { field: "taxYear", oldValue: null, newValue: String(year) },
+              {
+                field: "deductibleTotal",
+                oldValue: null,
+                newValue: deductibleTotal,
+              },
+              {
+                field: "generatedByUserAccountId",
+                oldValue: null,
+                newValue: actor.id,
+              },
+            ],
+          },
+          tx,
+        );
+      }
     });
   } catch (error) {
     await deletePrivateStatementPdf({

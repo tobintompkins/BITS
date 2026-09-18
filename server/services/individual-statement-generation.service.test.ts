@@ -56,6 +56,7 @@ type StatementRow = {
   pdfStorageKey?: string;
   pdfChecksum?: string;
   deductibleTotal?: string;
+  generatedAt?: Date;
 };
 
 type OrganizationRow = {
@@ -169,16 +170,18 @@ vi.mock("@/lib/db/prisma", () => {
   const prismaDelegate = {
     findFirst: async ({
       where,
+      orderBy,
     }: {
       where: {
         organizationId: string;
         donorId: string;
-        status?: { in: StatementStatus[] };
+        status?: StatementStatus | { in: StatementStatus[] };
         OR?: Array<
           | { taxYear: number }
           | { taxYear: null; periodStart: { gte: Date; lt: Date } }
         >;
       };
+      orderBy?: Array<Record<string, "asc" | "desc">>;
     }) => {
       const year =
         where.OR?.[0] &&
@@ -189,22 +192,42 @@ vi.mock("@/lib/db/prisma", () => {
       const period = where.OR?.find((entry) => "periodStart" in entry) as
         | { periodStart: { gte: Date; lt: Date } }
         | undefined;
-      const allowed = where.status?.in;
-      return (
-        store.statements.find((row) => {
-          if (row.organizationId !== where.organizationId) return false;
-          if (row.donorId !== where.donorId) return false;
-          if (row.statementType !== StatementType.INDIVIDUAL) return false;
-          if (allowed && !allowed.includes(row.status)) return false;
-          if (year != null && row.taxYear === year) return true;
-          return (
-            row.taxYear == null &&
-            period != null &&
-            row.periodStart >= period.periodStart.gte &&
-            row.periodStart < period.periodStart.lt
-          );
-        }) ?? null
-      );
+      const matches = store.statements.filter((row) => {
+        if (row.organizationId !== where.organizationId) return false;
+        if (row.donorId !== where.donorId) return false;
+        if (row.statementType !== StatementType.INDIVIDUAL) return false;
+        if (typeof where.status === "string") {
+          if (row.status !== where.status) return false;
+        } else if (where.status?.in && !where.status.in.includes(row.status)) {
+          return false;
+        }
+        if (year != null && row.taxYear === year) return true;
+        return (
+          row.taxYear == null &&
+          period != null &&
+          row.periodStart >= period.periodStart.gte &&
+          row.periodStart < period.periodStart.lt
+        );
+      });
+      const sorted = [...matches].sort((left, right) => {
+        for (const rule of orderBy ?? []) {
+          const [field, direction] = Object.entries(rule)[0] ?? [];
+          if (field === "generatedAt") {
+            const leftTime = left.generatedAt?.getTime() ?? 0;
+            const rightTime = right.generatedAt?.getTime() ?? 0;
+            if (leftTime !== rightTime) {
+              return direction === "desc" ? rightTime - leftTime : leftTime - rightTime;
+            }
+          }
+          if (field === "id" && left.id !== right.id) {
+            return direction === "desc"
+              ? right.id.localeCompare(left.id)
+              : left.id.localeCompare(right.id);
+          }
+        }
+        return 0;
+      });
+      return sorted[0] ?? null;
     },
     create: async ({
       data,
@@ -297,9 +320,14 @@ vi.mock("@/lib/db/prisma", () => {
 
 import {
   GENERATE_CONTRIBUTION_STATEMENT,
+  REISSUE_CONTRIBUTION_STATEMENT,
   IndividualStatementGenerationError,
   generateIndividualContributionStatement,
 } from "./individual-statement-generation.service";
+import {
+  portalPublishedIndividualStatementWhere,
+  portalPublishedStatementAccessWhere,
+} from "./member-portal-statement-pdf.service";
 
 const ORG_ID = "00000000-0000-4000-8000-00000000a001";
 const OTHER_ORG = "00000000-0000-4000-8000-00000000a002";
@@ -307,6 +335,9 @@ const USER_ID = "00000000-0000-4000-8000-00000000c001";
 const DONOR_ANN = "00000000-0000-4000-8000-00000000d001";
 const DONOR_OTHER = "00000000-0000-4000-8000-00000000d002";
 const NOW = new Date("2026-09-14T16:00:00.000Z");
+const VOIDED_ID = "00000000-0000-4000-8000-00000000b009";
+const VOIDED_KEY = `private/statements/${ORG_ID}/${VOIDED_ID}/IND-2026-VOID.pdf`;
+const VOIDED_SUM = "b".repeat(64);
 const PDF_BYTES = new Uint8Array(Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n"));
 
 function officialGift(): DonationRow {
@@ -579,9 +610,52 @@ describe("individual statement generation", () => {
     expect(store.written).toHaveLength(0);
   });
 
-  it("allows generation after a VOIDED statement", async () => {
+  it("still denies generation when a VOIDED statement is followed by a GENERATED duplicate", async () => {
+    store.statements.push(
+      {
+        id: VOIDED_ID,
+        organizationId: ORG_ID,
+        donorId: DONOR_ANN,
+        householdId: null,
+        statementType: StatementType.INDIVIDUAL,
+        taxYear: 2026,
+        periodStart: new Date("2026-01-01T00:00:00.000Z"),
+        status: StatementStatus.VOIDED,
+        statementIdentifier: "IND-2026-VOID",
+        pdfStorageKey: VOIDED_KEY,
+        pdfChecksum: VOIDED_SUM,
+        deductibleTotal: "10.00",
+      },
+      {
+        id: "existing-generated",
+        organizationId: ORG_ID,
+        donorId: DONOR_ANN,
+        householdId: null,
+        statementType: StatementType.INDIVIDUAL,
+        taxYear: 2026,
+        periodStart: new Date("2026-01-01T00:00:00.000Z"),
+        status: StatementStatus.GENERATED,
+        statementIdentifier: "IND-2026-EXISTING",
+      },
+    );
+    await expect(
+      generateIndividualContributionStatement(
+        { donorId: DONOR_ANN, year: "2026" },
+        NOW,
+      ),
+    ).rejects.toMatchObject({ code: "ALREADY_EXISTS" });
+    expect(store.written).toHaveLength(0);
+    expect(store.statements.find((row) => row.id === VOIDED_ID)).toMatchObject({
+      status: StatementStatus.VOIDED,
+      statementIdentifier: "IND-2026-VOID",
+      pdfStorageKey: VOIDED_KEY,
+      pdfChecksum: VOIDED_SUM,
+    });
+  });
+
+  it("reissues a replacement after a VOIDED statement without changing the voided record", async () => {
     store.statements.push({
-      id: "voided",
+      id: VOIDED_ID,
       organizationId: ORG_ID,
       donorId: DONOR_ANN,
       householdId: null,
@@ -590,13 +664,101 @@ describe("individual statement generation", () => {
       periodStart: new Date("2026-01-01T00:00:00.000Z"),
       status: StatementStatus.VOIDED,
       statementIdentifier: "IND-2026-VOID",
+      pdfStorageKey: VOIDED_KEY,
+      pdfChecksum: VOIDED_SUM,
+      deductibleTotal: "10.00",
+      generatedAt: new Date("2026-08-01T12:00:00.000Z"),
     });
-    await expect(
-      generateIndividualContributionStatement(
-        { donorId: DONOR_ANN, year: "2026" },
-        NOW,
-      ),
-    ).resolves.toMatchObject({ status: StatementStatus.GENERATED });
+    const result = await generateIndividualContributionStatement(
+      { donorId: DONOR_ANN, year: "2026" },
+      NOW,
+    );
+    expect(result.status).toBe(StatementStatus.GENERATED);
+    expect(result.statementId).not.toBe(VOIDED_ID);
+    expect(result.statementIdentifier).toMatch(/^IND-2026-[A-F0-9]{8}$/);
+    expect(result.statementIdentifier).not.toBe("IND-2026-VOID");
+    expect(store.statements).toHaveLength(2);
+    expect(store.statements.find((row) => row.id === VOIDED_ID)).toEqual({
+      id: VOIDED_ID,
+      organizationId: ORG_ID,
+      donorId: DONOR_ANN,
+      householdId: null,
+      statementType: StatementType.INDIVIDUAL,
+      taxYear: 2026,
+      periodStart: new Date("2026-01-01T00:00:00.000Z"),
+      status: StatementStatus.VOIDED,
+      statementIdentifier: "IND-2026-VOID",
+      pdfStorageKey: VOIDED_KEY,
+      pdfChecksum: VOIDED_SUM,
+      deductibleTotal: "10.00",
+      generatedAt: new Date("2026-08-01T12:00:00.000Z"),
+    });
+    const replacement = store.statements.find((row) => row.id === result.statementId);
+    expect(replacement).toMatchObject({
+      organizationId: ORG_ID,
+      donorId: DONOR_ANN,
+      householdId: null,
+      statementType: StatementType.INDIVIDUAL,
+      taxYear: 2026,
+      status: StatementStatus.GENERATED,
+      statementIdentifier: result.statementIdentifier,
+      deductibleTotal: "90.00",
+      pdfChecksum: "a".repeat(64),
+    });
+    expect(replacement?.pdfStorageKey).toBe(
+      `private/statements/${ORG_ID}/${result.statementId}/${result.statementIdentifier}.pdf`,
+    );
+    expect(replacement?.pdfStorageKey).not.toBe(VOIDED_KEY);
+    expect(store.written).toHaveLength(1);
+    expect(store.written[0]?.statementId).toBe(result.statementId);
+    expect(store.written[0]?.storageKey).toBe(replacement?.pdfStorageKey);
+    expect(store.deleted).toHaveLength(0);
+    expect(store.audits).toHaveLength(2);
+    expect(store.audits[0]).toMatchObject({
+      action: GENERATE_CONTRIBUTION_STATEMENT,
+      entityId: result.statementId,
+    });
+    expect(store.audits[1]).toMatchObject({
+      action: REISSUE_CONTRIBUTION_STATEMENT,
+      entityType: "ContributionStatement",
+      entityId: result.statementId,
+      actorUserAccountId: USER_ID,
+    });
+    const reissueJson = JSON.stringify(store.audits[1]);
+    expect(reissueJson).toContain(VOIDED_ID);
+    expect(reissueJson).toContain("IND-2026-VOID");
+    expect(reissueJson).toContain(result.statementId);
+    expect(reissueJson).toContain(result.statementIdentifier);
+    expect(reissueJson).toContain("INDIVIDUAL");
+    expect(reissueJson).toContain("2026");
+    expect(reissueJson).toContain("90.00");
+    expect(reissueJson).toContain(USER_ID);
+    expect(reissueJson).not.toMatch(
+      /10 Oak St|100 Church St|internal memo|pi_secret|1234|storage\/private|%PDF-|IND-2026-VOID\.pdf/i,
+    );
+    const snapshot = mocks.renderContributionStatementPdf.mock.calls[0]?.[0];
+    expect(snapshot).toMatchObject({
+      statementType: "INDIVIDUAL",
+      statementIdentifier: result.statementIdentifier,
+      deductibleTotal: "90.00",
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("IND-2026-VOID");
+    const portalWhere = portalPublishedIndividualStatementWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ANN,
+      statementId: result.statementId,
+    });
+    const portalAccess = portalPublishedStatementAccessWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ANN,
+      authorizedHouseholdIds: [],
+      statementId: result.statementId,
+    });
+    expect(portalWhere.status).toBe("PUBLISHED");
+    expect(JSON.stringify(portalWhere)).not.toContain("GENERATED");
+    expect(JSON.stringify(portalWhere)).not.toContain("VOIDED");
+    expect(JSON.stringify(portalAccess)).not.toContain("GENERATED");
+    expect(JSON.stringify(portalAccess)).not.toContain("VOIDED");
   });
 
   it("saves a private PDF, GENERATED record, and safe audit event", async () => {
@@ -693,6 +855,50 @@ describe("individual statement generation", () => {
       },
     ]);
     expect(store.statements).toHaveLength(0);
+    expect(store.audits).toHaveLength(0);
+  });
+
+  it("cleans up only the replacement PDF when reissue persistence fails", async () => {
+    store.statements.push({
+      id: VOIDED_ID,
+      organizationId: ORG_ID,
+      donorId: DONOR_ANN,
+      householdId: null,
+      statementType: StatementType.INDIVIDUAL,
+      taxYear: 2026,
+      periodStart: new Date("2026-01-01T00:00:00.000Z"),
+      status: StatementStatus.VOIDED,
+      statementIdentifier: "IND-2026-VOID",
+      pdfStorageKey: VOIDED_KEY,
+      pdfChecksum: VOIDED_SUM,
+      deductibleTotal: "10.00",
+    });
+    store.persistShouldFail = true;
+    await expect(
+      generateIndividualContributionStatement(
+        { donorId: DONOR_ANN, year: "2026" },
+        NOW,
+      ),
+    ).rejects.toBeInstanceOf(IndividualStatementGenerationError);
+    expect(store.written).toHaveLength(1);
+    expect(store.written[0]?.storageKey).not.toBe(VOIDED_KEY);
+    expect(store.deleted).toEqual([
+      {
+        organizationId: ORG_ID,
+        statementId: store.written[0]?.statementId,
+        storageKey: store.written[0]?.storageKey,
+      },
+    ]);
+    expect(store.deleted[0]?.storageKey).not.toBe(VOIDED_KEY);
+    expect(store.statements).toEqual([
+      expect.objectContaining({
+        id: VOIDED_ID,
+        status: StatementStatus.VOIDED,
+        statementIdentifier: "IND-2026-VOID",
+        pdfStorageKey: VOIDED_KEY,
+        pdfChecksum: VOIDED_SUM,
+      }),
+    ]);
     expect(store.audits).toHaveLength(0);
   });
 });

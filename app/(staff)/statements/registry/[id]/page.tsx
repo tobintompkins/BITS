@@ -37,18 +37,36 @@ function statusLabel(status: string) {
     case "PUBLISHED":
       return "Published";
     case "VOIDED":
-      return "Voided";
+      return "VOIDED";
     default:
       return status;
   }
 }
 
 function actionBadge(actionLabel: string) {
+  if (actionLabel.startsWith("Replacement")) return "Reissued";
   if (actionLabel.startsWith("Generate")) return "Generated";
   if (actionLabel.startsWith("View")) return "Reviewed";
   if (actionLabel.startsWith("Publish")) return "Published";
+  if (actionLabel.toLowerCase().includes("execute")) return "Executed";
+  if (actionLabel === "Void contribution statement") return "Voided";
+  if (actionLabel.toLowerCase().includes("approv")) return "Approved";
+  if (actionLabel.toLowerCase().includes("reject")) return "Rejected";
   if (actionLabel.toLowerCase().includes("void")) return "Void requested";
   return "Activity";
+}
+
+function statementStatusClassName(status: string) {
+  switch (status) {
+    case "VOIDED":
+      return "rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-rose-900";
+    case "PUBLISHED":
+      return "rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800";
+    case "GENERATED":
+      return "rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900";
+    default:
+      return "rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold";
+  }
 }
 
 function voidRequestStatusLabel(status: string) {
@@ -127,6 +145,16 @@ export default async function StatementAuditTimelinePage({
           Read-only history for {statement.statementIdentifier}. This page does
           not change, publish, void, or email the statement.
         </p>
+        {canManageStatements ? (
+          <p className="mt-3">
+            <Link
+              href="/statements/void-requests"
+              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+            >
+              Statement Void Requests
+            </Link>
+          </p>
+        ) : null}
       </header>
 
       <section className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm">
@@ -159,7 +187,7 @@ export default async function StatementAuditTimelinePage({
               Status
             </dt>
             <dd className="mt-1">
-              <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold">
+              <span className={statementStatusClassName(statement.status)}>
                 {statusLabel(statement.status)}
               </span>
             </dd>
@@ -238,14 +266,19 @@ export default async function StatementAuditTimelinePage({
                 <p className="mt-2 text-sm leading-6 text-[var(--bits-navy)]">
                   {request.reason}
                 </p>
+                {request.reviewerLabel || request.reviewedAt ? (
+                  <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
+                    Reviewed
+                    {request.reviewedAt
+                      ? ` ${formatOccurredAt(request.reviewedAt)}`
+                      : ""}
+                    {request.reviewerLabel ? ` by ${request.reviewerLabel}` : ""}
+                    . The statement was not voided by this review.
+                  </p>
+                ) : null}
                 {request.reviewNote ? (
                   <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-                    Review note
-                    {request.reviewerLabel ? ` from ${request.reviewerLabel}` : ""}
-                    {request.reviewedAt
-                      ? ` · ${formatOccurredAt(request.reviewedAt)}`
-                      : ""}
-                    : {request.reviewNote}
+                    Review note: {request.reviewNote}
                   </p>
                 ) : null}
               </li>
@@ -298,6 +331,16 @@ export default async function StatementAuditTimelinePage({
                 <p className="mt-2 text-sm leading-6 text-[var(--bits-navy)]">
                   {event.summary}
                 </p>
+                {event.relatedStatement ? (
+                  <p className="mt-2 text-sm">
+                    <Link
+                      href={event.relatedStatement.href}
+                      className="font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+                    >
+                      View prior statement {event.relatedStatement.label}
+                    </Link>
+                  </p>
+                ) : null}
               </li>
             ))}
           </ol>

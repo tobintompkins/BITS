@@ -125,6 +125,14 @@ export default async function StaffLayout({
               { href: "/statements/unmatched", label: "Unmatched Gifts" },
             ]
           : []),
+        ...(givingAccess?.canManageStatements
+          ? [
+              {
+                href: "/statements/void-requests",
+                label: "Statement Void Requests",
+              },
+            ]
+          : []),
       ],
     },
     {

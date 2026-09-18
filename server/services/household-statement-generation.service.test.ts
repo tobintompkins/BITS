@@ -62,6 +62,7 @@ type StatementRow = {
   pdfStorageKey?: string;
   pdfChecksum?: string;
   deductibleTotal?: string;
+  generatedAt?: Date;
 };
 
 type OrganizationRow = {
@@ -178,17 +179,19 @@ vi.mock("@/lib/db/prisma", () => {
   const prismaDelegate = {
     findFirst: async ({
       where,
+      orderBy,
     }: {
       where: {
         organizationId: string;
         householdId: string;
         donorId?: null;
-        status?: { in: StatementStatus[] };
+        status?: StatementStatus | { in: StatementStatus[] };
         OR?: Array<
           | { taxYear: number }
           | { taxYear: null; periodStart: { gte: Date; lt: Date } }
         >;
       };
+      orderBy?: Array<Record<string, "asc" | "desc">>;
     }) => {
       const year =
         where.OR?.[0] &&
@@ -199,23 +202,45 @@ vi.mock("@/lib/db/prisma", () => {
       const period = where.OR?.find((entry) => "periodStart" in entry) as
         | { periodStart: { gte: Date; lt: Date } }
         | undefined;
-      const allowed = where.status?.in;
-      return (
-        store.statements.find((row) => {
-          if (row.organizationId !== where.organizationId) return false;
-          if (row.householdId !== where.householdId) return false;
-          if (row.statementType !== StatementType.HOUSEHOLD) return false;
-          if (where.donorId === null && row.donorId !== null) return false;
-          if (allowed && !allowed.includes(row.status)) return false;
-          if (year != null && row.taxYear === year) return true;
-          return (
-            row.taxYear == null &&
-            period != null &&
-            row.periodStart >= period.periodStart.gte &&
-            row.periodStart < period.periodStart.lt
-          );
-        }) ?? null
-      );
+      const matches = store.statements.filter((row) => {
+        if (row.organizationId !== where.organizationId) return false;
+        if (row.householdId !== where.householdId) return false;
+        if (row.statementType !== StatementType.HOUSEHOLD) return false;
+        if (where.donorId === null && row.donorId !== null) return false;
+        if (typeof where.status === "string") {
+          if (row.status !== where.status) return false;
+        } else if (where.status?.in && !where.status.in.includes(row.status)) {
+          return false;
+        }
+        if (year != null && row.taxYear === year) return true;
+        return (
+          row.taxYear == null &&
+          period != null &&
+          row.periodStart >= period.periodStart.gte &&
+          row.periodStart < period.periodStart.lt
+        );
+      });
+      const sorted = [...matches].sort((left, right) => {
+        for (const rule of orderBy ?? []) {
+          const [field, direction] = Object.entries(rule)[0] ?? [];
+          if (field === "generatedAt") {
+            const leftTime = left.generatedAt?.getTime() ?? 0;
+            const rightTime = right.generatedAt?.getTime() ?? 0;
+            if (leftTime !== rightTime) {
+              return direction === "desc"
+                ? rightTime - leftTime
+                : leftTime - rightTime;
+            }
+          }
+          if (field === "id" && left.id !== right.id) {
+            return direction === "desc"
+              ? right.id.localeCompare(left.id)
+              : left.id.localeCompare(right.id);
+          }
+        }
+        return 0;
+      });
+      return sorted[0] ?? null;
     },
     create: async ({
       data,
@@ -346,9 +371,14 @@ vi.mock("@/lib/db/prisma", () => {
 
 import {
   GENERATE_CONTRIBUTION_STATEMENT,
+  REISSUE_CONTRIBUTION_STATEMENT,
   HouseholdStatementGenerationError,
   generateHouseholdContributionStatement,
 } from "./household-statement-generation.service";
+import {
+  portalPublishedHouseholdStatementWhere,
+  portalPublishedStatementAccessWhere,
+} from "./member-portal-statement-pdf.service";
 
 const ORG_ID = "00000000-0000-4000-8000-00000000a001";
 const OTHER_ORG = "00000000-0000-4000-8000-00000000a002";
@@ -359,6 +389,9 @@ const DONOR_ANN = "00000000-0000-4000-8000-00000000d001";
 const DONOR_BEN = "00000000-0000-4000-8000-00000000d002";
 const DONOR_CARA = "00000000-0000-4000-8000-00000000d003";
 const NOW = new Date("2026-09-14T16:00:00.000Z");
+const VOIDED_ID = "00000000-0000-4000-8000-00000000b019";
+const VOIDED_KEY = `private/statements/${ORG_ID}/${VOIDED_ID}/HH-2026-VOID.pdf`;
+const VOIDED_SUM = "b".repeat(64);
 const PDF_BYTES = new Uint8Array(
   Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n"),
 );
@@ -729,6 +762,163 @@ describe("household statement generation", () => {
     expect(store.written).toHaveLength(0);
   });
 
+  it("still denies generation when a VOIDED household statement is followed by a GENERATED duplicate", async () => {
+    store.statements.push(
+      {
+        id: VOIDED_ID,
+        organizationId: ORG_ID,
+        donorId: null,
+        householdId: HOUSEHOLD_ID,
+        statementType: StatementType.HOUSEHOLD,
+        taxYear: 2026,
+        periodStart: new Date("2026-01-01T00:00:00.000Z"),
+        status: StatementStatus.VOIDED,
+        statementIdentifier: "HH-2026-VOID",
+        pdfStorageKey: VOIDED_KEY,
+        pdfChecksum: VOIDED_SUM,
+        deductibleTotal: "10.00",
+      },
+      {
+        id: "existing-generated",
+        organizationId: ORG_ID,
+        donorId: null,
+        householdId: HOUSEHOLD_ID,
+        statementType: StatementType.HOUSEHOLD,
+        taxYear: 2026,
+        periodStart: new Date("2026-01-01T00:00:00.000Z"),
+        status: StatementStatus.GENERATED,
+        statementIdentifier: "HH-2026-EXISTING",
+      },
+    );
+    await expect(
+      generateHouseholdContributionStatement(
+        { householdId: HOUSEHOLD_ID, year: "2026" },
+        NOW,
+      ),
+    ).rejects.toMatchObject({ code: "ALREADY_EXISTS" });
+    expect(store.written).toHaveLength(0);
+    expect(store.statements.find((row) => row.id === VOIDED_ID)).toMatchObject({
+      status: StatementStatus.VOIDED,
+      statementIdentifier: "HH-2026-VOID",
+      pdfStorageKey: VOIDED_KEY,
+      pdfChecksum: VOIDED_SUM,
+    });
+  });
+
+  it("reissues a replacement after a VOIDED household statement without changing the voided record", async () => {
+    store.statements.push({
+      id: VOIDED_ID,
+      organizationId: ORG_ID,
+      donorId: null,
+      householdId: HOUSEHOLD_ID,
+      statementType: StatementType.HOUSEHOLD,
+      taxYear: 2026,
+      periodStart: new Date("2026-01-01T00:00:00.000Z"),
+      status: StatementStatus.VOIDED,
+      statementIdentifier: "HH-2026-VOID",
+      pdfStorageKey: VOIDED_KEY,
+      pdfChecksum: VOIDED_SUM,
+      deductibleTotal: "10.00",
+      generatedAt: new Date("2026-08-01T12:00:00.000Z"),
+    });
+    const result = await generateHouseholdContributionStatement(
+      { householdId: HOUSEHOLD_ID, year: "2026" },
+      NOW,
+    );
+    expect(result.status).toBe(StatementStatus.GENERATED);
+    expect(result.statementId).not.toBe(VOIDED_ID);
+    expect(result.statementIdentifier).toMatch(/^HH-2026-[A-F0-9]{8}$/);
+    expect(result.statementIdentifier).not.toBe("HH-2026-VOID");
+    expect(store.statements).toHaveLength(2);
+    expect(store.statements.find((row) => row.id === VOIDED_ID)).toEqual({
+      id: VOIDED_ID,
+      organizationId: ORG_ID,
+      donorId: null,
+      householdId: HOUSEHOLD_ID,
+      statementType: StatementType.HOUSEHOLD,
+      taxYear: 2026,
+      periodStart: new Date("2026-01-01T00:00:00.000Z"),
+      status: StatementStatus.VOIDED,
+      statementIdentifier: "HH-2026-VOID",
+      pdfStorageKey: VOIDED_KEY,
+      pdfChecksum: VOIDED_SUM,
+      deductibleTotal: "10.00",
+      generatedAt: new Date("2026-08-01T12:00:00.000Z"),
+    });
+    const replacement = store.statements.find(
+      (row) => row.id === result.statementId,
+    );
+    expect(replacement).toMatchObject({
+      organizationId: ORG_ID,
+      donorId: null,
+      householdId: HOUSEHOLD_ID,
+      statementType: StatementType.HOUSEHOLD,
+      taxYear: 2026,
+      status: StatementStatus.GENERATED,
+      statementIdentifier: result.statementIdentifier,
+      deductibleTotal: "125.00",
+      pdfChecksum: "a".repeat(64),
+    });
+    expect(replacement?.pdfStorageKey).toBe(
+      `private/statements/${ORG_ID}/${result.statementId}/${result.statementIdentifier}.pdf`,
+    );
+    expect(replacement?.pdfStorageKey).not.toBe(VOIDED_KEY);
+    expect(store.written).toHaveLength(1);
+    expect(store.written[0]?.statementId).toBe(result.statementId);
+    expect(store.deleted).toHaveLength(0);
+    expect(store.audits).toHaveLength(2);
+    expect(store.audits[0]).toMatchObject({
+      action: GENERATE_CONTRIBUTION_STATEMENT,
+      entityId: result.statementId,
+    });
+    expect(store.audits[1]).toMatchObject({
+      action: REISSUE_CONTRIBUTION_STATEMENT,
+      entityType: "ContributionStatement",
+      entityId: result.statementId,
+      actorUserAccountId: USER_ID,
+    });
+    const reissueJson = JSON.stringify(store.audits[1]);
+    expect(reissueJson).toContain(VOIDED_ID);
+    expect(reissueJson).toContain("HH-2026-VOID");
+    expect(reissueJson).toContain(result.statementId);
+    expect(reissueJson).toContain(result.statementIdentifier);
+    expect(reissueJson).toContain("HOUSEHOLD");
+    expect(reissueJson).toContain("2026");
+    expect(reissueJson).toContain("125.00");
+    expect(reissueJson).toContain(USER_ID);
+    expect(reissueJson).not.toContain("Adams Household");
+    expect(reissueJson).not.toContain(DONOR_ANN);
+    expect(reissueJson).not.toMatch(
+      /10 Oak St|100 Church St|internal memo|pi_secret|1234|storage\/private|%PDF-|HH-2026-VOID\.pdf/i,
+    );
+    const snapshot = mocks.renderContributionStatementPdf.mock.calls[0]?.[0];
+    expect(snapshot).toMatchObject({
+      statementType: "HOUSEHOLD",
+      statementIdentifier: result.statementIdentifier,
+      deductibleTotal: "125.00",
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("HH-2026-VOID");
+    expect(JSON.stringify(snapshot)).not.toMatch(
+      /999\.00|50\.00|30\.00|80\.00|45\.00/i,
+    );
+    const portalWhere = portalPublishedHouseholdStatementWhere({
+      organizationId: ORG_ID,
+      authorizedHouseholdIds: [HOUSEHOLD_ID],
+      statementId: result.statementId,
+    });
+    const portalAccess = portalPublishedStatementAccessWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ANN,
+      authorizedHouseholdIds: [HOUSEHOLD_ID],
+      statementId: result.statementId,
+    });
+    expect(portalWhere.status).toBe("PUBLISHED");
+    expect(JSON.stringify(portalWhere)).not.toContain("GENERATED");
+    expect(JSON.stringify(portalWhere)).not.toContain("VOIDED");
+    expect(JSON.stringify(portalAccess)).not.toContain("GENERATED");
+    expect(JSON.stringify(portalAccess)).not.toContain("VOIDED");
+  });
+
   it("ignores an individual statement for the same household and year", async () => {
     store.statements.push({
       id: "individual",
@@ -834,6 +1024,50 @@ describe("household statement generation", () => {
       },
     ]);
     expect(store.statements).toHaveLength(0);
+    expect(store.audits).toHaveLength(0);
+  });
+
+  it("cleans up only the replacement PDF when household reissue persistence fails", async () => {
+    store.statements.push({
+      id: VOIDED_ID,
+      organizationId: ORG_ID,
+      donorId: null,
+      householdId: HOUSEHOLD_ID,
+      statementType: StatementType.HOUSEHOLD,
+      taxYear: 2026,
+      periodStart: new Date("2026-01-01T00:00:00.000Z"),
+      status: StatementStatus.VOIDED,
+      statementIdentifier: "HH-2026-VOID",
+      pdfStorageKey: VOIDED_KEY,
+      pdfChecksum: VOIDED_SUM,
+      deductibleTotal: "10.00",
+    });
+    store.persistShouldFail = true;
+    await expect(
+      generateHouseholdContributionStatement(
+        { householdId: HOUSEHOLD_ID, year: "2026" },
+        NOW,
+      ),
+    ).rejects.toBeInstanceOf(HouseholdStatementGenerationError);
+    expect(store.written).toHaveLength(1);
+    expect(store.written[0]?.storageKey).not.toBe(VOIDED_KEY);
+    expect(store.deleted).toEqual([
+      {
+        organizationId: ORG_ID,
+        statementId: store.written[0]?.statementId,
+        storageKey: store.written[0]?.storageKey,
+      },
+    ]);
+    expect(store.deleted[0]?.storageKey).not.toBe(VOIDED_KEY);
+    expect(store.statements).toEqual([
+      expect.objectContaining({
+        id: VOIDED_ID,
+        status: StatementStatus.VOIDED,
+        statementIdentifier: "HH-2026-VOID",
+        pdfStorageKey: VOIDED_KEY,
+        pdfChecksum: VOIDED_SUM,
+      }),
+    ]);
     expect(store.audits).toHaveLength(0);
   });
 });

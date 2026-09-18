@@ -134,17 +134,25 @@ vi.mock("@/lib/db/prisma", () => ({
         where,
         take,
       }: {
-        where: { organizationId: string; entityType: string; entityId: string };
+        where: {
+          organizationId: string;
+          entityType: string;
+          entityId: string | { in: string[] };
+        };
         take: number;
       }) => {
         store.lastAuditWhere = where;
         store.lastAuditTake = take;
+        const entityIds =
+          typeof where.entityId === "string"
+            ? [where.entityId]
+            : where.entityId.in;
         return store.events
           .filter(
             (event) =>
               event.organizationId === where.organizationId &&
               event.entityType === where.entityType &&
-              event.entityId === where.entityId,
+              entityIds.includes(event.entityId),
           )
           .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())
           .slice(0, take);
@@ -157,11 +165,16 @@ vi.mock("@/lib/db/prisma", () => ({
 }));
 
 import {
+  APPROVE_CONTRIBUTION_STATEMENT_VOID_REQUEST,
+  EXECUTE_CONTRIBUTION_STATEMENT_VOID_REQUEST,
   GENERATE_CONTRIBUTION_STATEMENT,
   PUBLISH_CONTRIBUTION_STATEMENT,
+  REJECT_CONTRIBUTION_STATEMENT_VOID_REQUEST,
+  REISSUE_CONTRIBUTION_STATEMENT,
   REQUEST_CONTRIBUTION_STATEMENT_VOID,
   UNKNOWN_STATEMENT_ACTIVITY_LABEL,
   VIEW_GENERATED_CONTRIBUTION_STATEMENT,
+  VOID_CONTRIBUTION_STATEMENT,
   getStatementAuditTimeline,
   statementAuditActionLabel,
   summarizeStatementAuditChanges,
@@ -589,10 +602,242 @@ describe("statement audit timeline", () => {
     expect(summary).not.toContain(STMT);
   });
 
+  it("allow-lists approve and reject void-request summaries", () => {
+    expect(
+      statementAuditActionLabel(APPROVE_CONTRIBUTION_STATEMENT_VOID_REQUEST),
+    ).toBe("Approve statement void request");
+    expect(
+      statementAuditActionLabel(REJECT_CONTRIBUTION_STATEMENT_VOID_REQUEST),
+    ).toBe("Reject statement void request");
+    expect(
+      summarizeStatementAuditChanges(
+        APPROVE_CONTRIBUTION_STATEMENT_VOID_REQUEST,
+        {
+          changes: [
+            { field: "requestStatus", oldValue: "PENDING", newValue: "APPROVED" },
+            {
+              field: "reviewNote",
+              oldValue: null,
+              newValue: "Totals were checked against the locked batch.",
+            },
+          ],
+        },
+      ),
+    ).toBe(
+      "Statement void request approved. Request status changed from Pending to Approved.",
+    );
+    expect(
+      summarizeStatementAuditChanges(
+        REJECT_CONTRIBUTION_STATEMENT_VOID_REQUEST,
+        { changes: [] },
+      ),
+    ).toBe("Statement void request rejected.");
+  });
+
+  it("allow-lists void and execute summaries without request notes or identifiers", () => {
+    expect(statementAuditActionLabel(VOID_CONTRIBUTION_STATEMENT)).toBe(
+      "Void contribution statement",
+    );
+    expect(
+      statementAuditActionLabel(EXECUTE_CONTRIBUTION_STATEMENT_VOID_REQUEST),
+    ).toBe("Execute statement void request");
+    const voidSummary = summarizeStatementAuditChanges(
+      VOID_CONTRIBUTION_STATEMENT,
+      {
+        changes: [
+          { field: "status", oldValue: "PUBLISHED", newValue: "VOIDED" },
+          {
+            field: "statementIdentifier",
+            oldValue: null,
+            newValue: "IND-2026-ADAM",
+          },
+          {
+            field: "statementVoidRequestId",
+            oldValue: null,
+            newValue: STMT,
+          },
+          {
+            field: "executedByUserAccountId",
+            oldValue: null,
+            newValue: ACTOR_ID,
+          },
+          {
+            field: "reason",
+            oldValue: null,
+            newValue: "The published total does not match the locked batch.",
+          },
+        ],
+      },
+    );
+    expect(voidSummary).toContain("Statement voided.");
+    expect(voidSummary).toContain("Status changed from Published to Voided.");
+    expect(voidSummary).toContain("Identifier set to IND-2026-ADAM.");
+    expect(voidSummary).not.toContain("locked batch");
+    expect(voidSummary).not.toContain(STMT);
+    expect(voidSummary).not.toContain(ACTOR_ID);
+    expect(
+      summarizeStatementAuditChanges(
+        EXECUTE_CONTRIBUTION_STATEMENT_VOID_REQUEST,
+        {
+          changes: [
+            {
+              field: "requestStatus",
+              oldValue: null,
+              newValue: "APPROVED",
+            },
+            {
+              field: "statementIdentifier",
+              oldValue: null,
+              newValue: "IND-2026-ADAM",
+            },
+            { field: "status", oldValue: "PUBLISHED", newValue: "VOIDED" },
+          ],
+        },
+      ),
+    ).toBe(
+      "Approved void request executed. Request status set to Approved. Identifier set to IND-2026-ADAM. Status changed from Published to Voided.",
+    );
+  });
+
+  it("allow-lists replacement statement generation without raw IDs or notes", () => {
+    expect(statementAuditActionLabel(REISSUE_CONTRIBUTION_STATEMENT)).toBe(
+      "Replacement statement generated",
+    );
+    const summary = summarizeStatementAuditChanges(
+      REISSUE_CONTRIBUTION_STATEMENT,
+      {
+        changes: [
+          { field: "priorStatementId", oldValue: null, newValue: STMT },
+          {
+            field: "priorStatementIdentifier",
+            oldValue: null,
+            newValue: "IND-2026-VOID",
+          },
+          {
+            field: "replacementStatementId",
+            oldValue: null,
+            newValue: STMT_HH,
+          },
+          {
+            field: "statementIdentifier",
+            oldValue: null,
+            newValue: "IND-2026-NEW1",
+          },
+          { field: "statementType", oldValue: null, newValue: "INDIVIDUAL" },
+          { field: "taxYear", oldValue: null, newValue: "2026" },
+          { field: "deductibleTotal", oldValue: null, newValue: "90.00" },
+          {
+            field: "generatedByUserAccountId",
+            oldValue: null,
+            newValue: ACTOR_ID,
+          },
+        ],
+      },
+    );
+    expect(summary).toContain("Replacement statement generated.");
+    expect(summary).toContain("Prior identifier set to IND-2026-VOID.");
+    expect(summary).toContain("Identifier set to IND-2026-NEW1.");
+    expect(summary).toContain("Type set to Individual.");
+    expect(summary).toContain("Tax year set to 2026.");
+    expect(summary).toContain("Deductible total set to $90.00.");
+    expect(summary).not.toContain(STMT);
+    expect(summary).not.toContain(STMT_HH);
+    expect(summary).not.toContain(ACTOR_ID);
+  });
+
+  it("allow-lists household replacement summaries without member names or addresses", () => {
+    const summary = summarizeStatementAuditChanges(
+      REISSUE_CONTRIBUTION_STATEMENT,
+      {
+        changes: [
+          { field: "priorStatementId", oldValue: null, newValue: STMT_HH },
+          {
+            field: "priorStatementIdentifier",
+            oldValue: null,
+            newValue: "HH-2026-VOID",
+          },
+          {
+            field: "statementIdentifier",
+            oldValue: null,
+            newValue: "HH-2026-NEW1",
+          },
+          { field: "statementType", oldValue: null, newValue: "HOUSEHOLD" },
+          { field: "taxYear", oldValue: null, newValue: "2026" },
+          { field: "deductibleTotal", oldValue: null, newValue: "125.00" },
+          {
+            field: "generatedByUserAccountId",
+            oldValue: null,
+            newValue: ACTOR_ID,
+          },
+          {
+            field: "householdMembers",
+            oldValue: null,
+            newValue: "Ann Adams, Ben Adams",
+          },
+        ],
+      },
+    );
+    expect(summary).toContain("Replacement household statement generated.");
+    expect(summary).toContain("Prior identifier set to HH-2026-VOID.");
+    expect(summary).toContain("Identifier set to HH-2026-NEW1.");
+    expect(summary).toContain("Type set to Household.");
+    expect(summary).not.toContain("Ann Adams");
+    expect(summary).not.toContain(STMT_HH);
+    expect(summary).not.toContain(ACTOR_ID);
+  });
+
   it("returns an empty timeline when no audit rows exist", async () => {
     store.events = [];
     const result = await getStatementAuditTimeline(STMT);
     expect(result.events).toEqual([]);
     expect(result.statement.statementIdentifier).toBe("IND-2026-ADAM");
+  });
+
+  it("links a replacement timeline event to the prior VOIDED statement without showing the raw id", async () => {
+    const priorId = "00000000-0000-4000-8000-00000000b008";
+    store.events = [
+      {
+        id: "event-reissue",
+        organizationId: ORG_ID,
+        entityType: "ContributionStatement",
+        entityId: STMT,
+        action: REISSUE_CONTRIBUTION_STATEMENT,
+        occurredAt: new Date("2026-09-16T12:00:00.000Z"),
+        actor: {
+          displayName: "Terry Treasurer",
+          primaryEmail: "terry@church.test",
+        },
+        changeMetadata: {
+          changes: [
+            { field: "priorStatementId", oldValue: null, newValue: priorId },
+            {
+              field: "priorStatementIdentifier",
+              oldValue: null,
+              newValue: "IND-2026-VOID",
+            },
+            {
+              field: "statementIdentifier",
+              oldValue: null,
+              newValue: "IND-2026-ADAM",
+            },
+            {
+              field: "generatedByUserAccountId",
+              oldValue: null,
+              newValue: ACTOR_ID,
+            },
+          ],
+        },
+      },
+    ];
+    const result = await getStatementAuditTimeline(STMT);
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]?.actionLabel).toBe("Replacement statement generated");
+    expect(result.events[0]?.summary).toContain("Prior identifier set to IND-2026-VOID.");
+    expect(result.events[0]?.summary).not.toContain(priorId);
+    expect(result.events[0]?.summary).not.toContain(ACTOR_ID);
+    expect(result.events[0]?.relatedStatement).toEqual({
+      href: `/statements/registry/${priorId}`,
+      label: "IND-2026-VOID",
+    });
   });
 });

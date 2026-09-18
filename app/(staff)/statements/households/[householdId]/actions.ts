@@ -68,6 +68,9 @@ export async function generateHouseholdContributionStatementAction(input: {
   const href = `/statements/households/${parsed.data.householdId}?${params.toString()}`;
   revalidatePath(`/statements/households/${parsed.data.householdId}`);
   revalidatePath("/statements");
+  revalidatePath("/statements/registry");
+  revalidatePath(`/statements/registry/${result.statementId}`);
+  revalidatePath("/portal/statements");
   redirect(href);
 }
 

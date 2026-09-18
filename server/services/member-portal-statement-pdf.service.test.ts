@@ -29,6 +29,7 @@ vi.mock("@/lib/db/prisma", () => ({
 import {
   authorizePortalStatementPdf,
   authorizedHouseholdRecipientWhere,
+  portalPublishedHouseholdStatementWhere,
   portalPublishedIndividualStatementWhere,
   portalPublishedStatementAccessWhere,
   recordPortalStatementAccess,
@@ -307,6 +308,39 @@ describe("authorizePortalStatementPdf", () => {
         }),
       ]),
     );
+    expect(JSON.stringify(where)).not.toContain("GENERATED");
+    expect(JSON.stringify(where)).not.toContain("VOIDED");
+  });
+
+  it("does not include VOIDED in published individual portal queries", () => {
+    const where = portalPublishedIndividualStatementWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+      statementId: STATEMENT_ID,
+    });
+    expect(where.status).toBe("PUBLISHED");
+    expect(JSON.stringify(where)).not.toContain("VOIDED");
+    expect(JSON.stringify(where)).not.toContain("GENERATED");
+  });
+
+  it("does not make a GENERATED replacement statement available on the member portal", () => {
+    const where = portalPublishedIndividualStatementWhere({
+      organizationId: ORG_ID,
+      donorId: DONOR_ID,
+      statementId: STATEMENT_ID,
+    });
+    expect(where.status).toBe("PUBLISHED");
+    expect(where.status).not.toBe("GENERATED");
+    expect(JSON.stringify(where)).not.toContain("GENERATED");
+  });
+
+  it("does not make a GENERATED household replacement available on the member portal", () => {
+    const where = portalPublishedHouseholdStatementWhere({
+      organizationId: ORG_ID,
+      authorizedHouseholdIds: [HOUSEHOLD_ID],
+      statementId: HOUSEHOLD_STMT,
+    });
+    expect(where.status).toBe("PUBLISHED");
     expect(JSON.stringify(where)).not.toContain("GENERATED");
     expect(JSON.stringify(where)).not.toContain("VOIDED");
   });

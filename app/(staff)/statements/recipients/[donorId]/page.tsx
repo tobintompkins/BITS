@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { GenerateIndividualStatementButton } from "@/components/statements/generate-individual-statement-button";
+import { GenerateReplacementStatementButton } from "@/components/statements/generate-replacement-statement-button";
 import { PrintStatementPreviewButton } from "@/components/statements/print-statement-preview-button";
 import { PublishIndividualStatementButton } from "@/components/statements/publish-individual-statement-button";
 import { formatMoney } from "@/lib/money/decimal";
@@ -49,7 +50,7 @@ function statementStatusLabel(status: string | null) {
     case "PUBLISHED":
       return "Published";
     case "VOIDED":
-      return "Voided";
+      return "VOIDED";
     default:
       return "None";
   }
@@ -145,7 +146,14 @@ export default async function IndividualStatementPreviewPage({
     preview.statement.status === "GENERATED" &&
     Boolean(preview.statement.id) &&
     !isGenerator;
-  const canGenerate = preview.canManageStatements && !blockingStatus;
+  const canGenerate =
+    preview.canManageStatements &&
+    !blockingStatus &&
+    preview.statement.status !== "VOIDED";
+  const canReissue =
+    preview.canManageStatements &&
+    preview.statement.status === "VOIDED" &&
+    Boolean(preview.statement.statementIdentifier);
   const generatedNotice = Array.isArray(query.generated)
     ? query.generated[0]
     : query.generated;
@@ -217,6 +225,25 @@ export default async function IndividualStatementPreviewPage({
             : "An official individual statement has already been generated for this donor and year. It is not published and is not visible to the donor yet. Duplicate generation is not offered."}{" "}
           Identifier: {preview.statement.statementIdentifier}.
         </p>
+      ) : preview.statement.status === "VOIDED" ? (
+        <p
+          role="status"
+          className="print-hidden rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm leading-6 text-rose-950"
+        >
+          Official statement {preview.statement.statementIdentifier} is VOIDED.
+          The record and PDF are retained for audit and it is not available in
+          the member portal. A replacement can be generated from current
+          official records; it stays private until another authorized person
+          publishes it.{" "}
+          {preview.statement.id ? (
+            <Link
+              href={`/statements/registry/${preview.statement.id}`}
+              className="font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+            >
+              View VOIDED statement {preview.statement.statementIdentifier}
+            </Link>
+          ) : null}
+        </p>
       ) : (
         <p
           role="status"
@@ -230,6 +257,14 @@ export default async function IndividualStatementPreviewPage({
         <GenerateIndividualStatementButton
           donorId={donorId}
           year={preview.year}
+        />
+      ) : null}
+
+      {canReissue && preview.statement.statementIdentifier ? (
+        <GenerateReplacementStatementButton
+          donorId={donorId}
+          year={preview.year}
+          priorStatementIdentifier={preview.statement.statementIdentifier}
         />
       ) : null}
 

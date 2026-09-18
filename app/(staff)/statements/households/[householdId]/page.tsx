@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { GenerateHouseholdStatementButton } from "@/components/statements/generate-household-statement-button";
+import { GenerateReplacementHouseholdStatementButton } from "@/components/statements/generate-replacement-household-statement-button";
 import { PrintStatementPreviewButton } from "@/components/statements/print-statement-preview-button";
 import { PublishHouseholdStatementButton } from "@/components/statements/publish-household-statement-button";
 import { formatMoney } from "@/lib/money/decimal";
@@ -50,7 +51,7 @@ function statementStatusLabel(status: string | null) {
     case "PUBLISHED":
       return "Published";
     case "VOIDED":
-      return "Voided";
+      return "VOIDED";
     default:
       return "None";
   }
@@ -120,7 +121,14 @@ export default async function HouseholdStatementPreviewPage({
   const blockingStatus =
     preview.statement.status === "GENERATED" ||
     preview.statement.status === "PUBLISHED";
-  const canGenerate = preview.canManageStatements && !blockingStatus;
+  const canGenerate =
+    preview.canManageStatements &&
+    !blockingStatus &&
+    preview.statement.status !== "VOIDED";
+  const canReissue =
+    preview.canManageStatements &&
+    preview.statement.status === "VOIDED" &&
+    Boolean(preview.statement.statementIdentifier);
   const canReviewGeneratedPdf =
     preview.canManageStatements &&
     preview.statement.status === "GENERATED" &&
@@ -210,6 +218,25 @@ export default async function HouseholdStatementPreviewPage({
             : "An official household statement has already been generated for this household and year. It is not published and cannot yet be viewed by household members. Duplicate generation is not offered."}{" "}
           Identifier: {preview.statement.statementIdentifier}.
         </p>
+      ) : preview.statement.status === "VOIDED" ? (
+        <p
+          role="status"
+          className="print-hidden rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm leading-6 text-rose-950"
+        >
+          Official household statement {preview.statement.statementIdentifier}{" "}
+          is VOIDED. The record and PDF are retained for audit and it is not
+          available in the member portal. A replacement can be generated from
+          current official household records; it stays private until another
+          authorized person publishes it.{" "}
+          {preview.statement.id ? (
+            <Link
+              href={`/statements/registry/${preview.statement.id}`}
+              className="font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+            >
+              View VOIDED statement {preview.statement.statementIdentifier}
+            </Link>
+          ) : null}
+        </p>
       ) : (
         <p
           role="status"
@@ -223,6 +250,14 @@ export default async function HouseholdStatementPreviewPage({
         <GenerateHouseholdStatementButton
           householdId={householdId}
           year={preview.year}
+        />
+      ) : null}
+
+      {canReissue && preview.statement.statementIdentifier ? (
+        <GenerateReplacementHouseholdStatementButton
+          householdId={householdId}
+          year={preview.year}
+          priorStatementIdentifier={preview.statement.statementIdentifier}
         />
       ) : null}
 

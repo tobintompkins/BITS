@@ -69,6 +69,9 @@ export async function generateIndividualContributionStatementAction(input: {
   revalidatePath(`/statements/recipients/${parsed.data.donorId}`);
   revalidatePath("/statements/recipients");
   revalidatePath("/statements");
+  revalidatePath("/statements/registry");
+  revalidatePath(`/statements/registry/${result.statementId}`);
+  revalidatePath("/portal/statements");
   redirect(href);
 }
 
