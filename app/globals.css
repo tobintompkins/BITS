@@ -71,13 +71,16 @@ body {
     margin: 0.6in;
   }
 
-  body:has(.statement-preview) {
+  body:has(.statement-preview),
+  body:has(.gift-receipt) {
     background: #fff !important;
     color: #000 !important;
   }
 
   body:has(.statement-preview) .staff-app-header,
-  body:has(.statement-preview) .staff-app-nav {
+  body:has(.statement-preview) .staff-app-nav,
+  body:has(.statement-preview) .portal-app-header,
+  body:has(.gift-receipt) .portal-app-header {
     display: none !important;
   }
 
@@ -87,6 +90,12 @@ body {
     margin: 0;
     padding: 0;
     gap: 0;
+  }
+
+  body:has(.gift-receipt) main {
+    max-width: none;
+    margin: 0;
+    padding: 0;
   }
 
   .print-only {
@@ -102,49 +111,62 @@ body {
   }
 
   .statement-preview,
-  .statement-preview * {
+  .gift-receipt,
+  .statement-preview *,
+  .gift-receipt * {
     color: #000 !important;
     background: transparent !important;
     box-shadow: none !important;
   }
 
-  .statement-preview a {
+  .statement-preview a,
+  .gift-receipt a {
     color: #000 !important;
     text-decoration: none;
   }
 
-  .statement-preview .print-letterhead {
+  .statement-preview .print-letterhead,
+  .gift-receipt .print-letterhead {
     margin-bottom: 1.25rem;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid #ccc;
   }
 
-  .statement-preview .print-letterhead h1 {
+  .statement-preview .print-letterhead h1,
+  .gift-receipt .print-letterhead h1,
+  .gift-receipt .print-letterhead h2 {
     font-size: 1.5rem;
     margin: 0.75rem 0 0.35rem;
   }
 
-  .statement-preview table {
+  .statement-preview table,
+  .gift-receipt table {
     width: 100%;
     border-collapse: collapse;
   }
 
-  .statement-preview thead {
+  .statement-preview thead,
+  .gift-receipt thead {
     display: table-header-group;
   }
 
-  .statement-preview tfoot {
+  .statement-preview tfoot,
+  .gift-receipt tfoot {
     display: table-footer-group;
   }
 
   .statement-preview tr,
-  .statement-preview .print-keep {
+  .statement-preview .print-keep,
+  .gift-receipt tr,
+  .gift-receipt .print-keep {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
   .statement-preview h1,
-  .statement-preview h2 {
+  .statement-preview h2,
+  .gift-receipt h1,
+  .gift-receipt h2 {
     break-after: avoid;
   }
 }

@@ -7,6 +7,8 @@ import {
   AppShellNav,
   type NavGroup,
 } from "@/components/layout/app-shell-nav";
+import { getAnnouncementAccess } from "@/lib/auth/announcement-permissions";
+import { getPrivacyRequestAccess } from "@/lib/auth/privacy-request-permissions";
 import { getCareAccess } from "@/lib/auth/care-permissions";
 import { getEventAccess } from "@/lib/auth/event-permissions";
 import { getGivingAccess } from "@/lib/auth/giving-permissions";
@@ -40,6 +42,12 @@ export default async function StaffLayout({
     : null;
   const givingAccess = organization
     ? await getGivingAccess(organization.id)
+    : null;
+  const announcementAccess = organization
+    ? await getAnnouncementAccess(organization.id)
+    : null;
+  const privacyRequestAccess = organization
+    ? await getPrivacyRequestAccess(organization.id)
     : null;
 
   const navGroups: NavGroup[] = [
@@ -94,6 +102,9 @@ export default async function StaffLayout({
           : []),
         ...(careAccess?.canViewAttendance
           ? [{ href: "/attendance", label: "Attendance" }]
+          : []),
+        ...(announcementAccess?.canManageAnnouncements
+          ? [{ href: "/announcements", label: "Church Announcements" }]
           : []),
       ],
     },
@@ -163,6 +174,9 @@ export default async function StaffLayout({
                 label: "Member Portal Connections",
               },
             ]
+          : []),
+        ...(privacyRequestAccess?.canReviewPrivacyRequests
+          ? [{ href: "/privacy-requests", label: "Privacy & Data Requests" }]
           : []),
       ],
     },

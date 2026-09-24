@@ -60,9 +60,17 @@ export default async function MyStatementsPage({
             Only the giving record connected to your signed-in account is shown.
           </p>
         </div>
-        <Link href="/portal" className="text-sm font-medium text-[var(--bits-navy)] underline">
-          Member Portal Home
-        </Link>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <Link href="/portal" className="text-sm font-medium text-[var(--bits-navy)] underline">
+            Member Portal Home
+          </Link>
+          <Link
+            href="/portal/gifts"
+            className="text-sm font-medium text-[var(--bits-navy)] underline"
+          >
+            My Giving History
+          </Link>
+        </div>
       </header>
 
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">

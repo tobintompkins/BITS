@@ -89,6 +89,25 @@ enum StripeWebhookEventStatus {
   FAILED
 }
 
+enum ChurchAnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum MemberPrivacyRequestType {
+  DATA_COPY
+  CONTACT_CORRECTION
+  PRIVACY_QUESTION
+}
+
+enum MemberPrivacyRequestStatus {
+  OPEN
+  IN_REVIEW
+  COMPLETED
+  DECLINED
+}
+
 enum MembershipStatus {
   VISITOR
   REGULAR_ATTENDER
@@ -510,6 +529,9 @@ model Organization {
   stripeWebhookEvents       StripeWebhookEvent[]
   financialCorrectionRequests FinancialCorrectionRequest[]
   statementVoidRequests     StatementVoidRequest[]
+  churchAnnouncements       ChurchAnnouncement[]
+  announcementReadReceipts  ChurchAnnouncementReadReceipt[]
+  memberPrivacyDataRequests MemberPrivacyDataRequest[]
 
   @@map("organizations")
 }
@@ -563,6 +585,11 @@ model UserAccount {
   financialCorrectionsReviewed  FinancialCorrectionRequest[] @relation("FinancialCorrectionReviewedBy")
   statementVoidRequestsRequested StatementVoidRequest[] @relation("StatementVoidRequestedBy")
   statementVoidRequestsReviewed  StatementVoidRequest[] @relation("StatementVoidReviewedBy")
+  churchAnnouncementsCreated     ChurchAnnouncement[]   @relation("ChurchAnnouncementCreatedBy")
+  announcementReads              ChurchAnnouncementReadReceipt[] @relation("AnnouncementReadBy")
+  privacyDataRequestsRequested   MemberPrivacyDataRequest[] @relation("PrivacyRequestRequestedBy")
+  privacyDataRequestsResolved    MemberPrivacyDataRequest[] @relation("PrivacyRequestResolvedBy")
+  linkedMembers                  Member[]                   @relation("MemberPortalAccount")
 
   @@map("user_accounts")
 }
@@ -632,6 +659,7 @@ model Donor {
   primaryContactForHouseholds     Household[]             @relation("HouseholdPrimaryContact")
   statementRecipientForHouseholds Household[]             @relation("HouseholdStatementRecipient")
   individualStatements            ContributionStatement[] @relation("StatementIndividualDonor")
+  privacyDataRequests             MemberPrivacyDataRequest[]
 
   @@unique([organizationId, userAccountId])
   @@index([organizationId])
@@ -958,12 +986,77 @@ model AuditEvent {
 }
 
 // ---------------------------------------------------------------------------
+// Church announcements (member portal foundation)
+// ---------------------------------------------------------------------------
+
+model ChurchAnnouncement {
+  id                     String                   @id @default(uuid()) @db.Uuid
+  organizationId         String                   @db.Uuid
+  title                  String
+  body                   String
+  status                 ChurchAnnouncementStatus @default(DRAFT)
+  publishedAt            DateTime?
+  createdByUserAccountId String                   @db.Uuid
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    UserAccount  @relation("ChurchAnnouncementCreatedBy", fields: [createdByUserAccountId], references: [id], onDelete: Restrict)
+  readReceipts ChurchAnnouncementReadReceipt[]
+
+  @@index([organizationId, status, publishedAt])
+  @@index([organizationId, createdAt])
+  @@map("church_announcements")
+}
+
+model ChurchAnnouncementReadReceipt {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  announcementId String   @db.Uuid
+  userAccountId  String   @db.Uuid
+  readAt         DateTime @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  announcement ChurchAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userAccount  UserAccount       @relation("AnnouncementReadBy", fields: [userAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, announcementId, userAccountId])
+  @@index([organizationId, announcementId])
+  @@map("church_announcement_read_receipts")
+}
+
+model MemberPrivacyDataRequest {
+  id                      String                     @id @default(uuid()) @db.Uuid
+  organizationId          String                     @db.Uuid
+  requestingUserAccountId String                     @db.Uuid
+  linkedDonorId           String?                    @db.Uuid
+  requestType             MemberPrivacyRequestType
+  memberNote              String?
+  status                  MemberPrivacyRequestStatus @default(OPEN)
+  staffResolutionNote     String?
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  resolvedAt              DateTime?
+  resolvedByUserAccountId String?                    @db.Uuid
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requestingUser UserAccount  @relation("PrivacyRequestRequestedBy", fields: [requestingUserAccountId], references: [id], onDelete: Restrict)
+  linkedDonor    Donor?       @relation(fields: [linkedDonorId], references: [id], onDelete: SetNull)
+  resolvedBy     UserAccount? @relation("PrivacyRequestResolvedBy", fields: [resolvedByUserAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, requestingUserAccountId, requestType, status])
+  @@map("member_privacy_data_requests")
+}
+
+// ---------------------------------------------------------------------------
 // Member management (Blueprint 6)
 // ---------------------------------------------------------------------------
 
 model Member {
   id               String           @id @default(uuid()) @db.Uuid
   organizationId   String           @db.Uuid
+  userAccountId    String?          @db.Uuid
   firstName        String
   middleName       String?
   lastName         String
@@ -1016,6 +1109,7 @@ model Member {
   updatedAt DateTime @updatedAt
 
   organization                Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userAccount                 UserAccount?               @relation("MemberPortalAccount", fields: [userAccountId], references: [id], onDelete: SetNull)
   archivedBy                  UserAccount?               @relation("MemberArchivedBy", fields: [archivedByUserId], references: [id], onDelete: SetNull)
   consentUpdatedBy            UserAccount?               @relation("MemberConsentUpdatedBy", fields: [consentUpdatedByUserId], references: [id], onDelete: SetNull)
   mergedIntoMember            Member?                    @relation("MemberMergedInto", fields: [mergedIntoMemberId], references: [id], onDelete: SetNull)
@@ -1045,6 +1139,7 @@ model Member {
   eventAttendeeRecords        EventAttendee[]            @relation("AttendeeMember")
   eventAttendanceRecords      EventAttendanceRecord[]    @relation("EventAttendanceMember")
 
+  @@unique([organizationId, userAccountId])
   @@index([organizationId])
   @@index([organizationId, membershipStatus])
   @@index([organizationId, recordStatus])
@@ -1055,6 +1150,7 @@ model Member {
   @@index([organizationId, deceasedDate])
   @@index([organizationId, createdAt])
   @@index([mergedIntoMemberId])
+  @@index([userAccountId])
   @@map("members")
 }
 

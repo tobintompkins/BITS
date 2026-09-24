@@ -22,6 +22,9 @@ const REQUIRED_DELEGATES = [
   "eventRegistration",
   "stripeWebhookEvent",
   "statementVoidRequest",
+  "churchAnnouncement",
+  "churchAnnouncementReadReceipt",
+  "memberPrivacyDataRequest",
 ] as const;
 
 function createPrismaClient() {
@@ -36,12 +39,24 @@ function createPrismaClient() {
   });
 }
 
+function clientHasMemberPortalLink(client: PrismaClientInstance) {
+  const models = (
+    client as unknown as {
+      _runtimeDataModel?: {
+        models?: Record<string, { fields?: Record<string, unknown> }>;
+      };
+    }
+  )._runtimeDataModel?.models;
+  return Boolean(models?.Member?.fields?.userAccountId);
+}
+
 function isCurrentPrismaClient(client: PrismaClientInstance | undefined) {
   if (!client) return false;
-  return REQUIRED_DELEGATES.every((name) => {
+  const hasDelegates = REQUIRED_DELEGATES.every((name) => {
     const delegate = (client as unknown as Record<string, unknown>)[name];
     return typeof delegate === "object" && delegate != null;
   });
+  return hasDelegates && clientHasMemberPortalLink(client);
 }
 
 function getPrismaClient() {
