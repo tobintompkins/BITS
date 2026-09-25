@@ -20,6 +20,28 @@ export function isAllowedStripeDonationFund(
   return (stripeDonationFundOptions as readonly string[]).includes(fund);
 }
 
+export const memberStripeDonationFundOptions = [
+  "Tithes",
+  "General Offering",
+  "Missions",
+  "Home Building Fund",
+] as const;
+
+export type MemberStripeDonationFund =
+  (typeof memberStripeDonationFundOptions)[number];
+
+export function isAllowedMemberStripeDonationFund(
+  fund: string,
+): fund is MemberStripeDonationFund {
+  return (memberStripeDonationFundOptions as readonly string[]).includes(fund);
+}
+
+export function isAllowedRecordedStripeDonationFund(fund: string) {
+  return (
+    isAllowedStripeDonationFund(fund) || isAllowedMemberStripeDonationFund(fund)
+  );
+}
+
 export function isAllowedStripeDonationAmountCents(cents: number) {
   return (
     Number.isInteger(cents) &&

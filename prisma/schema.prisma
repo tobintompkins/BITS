@@ -460,6 +460,37 @@ enum MemberDocumentType {
   OTHER
 }
 
+enum VolunteerWeekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum VolunteerServiceAssignmentStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+enum VolunteerTimeOffRequestStatus {
+  OPEN
+  IN_REVIEW
+  APPROVED
+  DECLINED
+  CANCELLED
+}
+
+enum VolunteerSubstituteRequestStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DECLINED
+  CANCELLED
+}
+
 // ---------------------------------------------------------------------------
 // Tenant and authentication projection
 // ---------------------------------------------------------------------------
@@ -529,9 +560,13 @@ model Organization {
   stripeWebhookEvents       StripeWebhookEvent[]
   financialCorrectionRequests FinancialCorrectionRequest[]
   statementVoidRequests     StatementVoidRequest[]
-  churchAnnouncements       ChurchAnnouncement[]
-  announcementReadReceipts  ChurchAnnouncementReadReceipt[]
-  memberPrivacyDataRequests MemberPrivacyDataRequest[]
+  churchAnnouncements            ChurchAnnouncement[]
+  announcementReadReceipts       ChurchAnnouncementReadReceipt[]
+  memberPrivacyDataRequests      MemberPrivacyDataRequest[]
+  memberVolunteerAvailabilities  MemberVolunteerAvailability[]
+  volunteerServiceAssignments    VolunteerServiceAssignment[]
+  volunteerTimeOffRequests       VolunteerTimeOffRequest[]
+  volunteerSubstituteRequests    VolunteerSubstituteRequest[]
 
   @@map("organizations")
 }
@@ -590,6 +625,10 @@ model UserAccount {
   privacyDataRequestsRequested   MemberPrivacyDataRequest[] @relation("PrivacyRequestRequestedBy")
   privacyDataRequestsResolved    MemberPrivacyDataRequest[] @relation("PrivacyRequestResolvedBy")
   linkedMembers                  Member[]                   @relation("MemberPortalAccount")
+  volunteerServiceAssignmentsCreated VolunteerServiceAssignment[] @relation("VolunteerServiceAssignmentCreatedBy")
+  volunteerServiceAssignmentsCancelled VolunteerServiceAssignment[] @relation("VolunteerServiceAssignmentCancelledBy")
+  volunteerTimeOffRequestsResolved VolunteerTimeOffRequest[] @relation("VolunteerTimeOffRequestResolvedBy")
+  volunteerSubstituteRequestsResolved VolunteerSubstituteRequest[] @relation("VolunteerSubstituteRequestResolvedBy")
 
   @@map("user_accounts")
 }
@@ -1128,6 +1167,10 @@ model Member {
   ministries                  MemberMinistry[]
   skills                      MemberSkill[]
   interests                   MemberInterest[]
+  volunteerAvailabilities     MemberVolunteerAvailability[]
+  volunteerServiceAssignments VolunteerServiceAssignment[]
+  volunteerTimeOffRequests    VolunteerTimeOffRequest[]
+  volunteerSubstituteRequests VolunteerSubstituteRequest[]
   documents                   MemberDocument[]
   consentHistory              MemberConsentHistory[]
   mergesAsPrimary             MemberMerge[]              @relation("MergePrimaryMember")
@@ -1513,8 +1556,9 @@ model Ministry {
 
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   leader       UserAccount?     @relation("MinistryLeader", fields: [leaderUserId], references: [id], onDelete: SetNull)
-  members      MemberMinistry[]
-  events       EventMinistry[]
+  members                     MemberMinistry[]
+  events                      EventMinistry[]
+  volunteerServiceAssignments VolunteerServiceAssignment[]
 
   @@unique([organizationId, name])
   @@index([organizationId, ministryType])
@@ -1575,6 +1619,105 @@ model MemberInterest {
 
   @@index([memberId])
   @@map("member_interests")
+}
+
+model MemberVolunteerAvailability {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  memberId       String           @db.Uuid
+  weekday        VolunteerWeekday
+  isAvailable    Boolean          @default(false)
+  startTime      String?
+  endTime        String?
+  note           String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, weekday])
+  @@index([organizationId, memberId])
+  @@index([organizationId, weekday])
+  @@map("member_volunteer_availability")
+}
+
+model VolunteerServiceAssignment {
+  id                String                            @id @default(uuid()) @db.Uuid
+  organizationId    String                            @db.Uuid
+  eventId           String                            @db.Uuid
+  memberId          String                            @db.Uuid
+  ministryId        String?                           @db.Uuid
+  createdByUserId   String                            @db.Uuid
+  roleLabel         String
+  status            VolunteerServiceAssignmentStatus  @default(SCHEDULED)
+  staffNote         String?
+  cancellationNote  String?
+  cancelledAt       DateTime?
+  cancelledByUserId String?                           @db.Uuid
+  createdAt         DateTime                          @default(now())
+  updatedAt         DateTime                          @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  ministry     Ministry?    @relation(fields: [ministryId], references: [id], onDelete: Restrict)
+  createdBy    UserAccount  @relation("VolunteerServiceAssignmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  cancelledBy  UserAccount? @relation("VolunteerServiceAssignmentCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  substituteRequests VolunteerSubstituteRequest[]
+
+  @@index([organizationId, eventId])
+  @@index([organizationId, memberId, status])
+  @@index([organizationId, status, eventId])
+  @@map("volunteer_service_assignments")
+}
+
+model VolunteerTimeOffRequest {
+  id                  String                         @id @default(uuid()) @db.Uuid
+  organizationId      String                         @db.Uuid
+  memberId            String                         @db.Uuid
+  startDate           DateTime                       @db.Date
+  endDate             DateTime                       @db.Date
+  memberReason        String?
+  status              VolunteerTimeOffRequestStatus  @default(OPEN)
+  staffResolutionNote String?
+  resolvedAt          DateTime?
+  resolvedByUserId    String?                        @db.Uuid
+  createdAt           DateTime                       @default(now())
+  updatedAt           DateTime                       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  resolvedBy   UserAccount? @relation("VolunteerTimeOffRequestResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, memberId, status])
+  @@index([organizationId, startDate, endDate])
+  @@map("volunteer_time_off_requests")
+}
+
+model VolunteerSubstituteRequest {
+  id                  String                            @id @default(uuid()) @db.Uuid
+  organizationId      String                            @db.Uuid
+  assignmentId        String                            @db.Uuid
+  memberId            String                            @db.Uuid
+  memberReason        String?
+  status              VolunteerSubstituteRequestStatus  @default(OPEN)
+  staffResolutionNote String?
+  resolvedAt          DateTime?
+  resolvedByUserId    String?                           @db.Uuid
+  createdAt           DateTime                          @default(now())
+  updatedAt           DateTime                          @updatedAt
+
+  organization Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignment   VolunteerServiceAssignment @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  member       Member                     @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  resolvedBy   UserAccount?               @relation("VolunteerSubstituteRequestResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, memberId, status])
+  @@index([organizationId, assignmentId, status])
+  @@map("volunteer_substitute_requests")
 }
 
 model MemberDocument {
@@ -1715,7 +1858,8 @@ model Event {
   attendanceRecords    EventAttendanceRecord[]
   attendanceActions    EventAttendanceAction[]
   qrPasses             EventQrPass[]
-  checkInIdempotency   EventCheckInIdempotency[]
+  checkInIdempotency          EventCheckInIdempotency[]
+  volunteerServiceAssignments VolunteerServiceAssignment[]
 
   @@unique([organizationId, slug])
   /// Enables tenant-aware composite FKs (e.g. EventQrPass).

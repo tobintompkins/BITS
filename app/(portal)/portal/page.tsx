@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import {
+  MEMBER_PORTAL_NAV_GROUPS,
+  MEMBER_PORTAL_PENDING_LINKS,
+} from "@/lib/portal/member-portal-nav";
 import { getMemberPortalDashboard } from "@/server/services/member-portal.service";
 
 function formatMoney(value: string) {
@@ -13,6 +17,9 @@ function formatMoney(value: string) {
 function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(value);
 }
+
+const focusClass =
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]";
 
 export default async function MemberPortalPage() {
   const portal = await getMemberPortalDashboard();
@@ -55,42 +62,15 @@ export default async function MemberPortalPage() {
             Please contact the church office if you need assistance.
           </p>
           <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2">
-            <Link
-              href="/portal/ministries"
-              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-            >
-              My Ministries
-            </Link>
-            <Link
-              href="/portal/attendance"
-              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-            >
-              My Attendance
-            </Link>
-            <Link
-              href="/portal/milestones"
-              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-            >
-              My Milestones
-            </Link>
-            <Link
-              href="/portal/announcements"
-              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-            >
-              Church Announcements
-            </Link>
-            <Link
-              href="/portal/help"
-              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-            >
-              Help &amp; Contact
-            </Link>
-            <Link
-              href="/portal/privacy"
-              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-            >
-              Privacy &amp; Data
-            </Link>
+            {MEMBER_PORTAL_PENDING_LINKS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`text-sm font-semibold text-[var(--bits-navy)] underline ${focusClass}`}
+              >
+                {item.label}
+              </Link>
+            ))}
           </div>
           {portal.hasLeadershipAccess ? (
             <Link
@@ -118,15 +98,47 @@ export default async function MemberPortalPage() {
             </h1>
             <p className="mt-2 text-white/70">{portal.organizationName}</p>
           </div>
-          {portal.hasLeadershipAccess ? (
+          <div className="flex flex-wrap gap-3">
             <Link
-              href="/dashboard"
-              className="rounded-xl bg-[var(--bits-gold)] px-4 py-2 text-sm font-bold text-[var(--bits-navy-deep)]"
+              href="/portal/give"
+              className="rounded-xl bg-[var(--bits-gold)] px-4 py-2 text-sm font-bold text-[var(--bits-navy-deep)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
-              Leadership Portal
+              Give Online
             </Link>
-          ) : null}
+            <Link
+              href="/portal/volunteer-schedule"
+              className="rounded-xl border border-white/40 px-4 py-2 text-sm font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+            >
+              My Service Schedule
+            </Link>
+            {portal.hasLeadershipAccess ? (
+              <Link
+                href="/dashboard"
+                className="rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+              >
+                Leadership Portal
+              </Link>
+            ) : null}
+          </div>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
+            Request Time Off
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--bits-muted)]">
+            Tell church leadership when you cannot volunteer. This does not
+            cancel current assignments.
+          </p>
+        </div>
+        <Link
+          href="/portal/volunteer-time-off"
+          className={`mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white sm:mt-0 ${focusClass}`}
+        >
+          Request Time Off
+        </Link>
       </section>
 
       <section className="grid gap-4 sm:grid-cols-3">
@@ -148,131 +160,36 @@ export default async function MemberPortalPage() {
         ))}
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2">
-        <Link
-          href="/portal/gifts"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            My Giving History
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            Review your recorded gifts by year and fund.
-          </p>
-        </Link>
-        <Link
-          href="/portal/statements"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            My Statements
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            Open published contribution statements when they are available.
-          </p>
-        </Link>
-        <Link
-          href="/portal/household"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            My Household
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            See your household connection and whether you are authorized to
-            receive household statements.
-          </p>
-        </Link>
-        <Link
-          href="/portal/ministries"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            My Ministries
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            Review the church ministries assigned to your membership record.
-          </p>
-        </Link>
-        <Link
-          href="/portal/attendance"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            My Attendance
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            Review your recent church attendance.
-          </p>
-        </Link>
-        <Link
-          href="/portal/milestones"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            My Milestones
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            Review baptism, membership, and other recorded church milestones.
-          </p>
-        </Link>
-        <Link
-          href="/portal/events"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            My Event Registrations
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            Review event registrations created with your signed-in account.
-          </p>
-        </Link>
-        <Link
-          href="/portal/announcements"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            Church Announcements
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            Read published notes from church leadership.
-          </p>
-        </Link>
-        <Link
-          href="/portal/profile"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            My Profile &amp; Preferences
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            Update your email, phone, and preferred contact method.
-          </p>
-        </Link>
-        <Link
-          href="/portal/help"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            Help &amp; Contact
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            Find common BITS tasks and reach the church office when you need
-            staff help.
-          </p>
-        </Link>
-        <Link
-          href="/portal/privacy"
-          className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-        >
-          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-            Privacy &amp; Data
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-            Ask the church office for a copy of your BITS information or a
-            contact correction.
-          </p>
-        </Link>
+      <section className="grid gap-4 lg:grid-cols-3">
+        {MEMBER_PORTAL_NAV_GROUPS.map((group) => (
+          <section
+            key={group.heading}
+            className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm"
+          >
+            <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
+              {group.heading}
+            </h2>
+            <ul className="mt-3 divide-y divide-[var(--bits-border)]">
+              {group.items.map((item) => (
+                <li key={item.href} className="py-2.5 first:pt-0 last:pb-0">
+                  <Link
+                    href={item.href}
+                    className={`block rounded-md ${focusClass}`}
+                  >
+                    <span className="font-semibold text-[var(--bits-navy)]">
+                      {item.label}
+                    </span>
+                    {item.description ? (
+                      <span className="mt-1 block text-sm leading-5 text-[var(--bits-muted)]">
+                        {item.description}
+                      </span>
+                    ) : null}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
@@ -305,7 +222,7 @@ export default async function MemberPortalPage() {
           <p className="mt-4">
             <Link
               href="/portal/gifts"
-              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+              className={`text-sm font-semibold text-[var(--bits-navy)] underline ${focusClass}`}
             >
               My Giving History
             </Link>
@@ -354,7 +271,7 @@ export default async function MemberPortalPage() {
         <p className="mt-4">
           <Link
             href="/portal/profile"
-            className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+            className={`text-sm font-semibold text-[var(--bits-navy)] underline ${focusClass}`}
           >
             My Profile &amp; Preferences
           </Link>

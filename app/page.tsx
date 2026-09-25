@@ -1,6 +1,7 @@
 import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 
+import { ChurchLeadershipCard } from "@/components/home/church-leadership-card";
 import {
   ChurchPhotoCarousel,
   type ChurchPhoto,
@@ -212,6 +213,9 @@ export default async function Home() {
           Guest service forms and secure online giving will be connected in the
           next small development patches.
         </p>
+        <div className="mx-auto mt-8 max-w-xl">
+          <ChurchLeadershipCard />
+        </div>
       </section>
 
       <section className="border-y border-[var(--bits-border)] bg-white">

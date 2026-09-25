@@ -3,6 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { MemberPortalNav } from "@/components/portal/member-portal-nav";
+
 export default async function MemberPortalLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -27,81 +29,10 @@ export default async function MemberPortalLayout({
               <span className="block font-semibold">First UPC of Saco</span>
             </span>
           </Link>
-          <nav aria-label="Member portal" className="flex items-center gap-4">
-            <Link
-              href="/portal/gifts"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              My Giving History
-            </Link>
-            <Link
-              href="/portal/statements"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              My Statements
-            </Link>
-            <Link
-              href="/portal/household"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              My Household
-            </Link>
-            <Link
-              href="/portal/ministries"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              My Ministries
-            </Link>
-            <Link
-              href="/portal/attendance"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              My Attendance
-            </Link>
-            <Link
-              href="/portal/milestones"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              My Milestones
-            </Link>
-            <Link
-              href="/portal/events"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              My Event Registrations
-            </Link>
-            <Link
-              href="/portal/announcements"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              Church Announcements
-            </Link>
-            <Link
-              href="/portal/profile"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              My Profile &amp; Preferences
-            </Link>
-            <Link
-              href="/portal/help"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              Help &amp; Contact
-            </Link>
-            <Link
-              href="/portal/privacy"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              Privacy &amp; Data
-            </Link>
-            <Link
-              href="/"
-              className="hidden text-sm text-white/80 hover:text-white sm:inline"
-            >
-              Public Home
-            </Link>
+          <div className="flex items-center gap-3">
+            <MemberPortalNav />
             <UserButton />
-          </nav>
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">

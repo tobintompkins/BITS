@@ -25,6 +25,10 @@ const REQUIRED_DELEGATES = [
   "churchAnnouncement",
   "churchAnnouncementReadReceipt",
   "memberPrivacyDataRequest",
+  "memberVolunteerAvailability",
+  "volunteerServiceAssignment",
+  "volunteerTimeOffRequest",
+  "volunteerSubstituteRequest",
 ] as const;
 
 function createPrismaClient() {

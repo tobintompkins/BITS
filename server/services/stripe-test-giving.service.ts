@@ -3,8 +3,8 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getStripeTestSecret } from "@/lib/stripe/test-mode";
 import {
+  isAllowedRecordedStripeDonationFund,
   isAllowedStripeDonationAmountCents,
-  isAllowedStripeDonationFund,
 } from "@/lib/validation/stripe-donation";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
@@ -97,7 +97,7 @@ export function validateStripeTestCheckoutSession(
     return { ok: false, errorCode: "INVALID_CURRENCY" };
   }
   const fund = session.metadata.fund?.trim() ?? "";
-  if (!isAllowedStripeDonationFund(fund)) {
+  if (!isAllowedRecordedStripeDonationFund(fund)) {
     return { ok: false, errorCode: "INVALID_FUND" };
   }
 
@@ -118,8 +118,63 @@ export function validateStripeTestCheckoutSession(
   };
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function fundCode(fund: string) {
   return `STRIPE_${fund.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`.slice(0, 64);
+}
+
+export function readMemberCheckoutAttribution(
+  metadata: Record<string, string> | null | undefined,
+) {
+  const source = metadata?.bits_source?.trim() ?? "";
+  const donorId = metadata?.bits_donor_id?.trim() ?? "";
+  const organizationId = metadata?.bits_organization_id?.trim() ?? "";
+  if (source !== "member" && !donorId && !organizationId) {
+    return null;
+  }
+  return {
+    donorId,
+    organizationId,
+    valid:
+      source === "member" &&
+      UUID_PATTERN.test(donorId) &&
+      UUID_PATTERN.test(organizationId),
+  };
+}
+
+async function resolveDonationDonor(
+  checkout: NormalizedStripeTestCheckout,
+  organizationId: string,
+  db: DonationWriter,
+) {
+  const attribution = readMemberCheckoutAttribution(checkout.metadata);
+  if (attribution) {
+    if (!attribution.valid || attribution.organizationId !== organizationId) {
+      return null;
+    }
+    const donor = await db.donor.findFirst({
+      where: {
+        id: attribution.donorId,
+        organizationId,
+        active: true,
+      },
+      select: { id: true },
+    });
+    return donor?.id ?? null;
+  }
+
+  if (!checkout.email) return null;
+  const donor = await db.donor.findFirst({
+    where: {
+      organizationId,
+      email: { equals: checkout.email, mode: "insensitive" },
+      active: true,
+    },
+    select: { id: true },
+  });
+  return donor?.id ?? null;
 }
 
 export async function persistStripeTestDonation(
@@ -137,16 +192,7 @@ export async function persistStripeTestDonation(
     return { donation: existing, alreadyRecorded: true };
   }
 
-  const donor = checkout.email
-    ? await db.donor.findFirst({
-        where: {
-          organizationId,
-          email: { equals: checkout.email, mode: "insensitive" },
-          active: true,
-        },
-        select: { id: true },
-      })
-    : null;
+  const donorId = await resolveDonationDonor(checkout, organizationId, db);
 
   const amount = (checkout.amountTotalCents / 100).toFixed(2);
   const offeringDate = new Date(checkout.created * 1000);
@@ -171,7 +217,7 @@ export async function persistStripeTestDonation(
     const donation = await db.donation.create({
       data: {
         organizationId,
-        donorId: donor?.id ?? null,
+        donorId: donorId,
         offeringDate,
         receivedDate: offeringDate,
         paymentMethod: "CARD",

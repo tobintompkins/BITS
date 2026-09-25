@@ -73,9 +73,33 @@ export default async function StaffLayout({
     },
     {
       label: "Ministry",
-      items: engagementAccess?.canViewMinistries
-        ? [{ href: "/ministries", label: "Ministries" }]
-        : [],
+      items: [
+        ...(engagementAccess?.canViewMinistries
+          ? [
+              { href: "/ministries", label: "Ministries" },
+              {
+                href: "/volunteer-availability",
+                label: "Volunteer Availability",
+              },
+            ]
+          : []),
+        ...(engagementAccess?.canManageMinistryRosters
+          ? [
+              {
+                href: "/volunteer-schedules",
+                label: "Volunteer Schedules",
+              },
+              {
+                href: "/volunteer-time-off",
+                label: "Volunteer Time Off",
+              },
+              {
+                href: "/volunteer-schedules/substitute-requests",
+                label: "Substitute Requests",
+              },
+            ]
+          : []),
+      ],
     },
     {
       label: "Pastoral Care",

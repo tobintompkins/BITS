@@ -49,6 +49,14 @@ export default async function MemberProfilePage() {
             Name, household, and mailing-address changes still require church
             staff.
           </p>
+          <p className="mt-3">
+            <Link
+              href="/portal/communication-preferences"
+              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+            >
+              Communication Preferences
+            </Link>
+          </p>
         </div>
         <Link
           href="/portal"
