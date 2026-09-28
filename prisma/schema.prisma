@@ -419,6 +419,11 @@ enum MinistryType {
   OTHER
 }
 
+enum MinistryResourceStatus {
+  DRAFT
+  PUBLISHED
+}
+
 enum MemberMinistryRole {
   PARTICIPANT
   VOLUNTEER
@@ -567,6 +572,8 @@ model Organization {
   volunteerServiceAssignments    VolunteerServiceAssignment[]
   volunteerTimeOffRequests       VolunteerTimeOffRequest[]
   volunteerSubstituteRequests    VolunteerSubstituteRequest[]
+  volunteerTrainingRecords       VolunteerTrainingRecord[]
+  ministryResources              MinistryResource[]
 
   @@map("organizations")
 }
@@ -627,8 +634,15 @@ model UserAccount {
   linkedMembers                  Member[]                   @relation("MemberPortalAccount")
   volunteerServiceAssignmentsCreated VolunteerServiceAssignment[] @relation("VolunteerServiceAssignmentCreatedBy")
   volunteerServiceAssignmentsCancelled VolunteerServiceAssignment[] @relation("VolunteerServiceAssignmentCancelledBy")
+  volunteerServiceAssignmentsMemberConfirmed VolunteerServiceAssignment[] @relation("VolunteerServiceAssignmentMemberConfirmedBy")
   volunteerTimeOffRequestsResolved VolunteerTimeOffRequest[] @relation("VolunteerTimeOffRequestResolvedBy")
   volunteerSubstituteRequestsResolved VolunteerSubstituteRequest[] @relation("VolunteerSubstituteRequestResolvedBy")
+  volunteerTrainingRecordsCreated VolunteerTrainingRecord[] @relation("VolunteerTrainingRecordCreatedBy")
+  volunteerTrainingRecordsUpdated VolunteerTrainingRecord[] @relation("VolunteerTrainingRecordUpdatedBy")
+  volunteerTrainingRecordsArchived VolunteerTrainingRecord[] @relation("VolunteerTrainingRecordArchivedBy")
+  ministryResourcesCreated MinistryResource[] @relation("MinistryResourceCreatedBy")
+  ministryResourcesUpdated MinistryResource[] @relation("MinistryResourceUpdatedBy")
+  ministryResourcesArchived MinistryResource[] @relation("MinistryResourceArchivedBy")
 
   @@map("user_accounts")
 }
@@ -1171,6 +1185,7 @@ model Member {
   volunteerServiceAssignments VolunteerServiceAssignment[]
   volunteerTimeOffRequests    VolunteerTimeOffRequest[]
   volunteerSubstituteRequests VolunteerSubstituteRequest[]
+  volunteerTrainingRecords    VolunteerTrainingRecord[]
   documents                   MemberDocument[]
   consentHistory              MemberConsentHistory[]
   mergesAsPrimary             MemberMerge[]              @relation("MergePrimaryMember")
@@ -1559,6 +1574,8 @@ model Ministry {
   members                     MemberMinistry[]
   events                      EventMinistry[]
   volunteerServiceAssignments VolunteerServiceAssignment[]
+  volunteerTrainingRecords    VolunteerTrainingRecord[]
+  ministryResources           MinistryResource[]
 
   @@unique([organizationId, name])
   @@index([organizationId, ministryType])
@@ -1655,6 +1672,8 @@ model VolunteerServiceAssignment {
   cancellationNote  String?
   cancelledAt       DateTime?
   cancelledByUserId String?                           @db.Uuid
+  memberConfirmedAt DateTime?
+  memberConfirmedByUserAccountId String?              @db.Uuid
   createdAt         DateTime                          @default(now())
   updatedAt         DateTime                          @updatedAt
 
@@ -1664,6 +1683,7 @@ model VolunteerServiceAssignment {
   ministry     Ministry?    @relation(fields: [ministryId], references: [id], onDelete: Restrict)
   createdBy    UserAccount  @relation("VolunteerServiceAssignmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   cancelledBy  UserAccount? @relation("VolunteerServiceAssignmentCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  memberConfirmedBy UserAccount? @relation("VolunteerServiceAssignmentMemberConfirmedBy", fields: [memberConfirmedByUserAccountId], references: [id], onDelete: SetNull)
   substituteRequests VolunteerSubstituteRequest[]
 
   @@index([organizationId, eventId])
@@ -1718,6 +1738,62 @@ model VolunteerSubstituteRequest {
   @@index([organizationId, memberId, status])
   @@index([organizationId, assignmentId, status])
   @@map("volunteer_substitute_requests")
+}
+
+model VolunteerTrainingRecord {
+  id                      String    @id @default(uuid()) @db.Uuid
+  organizationId          String    @db.Uuid
+  memberId                String    @db.Uuid
+  ministryId              String?   @db.Uuid
+  title                   String
+  completedOn             DateTime  @db.Date
+  expiresOn               DateTime? @db.Date
+  archivedAt              DateTime?
+  archivedByUserAccountId String?   @db.Uuid
+  createdByUserAccountId  String    @db.Uuid
+  updatedByUserAccountId  String    @db.Uuid
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  ministry     Ministry?    @relation(fields: [ministryId], references: [id], onDelete: Restrict)
+  createdBy    UserAccount  @relation("VolunteerTrainingRecordCreatedBy", fields: [createdByUserAccountId], references: [id], onDelete: Restrict)
+  updatedBy    UserAccount  @relation("VolunteerTrainingRecordUpdatedBy", fields: [updatedByUserAccountId], references: [id], onDelete: Restrict)
+  archivedBy   UserAccount? @relation("VolunteerTrainingRecordArchivedBy", fields: [archivedByUserAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, memberId])
+  @@index([organizationId, ministryId])
+  @@index([organizationId, expiresOn])
+  @@index([organizationId, archivedAt])
+  @@map("volunteer_training_records")
+}
+
+model MinistryResource {
+  id                      String                 @id @default(uuid()) @db.Uuid
+  organizationId          String                 @db.Uuid
+  ministryId              String                 @db.Uuid
+  title                   String
+  description             String?
+  url                     String
+  status                  MinistryResourceStatus @default(DRAFT)
+  archivedAt              DateTime?
+  archivedByUserAccountId String?                @db.Uuid
+  createdByUserAccountId  String                 @db.Uuid
+  updatedByUserAccountId  String                 @db.Uuid
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ministry     Ministry     @relation(fields: [ministryId], references: [id], onDelete: Restrict)
+  createdBy    UserAccount  @relation("MinistryResourceCreatedBy", fields: [createdByUserAccountId], references: [id], onDelete: Restrict)
+  updatedBy    UserAccount  @relation("MinistryResourceUpdatedBy", fields: [updatedByUserAccountId], references: [id], onDelete: Restrict)
+  archivedBy   UserAccount? @relation("MinistryResourceArchivedBy", fields: [archivedByUserAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, ministryId, status])
+  @@index([organizationId, status])
+  @@index([organizationId, archivedAt])
+  @@map("ministry_resources")
 }
 
 model MemberDocument {

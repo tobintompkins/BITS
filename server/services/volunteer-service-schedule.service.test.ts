@@ -65,6 +65,8 @@ type AssignmentRow = {
   cancellationNote: string | null;
   cancelledAt: Date | null;
   cancelledByUserId: string | null;
+  memberConfirmedAt: Date | null;
+  memberConfirmedByUserAccountId: string | null;
   createdAt: Date;
 };
 
@@ -324,6 +326,7 @@ vi.mock("@/lib/db/prisma", () => ({
               eventId: row.eventId,
               roleLabel: row.roleLabel,
               status: row.status,
+              memberConfirmedAt: row.memberConfirmedAt,
               ministryId: row.ministryId,
               event: {
                 title: event.title,
@@ -368,7 +371,18 @@ vi.mock("@/lib/db/prisma", () => ({
       create: async ({
         data,
       }: {
-        data: Omit<AssignmentRow, "id" | "cancelledAt" | "cancelledByUserId" | "createdAt">;
+        data: Omit<
+          AssignmentRow,
+          | "id"
+          | "cancelledAt"
+          | "cancelledByUserId"
+          | "memberConfirmedAt"
+          | "memberConfirmedByUserAccountId"
+          | "createdAt"
+        > & {
+          memberConfirmedAt?: Date | null;
+          memberConfirmedByUserAccountId?: string | null;
+        };
       }) => {
         store.lastCreateData = data;
         const row: AssignmentRow = {
@@ -376,6 +390,9 @@ vi.mock("@/lib/db/prisma", () => ({
           id: `asg-${store.assignments.length + 1}`,
           cancelledAt: null,
           cancelledByUserId: null,
+          memberConfirmedAt: data.memberConfirmedAt ?? null,
+          memberConfirmedByUserAccountId:
+            data.memberConfirmedByUserAccountId ?? null,
           createdAt: new Date("2026-09-24T18:00:00.000Z"),
         };
         store.assignments.push(row);
@@ -617,6 +634,8 @@ function seed() {
       cancellationNote: null,
       cancelledAt: null,
       cancelledByUserId: null,
+      memberConfirmedAt: null,
+      memberConfirmedByUserAccountId: null,
       createdAt: new Date("2026-09-20T12:00:00.000Z"),
     },
     {
@@ -632,6 +651,8 @@ function seed() {
       cancellationNote: null,
       cancelledAt: null,
       cancelledByUserId: null,
+      memberConfirmedAt: null,
+      memberConfirmedByUserAccountId: null,
       createdAt: new Date("2026-09-20T12:00:00.000Z"),
     },
   ];
@@ -879,6 +900,8 @@ describe("staff volunteer service schedule", () => {
       cancellationNote: null,
       cancelledAt: null,
       cancelledByUserId: null,
+      memberConfirmedAt: null,
+      memberConfirmedByUserAccountId: null,
       createdAt: new Date("2026-09-20T12:00:00.000Z"),
     });
 
@@ -1029,6 +1052,8 @@ describe("member volunteer service schedule", () => {
       cancellationNote: null,
       cancelledAt: null,
       cancelledByUserId: null,
+      memberConfirmedAt: null,
+      memberConfirmedByUserAccountId: null,
       createdAt: new Date("2026-09-21T12:00:00.000Z"),
     });
 
@@ -1042,6 +1067,8 @@ describe("member volunteer service schedule", () => {
       ministryName: "Worship Team",
       roleLabel: "Sound Booth",
       location: "Main Sanctuary · Sanctuary · Saco, ME",
+      canConfirm: true,
+      confirmedAtLabel: null,
     });
     expect(Object.keys(result.rows[0]!).sort()).toEqual(
       [...MEMBER_VOLUNTEER_SCHEDULE_ROW_FIELDS].sort(),

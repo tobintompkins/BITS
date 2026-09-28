@@ -112,6 +112,8 @@ export const MEMBER_VOLUNTEER_SCHEDULE_ROW_FIELDS = [
   "location",
   "ministryName",
   "roleLabel",
+  "canConfirm",
+  "confirmedAtLabel",
 ] as const;
 
 export type MemberVolunteerScheduleRow = {
@@ -121,6 +123,8 @@ export type MemberVolunteerScheduleRow = {
   location: string | null;
   ministryName: string | null;
   roleLabel: string;
+  canConfirm: boolean;
+  confirmedAtLabel: string | null;
 };
 
 export function formatVolunteerEventWhen(input: {

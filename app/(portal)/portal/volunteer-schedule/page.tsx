@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { memberVolunteerServiceCalendarHref } from "@/lib/validation/member-volunteer-service-calendar";
+import { MEMBER_VOLUNTEER_CONFIRMATION_NOTICE } from "@/lib/validation/volunteer-service-confirmation";
 import {
   MEMBER_VOLUNTEER_SCHEDULE_EMPTY_COPY,
   MEMBER_VOLUNTEER_SCHEDULE_NOTICE,
@@ -14,6 +16,7 @@ import { getMemberSubstituteRequests } from "@/server/services/volunteer-substit
 
 import {
   cancelVolunteerSubstituteRequestAction,
+  confirmVolunteerServiceAssignmentAction,
   submitVolunteerSubstituteRequestAction,
 } from "./actions";
 
@@ -21,6 +24,24 @@ const focusClass =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]";
 const fieldClass =
   "mt-1 w-full rounded-xl border border-[var(--bits-border)] bg-white px-3 py-2 text-sm text-[var(--bits-navy)]";
+
+function AssignmentCalendarAction({
+  assignmentId,
+  eventTitle,
+}: {
+  assignmentId: string;
+  eventTitle: string;
+}) {
+  return (
+    <a
+      href={memberVolunteerServiceCalendarHref(assignmentId)}
+      className={`inline-flex rounded-xl border border-[var(--bits-border)] px-3 py-1.5 text-sm font-semibold text-[var(--bits-navy)] ${focusClass}`}
+    >
+      Add to calendar
+      <span className="sr-only"> for {eventTitle}</span>
+    </a>
+  );
+}
 
 export default async function MemberVolunteerSchedulePage({
   searchParams,
@@ -80,6 +101,7 @@ export default async function MemberVolunteerSchedulePage({
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
             {MEMBER_VOLUNTEER_SCHEDULE_NOTICE}{" "}
+            {MEMBER_VOLUNTEER_CONFIRMATION_NOTICE}{" "}
             {MEMBER_VOLUNTEER_SUBSTITUTE_NOTICE}{" "}
             <Link
               href="/portal/help"
@@ -144,11 +166,40 @@ export default async function MemberVolunteerSchedulePage({
                       {row.location}
                     </p>
                   ) : null}
-                  <p className="mt-2 text-sm text-[var(--bits-navy)]">
-                    {row.ministryName
-                      ? `${row.ministryName} · ${row.roleLabel}`
-                      : row.roleLabel}
-                  </p>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-[var(--bits-navy)]">
+                      {row.ministryName
+                        ? `${row.ministryName} · ${row.roleLabel}`
+                        : row.roleLabel}
+                    </p>
+                    <AssignmentCalendarAction
+                      assignmentId={row.assignmentId}
+                      eventTitle={row.eventTitle}
+                    />
+                  </div>
+                  {row.canConfirm ? (
+                    <form
+                      action={confirmVolunteerServiceAssignmentAction}
+                      className="mt-3"
+                    >
+                      <input
+                        type="hidden"
+                        name="assignmentId"
+                        value={row.assignmentId}
+                      />
+                      <button
+                        type="submit"
+                        className={`w-fit rounded-xl border border-[var(--bits-border)] px-3 py-1.5 text-sm font-semibold text-[var(--bits-navy)] ${focusClass}`}
+                      >
+                        Confirm service
+                        <span className="sr-only"> for {row.eventTitle}</span>
+                      </button>
+                    </form>
+                  ) : row.confirmedAtLabel ? (
+                    <p className="mt-3 text-sm font-semibold text-[var(--bits-navy)]">
+                      {row.confirmedAtLabel}
+                    </p>
+                  ) : null}
                   {request ? (
                     <div className="mt-3">
                       <p className="text-sm text-[var(--bits-muted)]">

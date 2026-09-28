@@ -14,6 +14,9 @@ import { getEventAccess } from "@/lib/auth/event-permissions";
 import { getGivingAccess } from "@/lib/auth/giving-permissions";
 import { getMemberEngagementAccess } from "@/lib/auth/member-engagement-permissions";
 import { getMemberLifecycleAccess } from "@/lib/auth/member-lifecycle-permissions";
+import { staffVolunteerScheduleNavItems } from "@/lib/validation/volunteer-schedule-readiness";
+import { staffMinistryResourceNavItems } from "@/lib/validation/ministry-resource";
+import { staffVolunteerTrainingNavItems } from "@/lib/validation/volunteer-training";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
 export default async function StaffLayout({
@@ -83,22 +86,15 @@ export default async function StaffLayout({
               },
             ]
           : []),
-        ...(engagementAccess?.canManageMinistryRosters
-          ? [
-              {
-                href: "/volunteer-schedules",
-                label: "Volunteer Schedules",
-              },
-              {
-                href: "/volunteer-time-off",
-                label: "Volunteer Time Off",
-              },
-              {
-                href: "/volunteer-schedules/substitute-requests",
-                label: "Substitute Requests",
-              },
-            ]
-          : []),
+        ...staffVolunteerScheduleNavItems(
+          Boolean(engagementAccess?.canManageMinistryRosters),
+        ),
+        ...staffVolunteerTrainingNavItems(
+          Boolean(engagementAccess?.canManageMinistryRosters),
+        ),
+        ...staffMinistryResourceNavItems(
+          Boolean(engagementAccess?.canManageMinistries),
+        ),
       ],
     },
     {

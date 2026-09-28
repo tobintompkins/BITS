@@ -123,8 +123,37 @@ export default async function MemberPortalPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-4">
-        <div>
+      <section className="grid gap-4 sm:grid-cols-3">
+        <section className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
+            My Training
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--bits-muted)]">
+            Review your recorded ministry training and whether it is current
+            or expiring soon.
+          </p>
+          <Link
+            href="/portal/training"
+            className={`mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
+          >
+            My Training
+          </Link>
+        </section>
+        <section className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
+            My Ministry Resources
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--bits-muted)]">
+            Open published resource links for ministries you serve.
+          </p>
+          <Link
+            href="/portal/resources"
+            className={`mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
+          >
+            My Ministry Resources
+          </Link>
+        </section>
+        <section className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
             Request Time Off
           </h2>
@@ -132,13 +161,13 @@ export default async function MemberPortalPage() {
             Tell church leadership when you cannot volunteer. This does not
             cancel current assignments.
           </p>
-        </div>
-        <Link
-          href="/portal/volunteer-time-off"
-          className={`mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white sm:mt-0 ${focusClass}`}
-        >
-          Request Time Off
-        </Link>
+          <Link
+            href="/portal/volunteer-time-off"
+            className={`mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
+          >
+            Request Time Off
+          </Link>
+        </section>
       </section>
 
       <section className="grid gap-4 sm:grid-cols-3">

@@ -3,6 +3,10 @@ import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { prisma } from "@/lib/db/prisma";
 import { getMemberDisplayName } from "@/lib/utils/member-display";
 import {
+  memberVolunteerConfirmationState,
+  staffVolunteerConfirmationLabel,
+} from "@/lib/validation/volunteer-service-confirmation";
+import {
   approvedTimeOffCoversEvent,
   formatVolunteerEventWhen,
   normalizeVolunteerRoleLabel,
@@ -31,6 +35,7 @@ export type StaffVolunteerScheduleRow = {
   ministryName: string | null;
   roleLabel: string;
   status: "SCHEDULED" | "CANCELLED";
+  confirmationLabel: string;
 };
 
 export type StaffVolunteerScheduleView =
@@ -76,6 +81,7 @@ const staffAssignmentSelect = {
   id: true,
   roleLabel: true,
   status: true,
+  memberConfirmedAt: true,
   event: {
     select: {
       title: true,
@@ -102,6 +108,7 @@ const staffAssignmentSelect = {
 const memberAssignmentSelect = {
   id: true,
   roleLabel: true,
+  memberConfirmedAt: true,
   event: {
     select: {
       title: true,
@@ -213,6 +220,11 @@ export async function getStaffVolunteerSchedule(): Promise<StaffVolunteerSchedul
       ministryName: row.ministry?.name ?? null,
       roleLabel: row.roleLabel,
       status: row.status,
+      confirmationLabel: staffVolunteerConfirmationLabel({
+        status: row.status,
+        memberConfirmedAt: row.memberConfirmedAt,
+        timeZone: row.event.timezone,
+      }),
     })),
   };
 }
@@ -478,6 +490,10 @@ export async function getMemberVolunteerSchedule(): Promise<MemberVolunteerSched
       location: publicVolunteerLocationText(row.event.location),
       ministryName: row.ministry?.name ?? null,
       roleLabel: row.roleLabel,
+      ...memberVolunteerConfirmationState(
+        row.memberConfirmedAt,
+        row.event.timezone,
+      ),
     })),
   };
 }

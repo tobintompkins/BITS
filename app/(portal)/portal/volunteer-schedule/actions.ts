@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { MEMBER_VOLUNTEER_CONFIRMATION_SUCCESS } from "@/lib/validation/volunteer-service-confirmation";
+import { confirmMemberVolunteerServiceAssignment } from "@/server/services/volunteer-service-confirmation.service";
 import {
   cancelVolunteerSubstituteRequest,
   submitVolunteerSubstituteRequest,
@@ -21,6 +23,36 @@ const submitMessages = {
   NOT_FOUND: "That assignment is not available for a substitute request.",
   DUPLICATE: "You already have an open substitute request for this assignment.",
 } as const;
+
+const confirmMessages = {
+  SIGNED_OUT: "You must be signed in.",
+  NO_ORGANIZATION: "The church organization has not been configured.",
+  CONNECTION_PENDING:
+    "Your account must be connected to your church membership record first.",
+  NOT_FOUND: "That assignment is not available to confirm.",
+} as const;
+
+export async function confirmVolunteerServiceAssignmentAction(
+  formData: FormData,
+) {
+  const result = await confirmMemberVolunteerServiceAssignment({
+    assignmentId: formData.get("assignmentId"),
+  });
+
+  if (result.status === "CONFIRMED") {
+    revalidatePath("/portal/volunteer-schedule");
+    revalidatePath("/volunteer-schedules");
+    redirect(resultUrl("success", MEMBER_VOLUNTEER_CONFIRMATION_SUCCESS));
+  }
+
+  redirect(
+    resultUrl(
+      "error",
+      confirmMessages[result.status as keyof typeof confirmMessages] ??
+        "Unable to confirm that assignment.",
+    ),
+  );
+}
 
 export async function submitVolunteerSubstituteRequestAction(
   formData: FormData,

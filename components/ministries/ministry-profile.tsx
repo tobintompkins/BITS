@@ -18,6 +18,7 @@ import {
 } from "@/lib/constants/member-engagement";
 import { getMemberDisplayName } from "@/lib/utils/member-display";
 import { Toast } from "@/components/ui/toast";
+import { staffMinistryResourcesHref } from "@/lib/validation/ministry-resource";
 
 type MemberOption = {
   id: string;
@@ -145,6 +146,12 @@ export function MinistryProfile({
               >
                 Export roster CSV
               </button>
+              <Link
+                href={staffMinistryResourcesHref(ministry.id)}
+                className="rounded-md border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
+              >
+                Resources
+              </Link>
               <Link
                 href={`/ministries/${ministry.id}/edit`}
                 className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"

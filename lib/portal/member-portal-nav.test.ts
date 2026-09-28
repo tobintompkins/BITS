@@ -61,6 +61,16 @@ const expectedRoutes = [
   },
   {
     heading: "Church Life",
+    href: "/portal/training",
+    label: "My Training",
+  },
+  {
+    heading: "Church Life",
+    href: "/portal/resources",
+    label: "My Ministry Resources",
+  },
+  {
+    heading: "Church Life",
     href: "/portal/volunteer-time-off",
     label: "Request Time Off",
   },

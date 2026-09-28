@@ -94,6 +94,18 @@ export const MEMBER_PORTAL_NAV_GROUPS: MemberPortalNavGroup[] = [
           "See the upcoming church events you have been asked to serve.",
       },
       {
+        href: "/portal/training",
+        label: "My Training",
+        description:
+          "Review your recorded ministry training and expiration dates.",
+      },
+      {
+        href: "/portal/resources",
+        label: "My Ministry Resources",
+        description:
+          "Open published resource links for ministries you serve.",
+      },
+      {
         href: "/portal/volunteer-time-off",
         label: "Request Time Off",
         description:

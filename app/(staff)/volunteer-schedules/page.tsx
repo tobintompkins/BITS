@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { volunteerServiceSchedulePrintHref } from "@/lib/validation/volunteer-service-schedule-print";
 import {
   STAFF_VOLUNTEER_SCHEDULE_CONFLICT_NOTICE,
   STAFF_VOLUNTEER_SCHEDULE_EMPTY_COPY,
@@ -61,6 +62,13 @@ export default async function StaffVolunteerSchedulesPage({
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
           {STAFF_VOLUNTEER_SCHEDULE_NOTICE}{" "}
+          <Link
+            href="/volunteer-schedules/readiness"
+            className={`font-semibold text-[var(--bits-navy)] underline ${focusClass}`}
+          >
+            Schedule Readiness
+          </Link>
+          {" · "}
           <Link
             href="/volunteer-schedules/substitute-requests"
             className={`font-semibold text-[var(--bits-navy)] underline ${focusClass}`}
@@ -161,14 +169,54 @@ export default async function StaffVolunteerSchedulesPage({
               className={fieldClass}
             />
           </label>
-          <button
-            type="submit"
-            className={`w-fit rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
-          >
-            Create assignment
-          </button>
+          <div className="flex flex-wrap items-end gap-3 lg:col-span-2">
+            <button
+              type="submit"
+              className={`w-fit rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
+            >
+              Create assignment
+            </button>
+            {selectedEventId ? (
+              <Link
+                href={volunteerServiceSchedulePrintHref(selectedEventId)}
+                className={`w-fit rounded-xl border border-[var(--bits-border)] px-4 py-2 text-sm font-semibold text-[var(--bits-navy)] ${focusClass}`}
+              >
+                Print schedule
+              </Link>
+            ) : null}
+          </div>
         </form>
       </section>
+
+      {review.events.length > 0 ? (
+        <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-semibold text-[var(--bits-navy)]">
+            Print a schedule
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
+            Open a print-friendly page for one upcoming event.
+          </p>
+          <ul className="mt-4 grid gap-2">
+            {review.events.map((event) => (
+              <li
+                key={event.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--bits-border)] px-4 py-3"
+              >
+                <p className="text-sm font-medium text-[var(--bits-navy)]">
+                  {event.label}
+                </p>
+                <Link
+                  href={volunteerServiceSchedulePrintHref(event.id)}
+                  className={`text-sm font-semibold text-[var(--bits-navy)] underline ${focusClass}`}
+                >
+                  Print schedule
+                  <span className="sr-only"> for {event.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
         <h2 className="text-xl font-semibold text-[var(--bits-navy)]">
@@ -198,6 +246,9 @@ export default async function StaffVolunteerSchedulesPage({
                   </p>
                   <p className="mt-1 text-sm text-[var(--bits-navy)]">
                     {row.roleLabel} · {row.status === "SCHEDULED" ? "Scheduled" : "Cancelled"}
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--bits-muted)]">
+                    {row.confirmationLabel}
                   </p>
                   {row.status === "SCHEDULED" ? (
                     <form
@@ -250,6 +301,9 @@ export default async function StaffVolunteerSchedulesPage({
                     <th scope="col" className="py-3 pr-4 font-medium">
                       Status
                     </th>
+                    <th scope="col" className="py-3 pr-4 font-medium">
+                      Confirmation
+                    </th>
                     <th scope="col" className="py-3 font-medium">
                       Actions
                     </th>
@@ -280,6 +334,9 @@ export default async function StaffVolunteerSchedulesPage({
                       </td>
                       <td className="py-3 pr-4 text-[var(--bits-navy)]">
                         {row.status === "SCHEDULED" ? "Scheduled" : "Cancelled"}
+                      </td>
+                      <td className="py-3 pr-4 text-[var(--bits-navy)]">
+                        {row.confirmationLabel}
                       </td>
                       <td className="py-3">
                         {row.status === "SCHEDULED" ? (
