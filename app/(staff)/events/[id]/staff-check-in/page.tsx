@@ -42,6 +42,9 @@ export default async function EventStaffCheckInPage({
         <Link href={`/events/${dto.event.id}/check-in`} className="underline">
           Full check-in console
         </Link>
+        <Link href={`/events/${dto.event.id}/kiosk`} className="underline">
+          Check-in kiosk
+        </Link>
         <Link
           href={`/events/${dto.event.id}/registrations`}
           className="underline"

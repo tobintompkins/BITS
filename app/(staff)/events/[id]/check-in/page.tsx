@@ -29,6 +29,11 @@ export default async function EventCheckInPage({
         <Link href={`/events/${event.id}/attendance`} className="underline">
           Attendance dashboard
         </Link>
+        {access.canOperateCheckIn ? (
+          <Link href={`/events/${event.id}/kiosk`} className="underline">
+            Check-in kiosk
+          </Link>
+        ) : null}
         <Link href={`/events/${event.id}/registrations`} className="underline">
           Registrations
         </Link>

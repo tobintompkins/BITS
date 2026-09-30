@@ -59,6 +59,7 @@ function revalidateCheckIn(eventId: string) {
   revalidatePath(`/events/${eventId}/check-in`);
   revalidatePath(`/events/${eventId}/attendance`);
   revalidatePath(`/events/${eventId}/registrations`);
+  revalidatePath(`/events/${eventId}/kiosk`);
 }
 
 function parseBoolean(value: FormDataEntryValue | null) {
