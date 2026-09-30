@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { DisplayOptions } from "@/components/accessibility/display-options";
+
 export default function PublicPrayerRequestPage() {
   const [anonymous, setAnonymous] = useState(false);
   const [pending, setPending] = useState(false);
@@ -49,8 +51,8 @@ export default function PublicPrayerRequestPage() {
   return (
     <main className="min-h-screen bg-[var(--bits-page)]">
       <header className="border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white">
-        <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-3">
+        <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-4 py-4 sm:gap-4 sm:px-6">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
             <span
               aria-hidden="true"
               className="grid h-10 w-10 place-items-center rounded-full border-2 border-[var(--bits-gold)] text-xl text-[var(--bits-gold)]"
@@ -64,12 +66,15 @@ export default function PublicPrayerRequestPage() {
               <span className="block font-semibold">Prayer Request</span>
             </span>
           </Link>
-          <Link
-            href="/"
-            className="rounded-xl border border-white/30 px-4 py-2 text-sm font-semibold transition hover:bg-white hover:text-[var(--bits-navy)]"
-          >
-            Back Home
-          </Link>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <DisplayOptions />
+            <Link
+              href="/"
+              className="rounded-xl border border-white/30 px-4 py-2 text-sm font-semibold transition hover:bg-white hover:text-[var(--bits-navy)]"
+            >
+              Back Home
+            </Link>
+          </div>
         </div>
       </header>
 

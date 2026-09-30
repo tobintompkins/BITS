@@ -81,8 +81,23 @@ const expectedRoutes = [
   },
   {
     heading: "My Account",
+    href: "/portal/emergency-contacts",
+    label: "My Emergency Contacts",
+  },
+  {
+    heading: "My Account",
+    href: "/portal/documents",
+    label: "My Documents",
+  },
+  {
+    heading: "My Account",
     href: "/portal/communication-preferences",
     label: "Communication Preferences",
+  },
+  {
+    heading: "My Account",
+    href: "/portal/communication-history",
+    label: "Communication History",
   },
   { heading: "My Account", href: "/portal/privacy", label: "Privacy & Data" },
   { heading: "My Account", href: "/portal/help", label: "Help & Contact" },

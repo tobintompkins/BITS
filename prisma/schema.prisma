@@ -95,6 +95,20 @@ enum ChurchAnnouncementStatus {
   ARCHIVED
 }
 
+enum ChurchServiceAlertStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ChurchServiceAlertType {
+  WEATHER
+  CANCELLATION
+  DELAY
+  SERVICE_CHANGE
+  GENERAL
+}
+
 enum MemberPrivacyRequestType {
   DATA_COPY
   CONTACT_CORRECTION
@@ -168,6 +182,78 @@ enum EventStatus {
   CANCELLED
   COMPLETED
   ARCHIVED
+}
+
+enum EquipmentStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  RETIRED
+}
+
+enum EquipmentCondition {
+  EXCELLENT
+  GOOD
+  FAIR
+  NEEDS_SERVICE
+  OUT_OF_SERVICE
+}
+
+enum MaintenanceRequestStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MaintenancePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum PurchaseRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  CANCELLED
+}
+
+enum DataRetentionCategory {
+  MEMBER_RECORDS
+  GIVING_AND_STATEMENTS
+  EVENT_AND_ATTENDANCE
+  VOLUNTEER_AND_TRAINING
+  LEADERSHIP_DOCUMENTS
+  MAINTENANCE_AND_OPERATIONS
+  PRIVACY_REQUESTS
+  AUDIT_HISTORY
+  OTHER
+}
+
+enum BackupReadinessScope {
+  DATABASE
+  LEADERSHIP_DOCUMENTS
+  MEMBER_DOCUMENTS
+  PHOTOGRAPHS
+  OTHER
+}
+
+enum BackupReadinessResult {
+  VERIFIED
+  RESTORE_TESTED
+  NEEDS_ATTENTION
+  NOT_VERIFIED
+}
+
+enum LeadershipDocumentType {
+  BOARD_MINUTES
+  POLICY
+  LEADERSHIP_RESOURCE
+  FACILITY_DOCUMENT
+  FINANCIAL_REFERENCE
+  OTHER
 }
 
 enum EventVisibility {
@@ -550,6 +636,13 @@ model Organization {
   memberDuplicateCandidates MemberDuplicateCandidate[]
   eventCategories           EventCategory[]
   eventLocations            EventLocation[]
+  equipmentItems            EquipmentItem[]
+  equipmentCheckouts        EquipmentCheckout[]
+  maintenanceRequests       MaintenanceRequest[]
+  purchaseRequests          PurchaseRequest[]
+  leadershipDocuments       LeadershipDocument[]
+  dataRetentionPolicies     DataRetentionPolicy[]
+  backupReadinessLogs       BackupReadinessLog[]
   events                    Event[]
   eventRegistrationSettings EventRegistrationSettings[]
   eventRegistrations        EventRegistration[]
@@ -566,6 +659,7 @@ model Organization {
   financialCorrectionRequests FinancialCorrectionRequest[]
   statementVoidRequests     StatementVoidRequest[]
   churchAnnouncements            ChurchAnnouncement[]
+  churchServiceAlerts            ChurchServiceAlert[]
   announcementReadReceipts       ChurchAnnouncementReadReceipt[]
   memberPrivacyDataRequests      MemberPrivacyDataRequest[]
   memberVolunteerAvailabilities  MemberVolunteerAvailability[]
@@ -628,6 +722,8 @@ model UserAccount {
   statementVoidRequestsRequested StatementVoidRequest[] @relation("StatementVoidRequestedBy")
   statementVoidRequestsReviewed  StatementVoidRequest[] @relation("StatementVoidReviewedBy")
   churchAnnouncementsCreated     ChurchAnnouncement[]   @relation("ChurchAnnouncementCreatedBy")
+  churchServiceAlertsCreated     ChurchServiceAlert[]   @relation("ChurchServiceAlertCreatedBy")
+  churchServiceAlertsUpdated     ChurchServiceAlert[]   @relation("ChurchServiceAlertUpdatedBy")
   announcementReads              ChurchAnnouncementReadReceipt[] @relation("AnnouncementReadBy")
   privacyDataRequestsRequested   MemberPrivacyDataRequest[] @relation("PrivacyRequestRequestedBy")
   privacyDataRequestsResolved    MemberPrivacyDataRequest[] @relation("PrivacyRequestResolvedBy")
@@ -643,6 +739,17 @@ model UserAccount {
   ministryResourcesCreated MinistryResource[] @relation("MinistryResourceCreatedBy")
   ministryResourcesUpdated MinistryResource[] @relation("MinistryResourceUpdatedBy")
   ministryResourcesArchived MinistryResource[] @relation("MinistryResourceArchivedBy")
+  maintenanceRequestsReported MaintenanceRequest[] @relation("MaintenanceRequestReportedBy")
+  maintenanceRequestsAssigned MaintenanceRequest[] @relation("MaintenanceRequestAssignedTo")
+  purchaseRequestsRequested   PurchaseRequest[]    @relation("PurchaseRequestRequestedBy")
+  purchaseRequestsReviewed    PurchaseRequest[]    @relation("PurchaseRequestReviewedBy")
+  leadershipDocumentsUploaded LeadershipDocument[] @relation("LeadershipDocumentUploadedBy")
+  leadershipDocumentsArchived LeadershipDocument[] @relation("LeadershipDocumentArchivedBy")
+  equipmentCheckoutsStarted   EquipmentCheckout[]  @relation("EquipmentCheckoutCheckedOutBy")
+  equipmentCheckoutsReturned  EquipmentCheckout[]  @relation("EquipmentCheckoutReturnedBy")
+  dataRetentionPoliciesCreated DataRetentionPolicy[] @relation("DataRetentionPolicyCreatedBy")
+  dataRetentionPoliciesUpdated DataRetentionPolicy[] @relation("DataRetentionPolicyUpdatedBy")
+  backupReadinessLogsPerformed BackupReadinessLog[] @relation("BackupReadinessLogPerformedBy")
 
   @@map("user_accounts")
 }
@@ -1060,6 +1167,31 @@ model ChurchAnnouncement {
   @@index([organizationId, status, publishedAt])
   @@index([organizationId, createdAt])
   @@map("church_announcements")
+}
+
+model ChurchServiceAlert {
+  id                     String                    @id @default(uuid()) @db.Uuid
+  organizationId         String                    @db.Uuid
+  alertType              ChurchServiceAlertType
+  status                 ChurchServiceAlertStatus  @default(DRAFT)
+  title                  String
+  message                String
+  startsAt               DateTime
+  expiresAt              DateTime
+  publishedAt            DateTime?
+  archivedAt             DateTime?
+  createdByUserAccountId String                    @db.Uuid
+  updatedByUserAccountId String                    @db.Uuid
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    UserAccount  @relation("ChurchServiceAlertCreatedBy", fields: [createdByUserAccountId], references: [id], onDelete: Restrict)
+  updatedBy    UserAccount  @relation("ChurchServiceAlertUpdatedBy", fields: [updatedByUserAccountId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, startsAt, expiresAt], map: "church_service_alerts_org_status_window_idx")
+  @@index([organizationId, status, expiresAt], map: "church_service_alerts_org_status_expires_idx")
+  @@map("church_service_alerts")
 }
 
 model ChurchAnnouncementReadReceipt {
@@ -1825,6 +1957,77 @@ model MemberDocument {
   @@map("member_documents")
 }
 
+model LeadershipDocument {
+  id                      String                 @id @default(uuid()) @db.Uuid
+  organizationId          String                 @db.Uuid
+  documentType            LeadershipDocumentType
+  title                   String
+  description             String?
+  fileName                String
+  fileKey                 String
+  mimeType                String
+  fileSize                Int
+  uploadedByUserAccountId String                 @db.Uuid
+  archivedAt              DateTime?
+  archivedByUserAccountId String?                @db.Uuid
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy   UserAccount  @relation("LeadershipDocumentUploadedBy", fields: [uploadedByUserAccountId], references: [id], onDelete: Restrict)
+  archivedBy   UserAccount? @relation("LeadershipDocumentArchivedBy", fields: [archivedByUserAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, documentType])
+  @@index([organizationId, archivedAt])
+  @@index([createdAt])
+  @@map("leadership_documents")
+}
+
+model DataRetentionPolicy {
+  id                     String                 @id @default(uuid()) @db.Uuid
+  organizationId         String                 @db.Uuid
+  category               DataRetentionCategory
+  title                  String
+  retentionPeriodMonths  Int?
+  policySummary          String
+  reviewDueAt            DateTime?              @db.Date
+  isActive               Boolean                @default(true)
+  createdByUserAccountId String                 @db.Uuid
+  updatedByUserAccountId String                 @db.Uuid
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    UserAccount  @relation("DataRetentionPolicyCreatedBy", fields: [createdByUserAccountId], references: [id], onDelete: Restrict)
+  updatedBy    UserAccount  @relation("DataRetentionPolicyUpdatedBy", fields: [updatedByUserAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, category])
+  @@index([organizationId, isActive])
+  @@index([organizationId, reviewDueAt])
+  @@map("data_retention_policies")
+}
+
+model BackupReadinessLog {
+  id                       String                 @id @default(uuid()) @db.Uuid
+  organizationId           String                 @db.Uuid
+  scope                    BackupReadinessScope
+  result                   BackupReadinessResult
+  checkedAt                DateTime
+  nextReviewAt             DateTime?              @db.Date
+  storageSummary           String?
+  notes                    String?
+  performedByUserAccountId String                 @db.Uuid
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  performedBy  UserAccount  @relation("BackupReadinessLogPerformedBy", fields: [performedByUserAccountId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, scope, checkedAt])
+  @@index([organizationId, nextReviewAt])
+  @@map("backup_readiness_logs")
+}
+
 // ---------------------------------------------------------------------------
 // Events and calendar (Blueprint 7.1)
 // ---------------------------------------------------------------------------
@@ -1873,6 +2076,116 @@ model EventLocation {
   @@unique([organizationId, name])
   @@index([organizationId, isActive])
   @@map("event_locations")
+}
+
+model EquipmentItem {
+  id              String             @id @default(uuid()) @db.Uuid
+  organizationId  String             @db.Uuid
+  name            String
+  category        String?
+  assetTag        String?
+  quantity        Int                @default(1)
+  storageLocation String?
+  status          EquipmentStatus    @default(AVAILABLE)
+  condition       EquipmentCondition @default(GOOD)
+  notes           String?
+  archivedAt      DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  maintenanceRequests MaintenanceRequest[]
+  purchaseRequests    PurchaseRequest[]
+  checkouts           EquipmentCheckout[]
+
+  @@unique([organizationId, assetTag])
+  @@index([organizationId, status])
+  @@index([organizationId, category])
+  @@index([organizationId, archivedAt])
+  @@map("equipment_items")
+}
+
+model EquipmentCheckout {
+  id                        String    @id @default(uuid()) @db.Uuid
+  organizationId            String    @db.Uuid
+  equipmentItemId           String    @db.Uuid
+  quantity                  Int
+  checkedOutToName          String
+  purpose                   String
+  dueBackAt                 DateTime?
+  checkedOutAt              DateTime  @default(now())
+  checkedOutByUserAccountId String    @db.Uuid
+  returnedAt                DateTime?
+  returnedByUserAccountId   String?   @db.Uuid
+  returnNote                String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  equipmentItem EquipmentItem @relation(fields: [equipmentItemId], references: [id], onDelete: Restrict)
+  checkedOutBy UserAccount   @relation("EquipmentCheckoutCheckedOutBy", fields: [checkedOutByUserAccountId], references: [id], onDelete: Restrict)
+  returnedBy   UserAccount?  @relation("EquipmentCheckoutReturnedBy", fields: [returnedByUserAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, returnedAt])
+  @@index([equipmentItemId, returnedAt])
+  @@index([dueBackAt])
+  @@map("equipment_checkouts")
+}
+
+model MaintenanceRequest {
+  id                     String                   @id @default(uuid()) @db.Uuid
+  organizationId         String                   @db.Uuid
+  equipmentItemId        String?                  @db.Uuid
+  title                  String
+  description            String
+  locationDescription    String?
+  priority               MaintenancePriority      @default(NORMAL)
+  status                 MaintenanceRequestStatus @default(OPEN)
+  reportedByUserAccountId String?                 @db.Uuid
+  assignedToUserAccountId String?                 @db.Uuid
+  resolutionNote         String?
+  resolvedAt             DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  equipmentItem EquipmentItem? @relation(fields: [equipmentItemId], references: [id], onDelete: SetNull)
+  reportedBy   UserAccount?  @relation("MaintenanceRequestReportedBy", fields: [reportedByUserAccountId], references: [id], onDelete: SetNull)
+  assignedTo   UserAccount?  @relation("MaintenanceRequestAssignedTo", fields: [assignedToUserAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, priority])
+  @@index([equipmentItemId])
+  @@index([organizationId, createdAt])
+  @@map("maintenance_requests")
+}
+
+model PurchaseRequest {
+  id                       String                @id @default(uuid()) @db.Uuid
+  organizationId           String                @db.Uuid
+  title                    String
+  description              String
+  category                 String?
+  estimatedAmountCents     Int?
+  requestedForLocation     String?
+  equipmentItemId          String?               @db.Uuid
+  status                   PurchaseRequestStatus @default(PENDING)
+  requestedByUserAccountId String                @db.Uuid
+  reviewedByUserAccountId  String?               @db.Uuid
+  decisionNote             String?
+  reviewedAt               DateTime?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  equipmentItem EquipmentItem? @relation(fields: [equipmentItemId], references: [id], onDelete: SetNull)
+  requestedBy   UserAccount    @relation("PurchaseRequestRequestedBy", fields: [requestedByUserAccountId], references: [id], onDelete: Restrict)
+  reviewedBy    UserAccount?   @relation("PurchaseRequestReviewedBy", fields: [reviewedByUserAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+  @@index([equipmentItemId])
+  @@map("purchase_requests")
 }
 
 model Event {

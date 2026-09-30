@@ -29,6 +29,14 @@ const REQUIRED_DELEGATES = [
   "volunteerServiceAssignment",
   "volunteerTimeOffRequest",
   "volunteerSubstituteRequest",
+  "equipmentItem",
+  "maintenanceRequest",
+  "purchaseRequest",
+  "leadershipDocument",
+  "equipmentCheckout",
+  "dataRetentionPolicy",
+  "backupReadinessLog",
+  "churchServiceAlert",
 ] as const;
 
 function createPrismaClient() {

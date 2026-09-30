@@ -1,3 +1,4 @@
+import { isDatabaseUnavailableError } from "@/lib/db/database-unavailable";
 import { prisma } from "@/lib/db/prisma";
 
 export type OrganizationWriteInput = {
@@ -20,11 +21,16 @@ export type OrganizationWriteInput = {
 };
 
 export async function findPrimaryOrganization() {
-  return prisma.organization.findFirst({
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
+  try {
+    return await prisma.organization.findFirst({
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+  } catch (error) {
+    if (!isDatabaseUnavailableError(error)) throw error;
+    return null;
+  }
 }
 
 export async function findOrganizationBySlug(slug: string) {

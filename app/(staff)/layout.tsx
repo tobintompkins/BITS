@@ -3,19 +3,34 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { DisplayOptions } from "@/components/accessibility/display-options";
 import {
   AppShellNav,
   type NavGroup,
 } from "@/components/layout/app-shell-nav";
+import { StaffIdleTimeout } from "@/components/security/staff-idle-timeout";
 import { getAnnouncementAccess } from "@/lib/auth/announcement-permissions";
 import { getPrivacyRequestAccess } from "@/lib/auth/privacy-request-permissions";
 import { getCareAccess } from "@/lib/auth/care-permissions";
 import { getEventAccess } from "@/lib/auth/event-permissions";
 import { getGivingAccess } from "@/lib/auth/giving-permissions";
+import { getOrganizationAccess } from "@/lib/auth/permissions";
+import { getMemberAccess } from "@/lib/auth/member-permissions";
 import { getMemberEngagementAccess } from "@/lib/auth/member-engagement-permissions";
 import { getMemberLifecycleAccess } from "@/lib/auth/member-lifecycle-permissions";
+import { leadershipHelpNavItems } from "@/lib/leadership-help/leadership-help";
+import { getStaffIdleTimeoutConfig } from "@/lib/security/staff-idle-timeout";
 import { staffVolunteerScheduleNavItems } from "@/lib/validation/volunteer-schedule-readiness";
 import { staffMinistryResourceNavItems } from "@/lib/validation/ministry-resource";
+import { staffAccessDirectoryNavItems } from "@/lib/validation/staff-access-directory";
+import { leadershipSecurityActivityNavItems } from "@/lib/validation/leadership-security-activity";
+import { churchDataExportNavItems } from "@/lib/validation/church-data-export";
+import { dataRetentionPolicyNavItems } from "@/lib/validation/data-retention-policy";
+import { backupReadinessNavItems } from "@/lib/validation/backup-readiness";
+import { announcementAudiencePreviewNavItems } from "@/lib/validation/announcement-audience-preview";
+import { upcomingCelebrationsNavItems } from "@/lib/validation/upcoming-celebrations";
+import { churchServiceAlertNavItems } from "@/lib/validation/church-service-alert";
+import { staffLeadershipDocumentNavItems } from "@/lib/validation/leadership-document";
 import { staffVolunteerTrainingNavItems } from "@/lib/validation/volunteer-training";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
@@ -52,6 +67,13 @@ export default async function StaffLayout({
   const privacyRequestAccess = organization
     ? await getPrivacyRequestAccess(organization.id)
     : null;
+  const organizationAccess = organization
+    ? await getOrganizationAccess(organization.id)
+    : null;
+  const memberAccess = organization
+    ? await getMemberAccess(organization.id)
+    : null;
+  const staffIdleTimeout = getStaffIdleTimeoutConfig();
 
   const navGroups: NavGroup[] = [
     {
@@ -118,6 +140,18 @@ export default async function StaffLayout({
           ? [
               { href: "/events", label: "Events" },
               { href: "/events/calendar", label: "Calendar" },
+              {
+                href: "/events/location-conflicts",
+                label: "Location Conflict Review",
+              },
+              {
+                href: "/facilities/rooms",
+                label: "Facility & Room Schedule",
+              },
+              { href: "/equipment", label: "Equipment Inventory" },
+              { href: "/equipment/check-out", label: "Equipment Check-Out" },
+              { href: "/maintenance-requests", label: "Maintenance Requests" },
+              { href: "/purchase-requests", label: "Purchase Requests" },
             ]
           : []),
         ...(careAccess?.canViewAttendance
@@ -126,6 +160,13 @@ export default async function StaffLayout({
         ...(announcementAccess?.canManageAnnouncements
           ? [{ href: "/announcements", label: "Church Announcements" }]
           : []),
+        ...announcementAudiencePreviewNavItems(
+          Boolean(announcementAccess?.canManageAnnouncements),
+        ),
+        ...churchServiceAlertNavItems(
+          Boolean(announcementAccess?.canManageAnnouncements),
+        ),
+        ...upcomingCelebrationsNavItems(Boolean(memberAccess?.canView)),
       ],
     },
     {
@@ -176,6 +217,7 @@ export default async function StaffLayout({
       label: "Administration",
       items: [
         { href: "/settings/organization", label: "Organization Settings" },
+        ...staffLeadershipDocumentNavItems(Boolean(organizationAccess?.canEdit)),
         ...(engagementAccess?.canManageSpiritualGiftCatalog ||
         engagementAccess?.canViewSpiritualGifts
           ? [{ href: "/settings/spiritual-gifts", label: "Spiritual Gifts" }]
@@ -195,9 +237,19 @@ export default async function StaffLayout({
               },
             ]
           : []),
+        ...staffAccessDirectoryNavItems(
+          Boolean(engagementAccess?.canManageMinistries),
+        ),
+        ...leadershipSecurityActivityNavItems(
+          Boolean(organizationAccess?.canEdit),
+        ),
+        ...churchDataExportNavItems(Boolean(organizationAccess?.canEdit)),
+        ...dataRetentionPolicyNavItems(Boolean(organizationAccess?.canEdit)),
+        ...backupReadinessNavItems(Boolean(organizationAccess?.canEdit)),
         ...(privacyRequestAccess?.canReviewPrivacyRequests
           ? [{ href: "/privacy-requests", label: "Privacy & Data Requests" }]
           : []),
+        ...leadershipHelpNavItems(),
       ],
     },
   ];
@@ -205,8 +257,8 @@ export default async function StaffLayout({
   return (
     <div className="min-h-full bg-[var(--bits-page)]">
       <header className="staff-app-header border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white shadow-sm">
-        <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div>
+        <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 py-4 sm:gap-4 sm:px-6 lg:px-8">
+          <div className="min-w-0">
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-[var(--bits-gold)]">
               BITS · Leadership Portal
             </p>
@@ -215,7 +267,8 @@ export default async function StaffLayout({
             </h1>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <DisplayOptions />
             <Link
               href="/"
               className="hidden text-sm font-medium text-white/85 underline-offset-4 hover:text-white hover:underline sm:inline"
@@ -242,6 +295,10 @@ export default async function StaffLayout({
 
         <main className="min-w-0">{children}</main>
       </div>
+      <StaffIdleTimeout
+        timeoutMinutes={staffIdleTimeout.timeoutMinutes}
+        warningMinutes={staffIdleTimeout.warningMinutes}
+      />
     </div>
   );
 }

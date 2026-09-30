@@ -11,6 +11,22 @@
   --bits-page: #f4f6f8;
   --bits-border: #dde3ea;
   --bits-muted: #667085;
+  --bits-text-size: 100%;
+  --bits-body-line-height: 1.5;
+}
+
+html {
+  font-size: var(--bits-text-size);
+}
+
+html[data-bits-text-size="large"] {
+  --bits-text-size: 112.5%;
+  --bits-body-line-height: 1.55;
+}
+
+html[data-bits-text-size="extra-large"] {
+  --bits-text-size: 125%;
+  --bits-body-line-height: 1.65;
 }
 
 @theme inline {
@@ -24,6 +40,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  line-height: var(--bits-body-line-height);
 }
 
 :focus-visible {
@@ -40,6 +57,15 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+html[data-bits-reduce-motion="true"] *,
+html[data-bits-reduce-motion="true"] *::before,
+html[data-bits-reduce-motion="true"] *::after {
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
 }
 
 @keyframes prayer-wall-scroll {
@@ -66,7 +92,16 @@ body {
   }
 }
 
+html[data-bits-reduce-motion="true"] .prayer-wall-track {
+  animation: none;
+}
+
 @media print {
+  html {
+    --bits-text-size: 100%;
+    --bits-body-line-height: 1.5;
+  }
+
   @page {
     margin: 0.6in;
   }

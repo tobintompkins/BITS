@@ -29,12 +29,20 @@ export type MemberCsvColumn = (typeof MEMBER_CSV_COLUMNS)[number];
 
 export type MemberCsvRow = Record<MemberCsvColumn, string>;
 
+export function sanitizeCsvFormula(value: string) {
+  if (value.length > 0 && /^[=+\-@\t\r]/.test(value)) {
+    return `'${value}`;
+  }
+  return value;
+}
+
 export function escapeCsvValue(value: string) {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+  const safe = sanitizeCsvFormula(value);
+  if (/[",\n\r]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
   }
 
-  return value;
+  return safe;
 }
 
 export function buildCsv(rows: string[][]) {

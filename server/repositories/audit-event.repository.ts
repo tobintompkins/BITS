@@ -89,3 +89,40 @@ export async function findOrganizationAuditEvents(organizationId: string) {
     take: 20,
   });
 }
+
+export type AllowListedAuditEventQuery = {
+  organizationId: string;
+  allowList: Array<{ entityType: string; action: string }>;
+  take: number;
+};
+
+export async function findAllowListedAuditEvents(
+  query: AllowListedAuditEventQuery,
+) {
+  if (query.allowList.length === 0) return [];
+
+  return prisma.auditEvent.findMany({
+    where: {
+      organizationId: query.organizationId,
+      OR: query.allowList.map((item) => ({
+        entityType: item.entityType,
+        action: item.action,
+      })),
+    },
+    select: {
+      action: true,
+      entityType: true,
+      occurredAt: true,
+      changeMetadata: true,
+      actor: {
+        select: {
+          displayName: true,
+        },
+      },
+    },
+    orderBy: {
+      occurredAt: "desc",
+    },
+    take: query.take,
+  });
+}

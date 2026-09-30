@@ -122,10 +122,28 @@ export const MEMBER_PORTAL_NAV_GROUPS: MemberPortalNavGroup[] = [
         description: "Update your email, phone, and preferred contact method.",
       },
       {
+        href: "/portal/emergency-contacts",
+        label: "My Emergency Contacts",
+        description:
+          "Review the emergency contacts recorded on your membership.",
+      },
+      {
+        href: "/portal/documents",
+        label: "My Documents",
+        description:
+          "Download safe, non-confidential documents assigned to your membership.",
+      },
+      {
         href: "/portal/communication-preferences",
         label: "Communication Preferences",
         description:
           "Choose how the church may contact you by email, text, phone, or mail.",
+      },
+      {
+        href: "/portal/communication-history",
+        label: "Communication History",
+        description:
+          "Review your recorded communication and privacy preference changes.",
       },
       {
         href: "/portal/privacy",

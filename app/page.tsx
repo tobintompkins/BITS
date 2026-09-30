@@ -1,7 +1,9 @@
 import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 
+import { DisplayOptions } from "@/components/accessibility/display-options";
 import { ChurchLeadershipCard } from "@/components/home/church-leadership-card";
+import { ChurchServiceAlertBanner } from "@/components/home/church-service-alert-banner";
 import {
   ChurchPhotoCarousel,
   type ChurchPhoto,
@@ -9,6 +11,7 @@ import {
 import { PrayerWall } from "@/components/home/prayer-wall";
 import { findPublicPrayerWallRequests } from "@/server/repositories/care-engagement.repository";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { getPublicChurchServiceAlert } from "@/server/services/church-service-alert.service";
 
 const churchPhotos: ChurchPhoto[] = [];
 
@@ -51,16 +54,19 @@ const guestOptions = [
 ];
 
 export default async function Home() {
-  const organization = await findPrimaryOrganization();
+  const organization = await findPrimaryOrganization().catch(() => null);
   const publicPrayerRequests = organization
     ? await findPublicPrayerWallRequests(organization.id).catch(() => [])
     : [];
+  const publicAlert = await getPublicChurchServiceAlert().catch(() => ({
+    status: "NONE" as const,
+  }));
 
   return (
     <main className="min-h-screen bg-[var(--bits-page)]">
       <header className="border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white shadow-md">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="group flex items-center gap-3">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:gap-4 sm:px-6 lg:px-8">
+          <Link href="/" className="group flex min-w-0 items-center gap-3">
             <span
               aria-hidden="true"
               className="grid h-11 w-11 place-items-center rounded-full border-2 border-[var(--bits-gold)] text-2xl font-semibold text-[var(--bits-gold)]"
@@ -77,7 +83,8 @@ export default async function Home() {
             </span>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <DisplayOptions />
             <Show when="signed-out">
               <SignInButton mode="redirect">
                 <button
@@ -100,6 +107,10 @@ export default async function Home() {
           </div>
         </div>
       </header>
+
+      {publicAlert.status === "READY" ? (
+        <ChurchServiceAlertBanner alert={publicAlert.alert} />
+      ) : null}
 
       <section className="relative overflow-hidden bg-[var(--bits-navy-deep)] text-white">
         <div

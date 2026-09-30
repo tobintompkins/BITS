@@ -3,6 +3,8 @@
 import { Show, SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
 
+import { DisplayOptions } from "@/components/accessibility/display-options";
+
 const churchEmail = "firstupcsaco@hotmail.com";
 const currentYear = new Date().getFullYear();
 
@@ -34,17 +36,20 @@ export default function GivingStatementsPage() {
   return (
     <main className="min-h-screen bg-[var(--bits-page)]">
       <header className="border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/" className="font-semibold">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+          <Link href="/" className="min-w-0 font-semibold">
             <span className="mr-2 text-[var(--bits-gold)]">✝</span>
             First UPC of Saco
           </Link>
-          <Link
-            href="/"
-            className="rounded-xl border border-white/30 px-4 py-2 text-sm font-semibold"
-          >
-            Back Home
-          </Link>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <DisplayOptions />
+            <Link
+              href="/"
+              className="rounded-xl border border-white/30 px-4 py-2 text-sm font-semibold"
+            >
+              Back Home
+            </Link>
+          </div>
         </div>
       </header>
 

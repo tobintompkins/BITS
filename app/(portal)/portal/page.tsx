@@ -283,6 +283,22 @@ export default async function MemberPortalPage() {
         </div>
       </section>
 
+      <section className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
+          My Emergency Contacts
+        </h2>
+        <p className="mt-1 text-sm leading-6 text-[var(--bits-muted)]">
+          Review the emergency contacts recorded on your membership. Corrections
+          are made by the church office.
+        </p>
+        <Link
+          href="/portal/emergency-contacts"
+          className={`mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
+        >
+          My Emergency Contacts
+        </Link>
+      </section>
+
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
           My Contact Information

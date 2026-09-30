@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DisplayOptions } from "@/components/accessibility/display-options";
 import { isStripeTestModeConfigured } from "@/lib/stripe/test-mode";
 import { stripeDonationFundOptions } from "@/lib/validation/stripe-donation";
 
@@ -22,16 +23,19 @@ export default async function GivePage({
   return (
     <main className="min-h-screen bg-[var(--bits-page)]">
       <header className="border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4 sm:px-6">
-          <div>
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+          <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--bits-gold)]">
               First UPC of Saco
             </p>
             <h1 className="text-xl font-semibold">Give Online</h1>
           </div>
-          <Link href="/" className="text-sm text-white/80 hover:text-white">
-            Return Home
-          </Link>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <DisplayOptions />
+            <Link href="/" className="text-sm text-white/80 hover:text-white">
+              Return Home
+            </Link>
+          </div>
         </div>
       </header>
 

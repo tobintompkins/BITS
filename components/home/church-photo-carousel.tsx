@@ -18,6 +18,12 @@ export function ChurchPhotoCarousel({
   useEffect(() => {
     if (photos.length < 2) return;
 
+    const reducedMotion =
+      document.documentElement.getAttribute("data-bits-reduce-motion") ===
+        "true" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion) return;
+
     const timer = window.setInterval(() => {
       setActiveIndex((current) => (current + 1) % photos.length);
     }, 5500);
