@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({
   donationFindUnique: vi.fn(),
   donationCreate: vi.fn(),
   donorFindFirst: vi.fn(),
-  offeringTypeUpsert: vi.fn(),
+  offeringTypeFindFirst: vi.fn(),
+  offeringTypeCreate: vi.fn(),
+  offeringTypeUpdate: vi.fn(),
 }));
 
 vi.mock("@/server/repositories/organization.repository", () => ({
@@ -19,11 +21,16 @@ vi.mock("@/lib/db/prisma", () => ({
       create: mocks.donationCreate,
     },
     donor: { findFirst: mocks.donorFindFirst },
-    offeringType: { upsert: mocks.offeringTypeUpsert },
+    offeringType: {
+      findFirst: mocks.offeringTypeFindFirst,
+      create: mocks.offeringTypeCreate,
+      update: mocks.offeringTypeUpdate,
+    },
   },
 }));
 
 import {
+  isStripeFundBlockedForNewCheckout,
   persistStripeTestDonation,
   validateStripeTestCheckoutSession,
 } from "./stripe-test-giving.service";
@@ -83,7 +90,17 @@ describe("validateStripeTestCheckoutSession", () => {
 describe("persistStripeTestDonation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.offeringTypeUpsert.mockResolvedValue({ id: "fund-1" });
+    mocks.offeringTypeFindFirst.mockResolvedValue(null);
+    mocks.offeringTypeCreate.mockResolvedValue({
+      id: "fund-1",
+      name: "Tithes",
+      code: "STRIPE_TITHES",
+      active: true,
+      onlineGivingEnabled: true,
+    });
+    mocks.offeringTypeUpdate.mockRejectedValue(
+      new Error("existing offering types must not be overwritten"),
+    );
     mocks.donorFindFirst.mockResolvedValue(null);
     mocks.donationFindUnique.mockResolvedValue(null);
     mocks.donationCreate.mockResolvedValue({
@@ -126,6 +143,8 @@ describe("persistStripeTestDonation", () => {
     const second = await persistStripeTestDonation(validated.checkout, ORG_ID);
     expect(second.alreadyRecorded).toBe(true);
     expect(mocks.donationCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.offeringTypeCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.offeringTypeUpdate).not.toHaveBeenCalled();
   });
 
   it("uses the unique checkout session constraint when two writers race", async () => {
@@ -144,5 +163,51 @@ describe("persistStripeTestDonation", () => {
 
     const result = await persistStripeTestDonation(validated.checkout, ORG_ID);
     expect(result).toEqual({ donation: existing, alreadyRecorded: true });
+  });
+
+  it("settles an already-created checkout against an inactive fund without renaming or reactivating it", async () => {
+    const validated = validateStripeTestCheckoutSession(paidCheckout());
+    if (!validated.ok) return;
+    mocks.offeringTypeFindFirst.mockResolvedValue({
+      id: "fund-1",
+      name: "Tithes",
+      code: "STRIPE_TITHES",
+      active: false,
+      onlineGivingEnabled: false,
+    });
+
+    const recorded = await persistStripeTestDonation(validated.checkout, ORG_ID);
+    expect(recorded.alreadyRecorded).toBe(false);
+    expect(mocks.offeringTypeCreate).not.toHaveBeenCalled();
+    expect(mocks.offeringTypeUpdate).not.toHaveBeenCalled();
+    expect(mocks.donationCreate.mock.calls[0]?.[0].data.allocations.create).toMatchObject({
+      offeringTypeId: "fund-1",
+    });
+    expect(mocks.donationCreate.mock.calls[0]?.[0].data.note).toContain(
+      "staff review",
+    );
+  });
+
+  it("blocks new checkout when the matching fund is inactive or online-disabled", async () => {
+    mocks.offeringTypeFindFirst.mockResolvedValue({
+      id: "fund-1",
+      active: false,
+      onlineGivingEnabled: true,
+    });
+    await expect(isStripeFundBlockedForNewCheckout(ORG_ID, "Tithes")).resolves.toBe(
+      true,
+    );
+    mocks.offeringTypeFindFirst.mockResolvedValue({
+      id: "fund-1",
+      active: true,
+      onlineGivingEnabled: false,
+    });
+    await expect(isStripeFundBlockedForNewCheckout(ORG_ID, "Tithes")).resolves.toBe(
+      true,
+    );
+    mocks.offeringTypeFindFirst.mockResolvedValue(null);
+    await expect(isStripeFundBlockedForNewCheckout(ORG_ID, "Tithes")).resolves.toBe(
+      false,
+    );
   });
 });

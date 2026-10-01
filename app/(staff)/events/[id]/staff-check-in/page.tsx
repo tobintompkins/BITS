@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 
 import { StaffCheckInPanel } from "@/components/events/staff-check-in-panel";
 import { getEventAccess } from "@/lib/auth/event-permissions";
+import { getMemberAccess } from "@/lib/auth/member-permissions";
+import { canAccessVerifiedChildCheckOut } from "@/lib/validation/child-pickup-checkout";
+import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 import { getCheckInSettingsDto } from "@/server/services/event-check-in.service";
 
 export default async function EventStaffCheckInPage({
@@ -11,7 +14,16 @@ export default async function EventStaffCheckInPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const organization = await findPrimaryOrganization();
   const access = await getEventAccess();
+  const memberAccess = organization
+    ? await getMemberAccess(organization.id)
+    : { canView: false, canEdit: false };
+  const showVerifiedChildCheckOut = canAccessVerifiedChildCheckOut({
+    canViewMembers: memberAccess.canView,
+    canEditMembers: memberAccess.canEdit,
+    canManageCheckIn: access.canManageCheckIn,
+  });
 
   // Server-side guard — nav visibility is not authorization.
   if (!access.canOperateCheckIn) {
@@ -57,6 +69,14 @@ export default async function EventStaffCheckInPage({
         >
           Check-out &amp; re-entry
         </Link>
+        {showVerifiedChildCheckOut ? (
+          <Link
+            href={`/events/${dto.event.id}/child-check-out`}
+            className="underline"
+          >
+            Verified child check-out
+          </Link>
+        ) : null}
       </nav>
 
       <StaffCheckInPanel

@@ -5,7 +5,6 @@ import { isStripeTestModeConfigured } from "@/lib/stripe/test-mode";
 import {
   MEMBER_STRIPE_GIVING_NOTICE,
   MEMBER_STRIPE_GIVING_SECURITY_COPY,
-  memberStripeDonationFundOptions,
 } from "@/lib/validation/member-stripe-giving";
 import { getMemberStripeGiving } from "@/server/services/member-stripe-giving.service";
 
@@ -151,17 +150,23 @@ export default async function MemberGivePage({
         >
           <label className="grid gap-1 text-sm font-medium text-[var(--bits-navy)]">
             Giving fund
-            <select
-              name="fund"
-              required
-              className={`w-full rounded-xl border border-[var(--bits-border)] bg-white px-3 py-2 ${focusClass}`}
-            >
-              {memberStripeDonationFundOptions.map((fund) => (
-                <option key={fund} value={fund}>
-                  {fund}
-                </option>
-              ))}
-            </select>
+            {portal.funds.length ? (
+              <select
+                name="fund"
+                required
+                className={`w-full rounded-xl border border-[var(--bits-border)] bg-white px-3 py-2 ${focusClass}`}
+              >
+                {portal.funds.map((fund) => (
+                  <option key={fund} value={fund}>
+                    {fund}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="rounded-xl border border-[var(--bits-border)] bg-[var(--bits-page)] px-3 py-2 text-[var(--bits-muted)]">
+                No online giving funds are available right now.
+              </p>
+            )}
           </label>
           <label className="grid gap-1 text-sm font-medium text-[var(--bits-navy)]">
             Amount
@@ -185,7 +190,7 @@ export default async function MemberGivePage({
           </p>
           <button
             type="submit"
-            disabled={!configured}
+            disabled={!configured || portal.funds.length === 0}
             className={`rounded-xl bg-[var(--bits-navy)] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-45 sm:col-span-2 ${focusClass}`}
           >
             Continue to Stripe Test Checkout

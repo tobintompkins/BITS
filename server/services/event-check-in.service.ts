@@ -736,6 +736,74 @@ export async function checkInParty(input: PartyCheckInInput, actor: Actor) {
   return results;
 }
 
+export async function applyAttendanceCheckOutInTransaction(
+  eventId: string,
+  attendanceId: string,
+  actor: Actor,
+  options: { stationId?: string; operationKey?: string } | undefined,
+  organizationId: string,
+  tx: Prisma.TransactionClient,
+) {
+  await lockCheckInSettingsForEvent(eventId, tx);
+  const settings = await findCheckInSettings(organizationId, eventId, tx);
+  if (!settings) throw new CheckInError("CHECK_IN_DISABLED", "Check-in not configured.");
+  if (!settings.allowCheckOut) {
+    throw new CheckInError("CHECK_OUT_DISABLED", "Check-out is disabled.");
+  }
+  await ensureStationActive(
+    organizationId,
+    eventId,
+    options?.stationId,
+    settings,
+    tx,
+  );
+
+  const attendance = await findAttendanceById(organizationId, attendanceId, tx);
+  if (!attendance || attendance.eventId !== eventId) {
+    throw new CheckInError("NOT_FOUND", "Attendance record not found.");
+  }
+  if (attendance.status === "CHECKED_OUT") {
+    return { attendance, alreadyCheckedOut: true as const };
+  }
+  if (attendance.status !== "PRESENT") {
+    throw new CheckInError("VALIDATION", "Only present attendees can check out.");
+  }
+
+  const now = new Date();
+  const updated = await tx.eventAttendanceRecord.update({
+    where: { id: attendance.id },
+    data: {
+      status: "CHECKED_OUT",
+      checkedOutAt: now,
+      checkedOutByUserId: actor.userAccountId,
+    },
+  });
+  await tx.eventAttendanceAction.create({
+    data: {
+      organizationId,
+      eventId,
+      attendanceId: attendance.id,
+      action: "CHECKED_OUT",
+      source: "STAFF_SEARCH",
+      stationId: options?.stationId ?? null,
+      actorUserId: actor.userAccountId,
+      occurredAt: now,
+    },
+  });
+  await recordIdempotency(
+    organizationId,
+    eventId,
+    options?.operationKey,
+    attendance.id,
+    "CHECKED_OUT",
+    tx,
+  );
+  return {
+    attendance: await findAttendanceById(organizationId, updated.id, tx),
+    alreadyCheckedOut: false as const,
+  };
+}
+
 export async function checkOutAttendance(
   eventId: string,
   attendanceId: string,
@@ -750,64 +818,14 @@ export async function checkOutAttendance(
   );
 
   const result = await prisma.$transaction(async (tx) => {
-    await lockCheckInSettingsForEvent(eventId, tx);
-    const settings = await findCheckInSettings(organizationId, eventId, tx);
-    if (!settings) throw new CheckInError("CHECK_IN_DISABLED", "Check-in not configured.");
-    if (!settings.allowCheckOut) {
-      throw new CheckInError("CHECK_OUT_DISABLED", "Check-out is disabled.");
-    }
-    await ensureStationActive(
-      organizationId,
+    return applyAttendanceCheckOutInTransaction(
       eventId,
-      options?.stationId,
-      settings,
+      attendanceId,
+      actor,
+      options,
+      organizationId,
       tx,
     );
-
-    const attendance = await findAttendanceById(organizationId, attendanceId, tx);
-    if (!attendance || attendance.eventId !== eventId) {
-      throw new CheckInError("NOT_FOUND", "Attendance record not found.");
-    }
-    if (attendance.status === "CHECKED_OUT") {
-      return { attendance, alreadyCheckedOut: true as const };
-    }
-    if (attendance.status !== "PRESENT") {
-      throw new CheckInError("VALIDATION", "Only present attendees can check out.");
-    }
-
-    const now = new Date();
-    const updated = await tx.eventAttendanceRecord.update({
-      where: { id: attendance.id },
-      data: {
-        status: "CHECKED_OUT",
-        checkedOutAt: now,
-        checkedOutByUserId: actor.userAccountId,
-      },
-    });
-    await tx.eventAttendanceAction.create({
-      data: {
-        organizationId,
-        eventId,
-        attendanceId: attendance.id,
-        action: "CHECKED_OUT",
-        source: "STAFF_SEARCH",
-        stationId: options?.stationId ?? null,
-        actorUserId: actor.userAccountId,
-        occurredAt: now,
-      },
-    });
-    await recordIdempotency(
-      organizationId,
-      eventId,
-      options?.operationKey,
-      attendance.id,
-      "CHECKED_OUT",
-      tx,
-    );
-    return {
-      attendance: await findAttendanceById(organizationId, updated.id, tx),
-      alreadyCheckedOut: false as const,
-    };
   });
 
   if (!result.alreadyCheckedOut) {

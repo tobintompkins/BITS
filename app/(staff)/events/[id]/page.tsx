@@ -8,6 +8,8 @@ import {
   getRegistrationSummaryAction,
 } from "@/app/(staff)/events/registration-actions";
 import { EventDetail } from "@/components/events/event-detail";
+import { getMemberAccess } from "@/lib/auth/member-permissions";
+import { canAccessVerifiedChildCheckOut } from "@/lib/validation/child-pickup-checkout";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
 type PageProps = {
@@ -28,6 +30,7 @@ export default async function EventDetailPage({ params }: PageProps) {
   }
 
   const { event, access, activity } = payload;
+  const memberAccess = await getMemberAccess(organization.id);
 
   let registration:
     | {
@@ -79,6 +82,11 @@ export default async function EventDetailPage({ params }: PageProps) {
         canManageRegistration: access.canManageRegistration,
         canCheckIn: access.canCheckIn,
         canManageCheckIn: access.canManageCheckIn,
+        canAccessVerifiedChildCheckOut: canAccessVerifiedChildCheckOut({
+          canViewMembers: memberAccess.canView,
+          canEditMembers: memberAccess.canEdit,
+          canManageCheckIn: access.canManageCheckIn,
+        }),
         canExportRegistrations: access.canExportRegistrations,
       }}
       registration={registration}

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { DisplayOptions } from "@/components/accessibility/display-options";
 import { isStripeTestModeConfigured } from "@/lib/stripe/test-mode";
 import { stripeDonationFundOptions } from "@/lib/validation/stripe-donation";
+import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { advertisedStripeFunds } from "@/server/services/stripe-test-giving.service";
 
 export default async function GivePage({
   searchParams,
@@ -15,6 +17,10 @@ export default async function GivePage({
 }) {
   const params = await searchParams;
   const configured = isStripeTestModeConfigured();
+  const organization = await findPrimaryOrganization();
+  const funds = organization
+    ? await advertisedStripeFunds(organization.id, stripeDonationFundOptions)
+    : [...stripeDonationFundOptions];
   const message =
     params.error ??
     params.setup ??
@@ -86,11 +92,17 @@ export default async function GivePage({
             </label>
             <label className="space-y-1 text-sm">
               <span className="font-medium">Giving fund</span>
-              <select name="fund" required className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2">
-                {stripeDonationFundOptions.map((fund) => (
-                  <option key={fund} value={fund}>{fund}</option>
-                ))}
-              </select>
+              {funds.length ? (
+                <select name="fund" required className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2">
+                  {funds.map((fund) => (
+                    <option key={fund} value={fund}>{fund}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="rounded-lg border border-[var(--bits-border)] bg-[var(--bits-page)] px-3 py-2 text-[var(--bits-muted)]">
+                  No online giving funds are available right now.
+                </p>
+              )}
             </label>
             <label className="space-y-1 text-sm">
               <span className="font-medium">Test amount</span>
@@ -101,7 +113,7 @@ export default async function GivePage({
             </label>
             <button
               type="submit"
-              disabled={!configured}
+              disabled={!configured || funds.length === 0}
               className="rounded-xl bg-[var(--bits-navy)] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-45 sm:col-span-2"
             >
               Continue to Stripe Test Checkout

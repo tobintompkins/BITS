@@ -5,6 +5,7 @@ import { getStripeTestSecret } from "@/lib/stripe/test-mode";
 import {
   isAllowedRecordedStripeDonationFund,
   isAllowedStripeDonationAmountCents,
+  recordedStripeFundCode,
 } from "@/lib/validation/stripe-donation";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
@@ -122,7 +123,46 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function fundCode(fund: string) {
-  return `STRIPE_${fund.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`.slice(0, 64);
+  return recordedStripeFundCode(fund);
+}
+
+export async function findRecordedStripeOfferingType(
+  organizationId: string,
+  fund: string,
+  db: DonationWriter = prisma,
+) {
+  return db.offeringType.findFirst({
+    where: { organizationId, code: fundCode(fund) },
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      active: true,
+      onlineGivingEnabled: true,
+    },
+  });
+}
+
+export async function isStripeFundBlockedForNewCheckout(
+  organizationId: string,
+  fund: string,
+) {
+  const existing = await findRecordedStripeOfferingType(organizationId, fund);
+  if (!existing) return false;
+  return !existing.active || !existing.onlineGivingEnabled;
+}
+
+export async function advertisedStripeFunds<T extends string>(
+  organizationId: string,
+  candidates: readonly T[],
+) {
+  const blocked = await Promise.all(
+    candidates.map(async (fund) => [
+      fund,
+      await isStripeFundBlockedForNewCheckout(organizationId, fund),
+    ] as const),
+  );
+  return blocked.filter(([, isBlocked]) => !isBlocked).map(([fund]) => fund);
 }
 
 export function readMemberCheckoutAttribution(
@@ -198,22 +238,34 @@ export async function persistStripeTestDonation(
   const offeringDate = new Date(checkout.created * 1000);
 
   try {
-    const offeringType = await db.offeringType.upsert({
-      where: {
-        organizationId_code: {
+    const existingType = await findRecordedStripeOfferingType(
+      organizationId,
+      checkout.fund,
+      db,
+    );
+    let offeringType = existingType;
+    if (!offeringType) {
+      offeringType = await db.offeringType.create({
+        data: {
           organizationId,
+          name: checkout.fund,
           code: fundCode(checkout.fund),
+          onlineGivingEnabled: true,
+          defaultTaxDeductible: true,
         },
-      },
-      update: { name: checkout.fund, onlineGivingEnabled: true, active: true },
-      create: {
-        organizationId,
-        name: checkout.fund,
-        code: fundCode(checkout.fund),
-        onlineGivingEnabled: true,
-        defaultTaxDeductible: true,
-      },
-    });
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          active: true,
+          onlineGivingEnabled: true,
+        },
+      });
+    }
+    const reviewNote =
+      existingType && (!existingType.active || !existingType.onlineGivingEnabled)
+        ? "Inactive or online-disabled offering type retained for staff review."
+        : null;
     const donation = await db.donation.create({
       data: {
         organizationId,
@@ -232,6 +284,7 @@ export async function persistStripeTestDonation(
           "Stripe sandbox test gift",
           checkout.donorName,
           checkout.email,
+          reviewNote,
         ]
           .filter(Boolean)
           .join(" · "),

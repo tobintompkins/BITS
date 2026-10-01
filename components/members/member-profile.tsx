@@ -15,7 +15,9 @@ import {
 import { MembershipStatusBadge } from "@/components/ui/membership-status-badge";
 import { Toast } from "@/components/ui/toast";
 import { MemberAvatar } from "@/components/members/member-avatar";
+import { ApprovedPickupPeoplePanel } from "@/components/members/approved-pickup-people-panel";
 import { EmergencyContactsPanel } from "@/components/members/emergency-contacts-panel";
+import type { MemberApprovedPickupRow } from "@/lib/validation/member-approved-pickups";
 import {
   MemberActivityTimelinePanel,
   MemberAttendancePanel,
@@ -127,6 +129,7 @@ type MemberProfileProps = {
   };
   photoUrl?: string | null;
   emergencyContacts: EmergencyContact[];
+  approvedPickups?: MemberApprovedPickupRow[] | null;
   access: { canEdit: boolean; canDelete: boolean; isSuperAdmin?: boolean };
   careAccess: CareAccess;
   lifecycleAccess: MemberLifecycleAccess;
@@ -336,6 +339,7 @@ export function MemberProfile({
   member,
   photoUrl,
   emergencyContacts,
+  approvedPickups = null,
   access,
   careAccess,
   lifecycleAccess,
@@ -575,6 +579,12 @@ export function MemberProfile({
               memberId={member.id}
               summary={lifecycleSummary}
               access={lifecycleAccess}
+            />
+          ) : null}
+          {approvedPickups !== null && approvedPickups !== undefined ? (
+            <ApprovedPickupPeoplePanel
+              memberId={member.id}
+              rows={approvedPickups}
             />
           ) : null}
         </div>

@@ -24,11 +24,22 @@ type DonationRow = {
   isTest: boolean;
 };
 
+type OfferingTypeRow = {
+  id: string;
+  organizationId: string;
+  name: string;
+  code: string;
+  active: boolean;
+  onlineGivingEnabled: boolean;
+};
+
 const store = vi.hoisted(() => ({
   donors: [] as DonorRow[],
   donations: [] as DonationRow[],
+  offeringTypes: [] as OfferingTypeRow[],
   lastDonorWhere: null as unknown,
   lastDonationCreate: null as unknown,
+  lastOfferingTypeCreate: null as unknown,
   fetchBodies: [] as string[],
 }));
 
@@ -120,7 +131,42 @@ vi.mock("@/lib/db/prisma", () => ({
       },
     },
     offeringType: {
-      upsert: async () => ({ id: "fund-1", name: "Tithes" }),
+      findFirst: async ({
+        where,
+      }: {
+        where: { organizationId: string; code: string };
+      }) =>
+        store.offeringTypes.find(
+          (row) =>
+            row.organizationId === where.organizationId &&
+            row.code === where.code,
+        ) ?? null,
+      create: async ({
+        data,
+      }: {
+        data: {
+          organizationId: string;
+          name: string;
+          code: string;
+          onlineGivingEnabled?: boolean;
+          defaultTaxDeductible?: boolean;
+        };
+      }) => {
+        const row = {
+          id: `fund-${store.offeringTypes.length + 1}`,
+          organizationId: data.organizationId,
+          name: data.name,
+          code: data.code,
+          active: true,
+          onlineGivingEnabled: data.onlineGivingEnabled ?? true,
+        };
+        store.offeringTypes.push(row);
+        store.lastOfferingTypeCreate = data;
+        return row;
+      },
+      update: async () => {
+        throw new Error("existing offering types must not be overwritten");
+      },
     },
   },
 }));
@@ -163,8 +209,10 @@ function seed() {
     },
   ];
   store.donations = [];
+  store.offeringTypes = [];
   store.lastDonorWhere = null;
   store.lastDonationCreate = null;
+  store.lastOfferingTypeCreate = null;
   store.fetchBodies = [];
 }
 
@@ -457,5 +505,23 @@ describe("member stripe giving", () => {
     expect(first.alreadyRecorded).toBe(false);
     expect(second.alreadyRecorded).toBe(true);
     expect(store.donations).toHaveLength(1);
+  });
+
+  it("rejects new member checkout when the matching offering type is inactive", async () => {
+    store.offeringTypes.push({
+      id: "fund-1",
+      organizationId: ORG_ID,
+      name: "Tithes",
+      code: "STRIPE_TITHES",
+      active: false,
+      onlineGivingEnabled: true,
+    });
+    await expect(
+      createMemberStripeCheckout(
+        { fund: "Tithes", amount: "25.00" },
+        sameOriginRequest(),
+      ),
+    ).resolves.toEqual({ status: "FUND_UNAVAILABLE" });
+    expect(store.fetchBodies).toHaveLength(0);
   });
 });

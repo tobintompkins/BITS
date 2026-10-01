@@ -37,6 +37,8 @@ const REQUIRED_DELEGATES = [
   "dataRetentionPolicy",
   "backupReadinessLog",
   "churchServiceAlert",
+  "memberApprovedPickup",
+  "childPickupCheckoutVerification",
 ] as const;
 
 function createPrismaClient() {

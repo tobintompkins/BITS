@@ -5,7 +5,12 @@ import {
   isAllowedCheckoutRequestOrigin,
   memberStripeGivingSchema,
 } from "@/lib/validation/member-stripe-giving";
+import { memberStripeDonationFundOptions } from "@/lib/validation/stripe-donation";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import {
+  advertisedStripeFunds,
+  isStripeFundBlockedForNewCheckout,
+} from "@/server/services/stripe-test-giving.service";
 
 export type MemberStripeGivingAccessResult =
   | { status: "SIGNED_OUT" }
@@ -21,6 +26,7 @@ export type MemberStripeGivingView =
         lastName: string;
         email: string | null;
       };
+      funds: readonly string[];
     };
 
 export type MemberStripeCheckoutResult =
@@ -28,6 +34,7 @@ export type MemberStripeCheckoutResult =
   | { status: "ORIGIN_REJECTED" }
   | { status: "NOT_CONFIGURED" }
   | { status: "INVALID" }
+  | { status: "FUND_UNAVAILABLE" }
   | { status: "STRIPE_ERROR"; message: string }
   | {
       status: "READY";
@@ -86,6 +93,10 @@ export async function getMemberStripeGiving(): Promise<MemberStripeGivingView> {
       lastName: donor.lastName,
       email: donor.email ?? access.userAccount.primaryEmail,
     },
+    funds: await advertisedStripeFunds(
+      access.organization.id,
+      memberStripeDonationFundOptions,
+    ),
   };
 }
 
@@ -120,6 +131,15 @@ export async function createMemberStripeCheckout(
 
   const secret = getStripeTestSecret();
   if (!secret) return { status: "NOT_CONFIGURED" };
+
+  if (
+    await isStripeFundBlockedForNewCheckout(
+      access.organization.id,
+      parsed.data.fund,
+    )
+  ) {
+    return { status: "FUND_UNAVAILABLE" };
+  }
 
   const requestUrl = new URL(request.url);
   const metadata = {

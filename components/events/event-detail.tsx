@@ -101,6 +101,7 @@ type EventDetailProps = {
     canManageRegistration: boolean;
     canCheckIn: boolean;
     canManageCheckIn?: boolean;
+    canAccessVerifiedChildCheckOut?: boolean;
     canExportRegistrations: boolean;
   };
   checkInSettings?: {
@@ -314,6 +315,14 @@ export function EventDetail({
               >
                 Attendance
               </Link>
+              {access.canAccessVerifiedChildCheckOut ? (
+                <Link
+                  href={`/events/${event.id}/child-check-out`}
+                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium dark:border-zinc-700"
+                >
+                  Verified child check-out
+                </Link>
+              ) : null}
             </>
           ) : null}
           {canShowCheckInStationsNav(access) ? (

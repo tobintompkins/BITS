@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CheckInConsole } from "@/components/events/check-in-console";
+import { getMemberAccess } from "@/lib/auth/member-permissions";
+import { canAccessVerifiedChildCheckOut } from "@/lib/validation/child-pickup-checkout";
 import { getCheckInOperationsBootstrap } from "@/server/services/event-check-in.service";
 
 export default async function EventCheckInPage({
@@ -19,6 +21,12 @@ export default async function EventCheckInPage({
   }
 
   const { event, settings, stations, summary, access } = bootstrap;
+  const memberAccess = await getMemberAccess();
+  const showVerifiedChildCheckOut = canAccessVerifiedChildCheckOut({
+    canViewMembers: memberAccess.canView,
+    canEditMembers: memberAccess.canEdit,
+    canManageCheckIn: access.canManageCheckIn,
+  });
 
   return (
     <main className="mx-auto max-w-6xl space-y-4 px-4 py-8">
@@ -32,6 +40,11 @@ export default async function EventCheckInPage({
         {access.canOperateCheckIn ? (
           <Link href={`/events/${event.id}/kiosk`} className="underline">
             Check-in kiosk
+          </Link>
+        ) : null}
+        {showVerifiedChildCheckOut ? (
+          <Link href={`/events/${event.id}/child-check-out`} className="underline">
+            Verified child check-out
           </Link>
         ) : null}
         <Link href={`/events/${event.id}/registrations`} className="underline">

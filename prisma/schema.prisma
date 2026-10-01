@@ -643,6 +643,8 @@ model Organization {
   leadershipDocuments       LeadershipDocument[]
   dataRetentionPolicies     DataRetentionPolicy[]
   backupReadinessLogs       BackupReadinessLog[]
+  memberApprovedPickups     MemberApprovedPickup[]
+  childPickupCheckoutVerifications ChildPickupCheckoutVerification[]
   events                    Event[]
   eventRegistrationSettings EventRegistrationSettings[]
   eventRegistrations        EventRegistration[]
@@ -750,6 +752,8 @@ model UserAccount {
   dataRetentionPoliciesCreated DataRetentionPolicy[] @relation("DataRetentionPolicyCreatedBy")
   dataRetentionPoliciesUpdated DataRetentionPolicy[] @relation("DataRetentionPolicyUpdatedBy")
   backupReadinessLogsPerformed BackupReadinessLog[] @relation("BackupReadinessLogPerformedBy")
+  memberApprovedPickupsDeactivated MemberApprovedPickup[] @relation("MemberApprovedPickupDeactivatedBy")
+  childPickupCheckoutVerifications ChildPickupCheckoutVerification[] @relation("ChildPickupCheckoutVerifiedBy")
 
   @@map("user_accounts")
 }
@@ -1303,6 +1307,7 @@ model Member {
   householdLinks              MemberHousehold[]
   primaryContactForHouseholds MemberHouseholdUnit[]      @relation("MemberHouseholdPrimaryContact")
   emergencyContacts           MemberEmergencyContact[]
+  approvedPickups             MemberApprovedPickup[]
   attendances                 MemberAttendance[]
   followUps                   MemberFollowUp[]
   pastoralCareNotes           PastoralCareNote[]
@@ -1328,6 +1333,7 @@ model Member {
   eventRegistrations          EventRegistration[]        @relation("RegistrationMember")
   eventAttendeeRecords        EventAttendee[]            @relation("AttendeeMember")
   eventAttendanceRecords      EventAttendanceRecord[]    @relation("EventAttendanceMember")
+  childPickupCheckoutVerifications ChildPickupCheckoutVerification[]
 
   @@unique([organizationId, userAccountId])
   @@index([organizationId])
@@ -1469,6 +1475,29 @@ model MemberEmergencyContact {
 
   @@index([memberId])
   @@map("member_emergency_contacts")
+}
+
+model MemberApprovedPickup {
+  id                   String    @id @default(uuid()) @db.Uuid
+  organizationId       String    @db.Uuid
+  memberId             String    @db.Uuid
+  firstName            String
+  lastName             String
+  relationship         String
+  isActive             Boolean   @default(true)
+  deactivatedAt        DateTime?
+  deactivatedByUserId  String?   @db.Uuid
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member        Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  deactivatedBy UserAccount? @relation("MemberApprovedPickupDeactivatedBy", fields: [deactivatedByUserId], references: [id], onDelete: SetNull)
+  checkoutVerifications ChildPickupCheckoutVerification[]
+
+  @@index([organizationId, memberId, isActive])
+  @@index([memberId])
+  @@map("member_approved_pickups")
 }
 
 // ---------------------------------------------------------------------------
@@ -2249,6 +2278,7 @@ model Event {
   qrPasses             EventQrPass[]
   checkInIdempotency          EventCheckInIdempotency[]
   volunteerServiceAssignments VolunteerServiceAssignment[]
+  childPickupCheckoutVerifications ChildPickupCheckoutVerification[]
 
   @@unique([organizationId, slug])
   /// Enables tenant-aware composite FKs (e.g. EventQrPass).
@@ -2543,6 +2573,7 @@ model EventAttendanceRecord {
   checkedInBy  UserAccount?           @relation("EventAttendanceCheckedInBy", fields: [checkedInByUserId], references: [id], onDelete: SetNull)
   checkedOutBy UserAccount?           @relation("EventAttendanceCheckedOutBy", fields: [checkedOutByUserId], references: [id], onDelete: SetNull)
   actions      EventAttendanceAction[]
+  childPickupVerification ChildPickupCheckoutVerification?
 
   @@unique([organizationId, eventId, attendeeId])
   @@index([organizationId, eventId, status])
@@ -2579,6 +2610,30 @@ model EventAttendanceAction {
   @@index([organizationId, eventId, stationId, occurredAt])
   @@index([attendanceId, occurredAt])
   @@map("event_attendance_actions")
+}
+
+model ChildPickupCheckoutVerification {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @db.Uuid
+  eventId          String   @db.Uuid
+  attendanceId     String   @unique @db.Uuid
+  memberId         String   @db.Uuid
+  approvedPickupId String   @db.Uuid
+  verifiedByUserId String?  @db.Uuid
+  verifiedAt       DateTime
+  createdAt        DateTime @default(now())
+
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event          Event                @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  attendance     EventAttendanceRecord @relation(fields: [attendanceId], references: [id], onDelete: Restrict)
+  member         Member               @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  approvedPickup MemberApprovedPickup @relation(fields: [approvedPickupId], references: [id], onDelete: Restrict)
+  verifiedBy     UserAccount?         @relation("ChildPickupCheckoutVerifiedBy", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, eventId])
+  @@index([organizationId, memberId])
+  @@index([approvedPickupId])
+  @@map("child_pickup_checkout_verifications")
 }
 
 model EventQrPass {

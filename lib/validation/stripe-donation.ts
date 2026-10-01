@@ -36,6 +36,10 @@ export function isAllowedMemberStripeDonationFund(
   return (memberStripeDonationFundOptions as readonly string[]).includes(fund);
 }
 
+export function recordedStripeFundCode(fund: string) {
+  return `STRIPE_${fund.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`.slice(0, 64);
+}
+
 export function isAllowedRecordedStripeDonationFund(fund: string) {
   return (
     isAllowedStripeDonationFund(fund) || isAllowedMemberStripeDonationFund(fund)

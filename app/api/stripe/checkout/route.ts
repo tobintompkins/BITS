@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { getStripeTestSecret } from "@/lib/stripe/test-mode";
 import { stripeDonationSchema } from "@/lib/validation/stripe-donation";
+import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { isStripeFundBlockedForNewCheckout } from "@/server/services/stripe-test-giving.service";
 
 function returnToGive(request: Request, key: string, message: string) {
   const url = new URL("/give", request.url);
@@ -38,6 +40,21 @@ export async function POST(request: Request) {
       request,
       "error",
       parsed.error.issues[0]?.message ?? "Check the giving form and try again.",
+    );
+  }
+
+  const organization = await findPrimaryOrganization();
+  if (
+    organization &&
+    (await isStripeFundBlockedForNewCheckout(
+      organization.id,
+      parsed.data.fund,
+    ))
+  ) {
+    return returnToGive(
+      request,
+      "error",
+      "That giving fund is not available for online gifts.",
     );
   }
 

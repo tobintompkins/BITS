@@ -2,7 +2,9 @@ import { notFound, redirect } from "next/navigation";
 
 import { MemberProfile } from "@/components/members/member-profile";
 import { DeleteMemberButton } from "@/components/members/delete-member-button";
+import { getEventAccess } from "@/lib/auth/event-permissions";
 import { getMemberAccess } from "@/lib/auth/member-permissions";
+import { canAccessMemberApprovedPickups } from "@/lib/validation/member-approved-pickups";
 import { getMemberDisplayName } from "@/lib/validation/member";
 import {
   getMemberById,
@@ -10,6 +12,7 @@ import {
   getMemberSelectOptions,
   requireMemberViewAccess,
 } from "@/app/(staff)/member/actions";
+import { getMemberApprovedPickupRows } from "@/app/(staff)/member/approved-pickup-actions";
 import { getMemberEmergencyContacts } from "@/app/(staff)/member/emergency-contact-actions";
 import {
   getCareAccess,
@@ -46,7 +49,13 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
 
   await requireMemberViewAccess(organization.id);
   const access = await getMemberAccess(organization.id);
+  const eventAccess = await getEventAccess(organization.id);
   const careAccess = await getCareAccess(organization.id);
+  const canManageApprovedPickups = canAccessMemberApprovedPickups({
+    canViewMembers: access.canView,
+    canEditMembers: access.canEdit,
+    canManageCheckIn: eventAccess.canManageCheckIn,
+  });
 
   const [member, households, emergencyContacts, memberOptions, staffUsers] =
     await Promise.all([
@@ -85,6 +94,7 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
     engagementProfile,
     communicationPreferences,
     consentHistory,
+    pickupResult,
   ] = await Promise.all([
     careAccess.canViewAttendance
       ? getAttendanceRecords({ memberId: id })
@@ -117,6 +127,9 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
     lifecycleAccess.canViewConsentHistory
       ? getMemberConsentHistory(id).catch(() => [])
       : Promise.resolve([]),
+    canManageApprovedPickups
+      ? getMemberApprovedPickupRows(id)
+      : Promise.resolve(null),
   ]);
 
   const lifecycleSummary = lifecycleSummaryResult?.member ?? {
@@ -144,6 +157,9 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
         member={member}
         photoUrl={photoUrl}
         emergencyContacts={emergencyContacts}
+        approvedPickups={
+          pickupResult?.status === "READY" ? pickupResult.rows : null
+        }
         access={access}
         careAccess={careAccess}
         lifecycleAccess={lifecycleAccess}

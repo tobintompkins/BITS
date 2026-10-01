@@ -173,7 +173,10 @@ export default async function StaffLayout({
       label: "Giving",
       items: [
         ...(givingAccess?.canViewGiving
-          ? [{ href: "/donors", label: "Donors" }]
+          ? [
+              { href: "/donors", label: "Donors" },
+              { href: "/offering-types", label: "Offering Types" },
+            ]
           : []),
         ...(givingAccess?.canViewBatches
           ? [{ href: "/batches", label: "Batches" }]

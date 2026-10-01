@@ -41,6 +41,13 @@ export async function POST(request: Request) {
       "Check the giving fund and amount and try again.",
     );
   }
+  if (result.status === "FUND_UNAVAILABLE") {
+    return returnToPortalGive(
+      request,
+      "error",
+      "That giving fund is not available for online gifts.",
+    );
+  }
   if (result.status === "NOT_CONFIGURED") {
     return returnToPortalGive(
       request,
