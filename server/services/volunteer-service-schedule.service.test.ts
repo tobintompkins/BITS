@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MEMBER_VOLUNTEER_SCHEDULE_ROW_FIELDS } from "@/lib/validation/volunteer-service-schedule";
 
@@ -658,7 +658,11 @@ function seed() {
   ];
 }
 
+// Keep fixture dates stable as the real calendar advances.
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-24T12:00:00.000Z"));
   store.events = [];
   store.locations = [];
   store.members = [];

@@ -216,12 +216,12 @@ export async function saveOfferingType(
       const offeringType = before
         ? await (async () => {
             const updated = await tx.offeringType.updateMany({
-              where: { id: before.id, organizationId: organization.id },
-              data: persist,
+              where: { id: before.id, organizationId: organization.id, updatedAt: before.updatedAt },
+              data: { ...persist, updatedAt: new Date(Math.max(Date.now(), before.updatedAt.getTime() + 1)) },
             });
             if (updated.count !== 1) {
               throw new OfferingTypeError(
-                "Offering type not found in this church.",
+                "This fund was updated by someone else. Reload the page before saving.",
               );
             }
             return { id: before.id, organizationId: organization.id };

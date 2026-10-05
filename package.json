@@ -15,9 +15,13 @@
     "db:seed": "npx tsx prisma/seed.ts",
     "db:migrate": "prisma migrate deploy",
     "prisma:validate": "prisma validate",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "statements:storage-diagnostics": "npx tsx scripts/statement-storage-diagnostics.ts",
+    "statements:storage-inventory": "npx tsx scripts/statement-storage-inventory.ts",
+    "statements:storage-probe": "npx tsx scripts/statement-storage-probe.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1146.0",
     "@clerk/nextjs": "^7.5.12",
     "@hookform/resolvers": "^5.4.0",
     "@prisma/adapter-pg": "^7.8.0",

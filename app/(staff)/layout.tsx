@@ -175,6 +175,7 @@ export default async function StaffLayout({
         ...(givingAccess?.canViewGiving
           ? [
               { href: "/donors", label: "Donors" },
+              { href: "/giving-households", label: "Giving Households" },
               { href: "/offering-types", label: "Offering Types" },
             ]
           : []),

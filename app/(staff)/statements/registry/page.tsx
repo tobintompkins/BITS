@@ -135,12 +135,18 @@ export default async function StatementRegistryPage({
           create, publish, void, or email statements.
         </p>
         {registry.canManageStatements ? (
-          <p className="mt-3">
+          <p className="mt-3 flex flex-wrap gap-4">
             <Link
               href="/statements/void-requests"
               className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
             >
               Statement Void Requests
+            </Link>
+            <Link
+              href="/reports/statement-access"
+              className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+            >
+              Statement access report
             </Link>
           </p>
         ) : null}

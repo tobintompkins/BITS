@@ -12,6 +12,8 @@ const isProtectedRoute = createRouteMatcher([
   "/prayer-requests(.*)",
   "/ministries(.*)",
   "/donors(.*)",
+  "/giving-households(.*)",
+  "/offering-types(.*)",
   "/households(.*)",
   "/household(.*)",
   "/batches(.*)",

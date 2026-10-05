@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   buildPrivateStatementPdfStorageKey,
@@ -17,6 +17,7 @@ const ORG_ID = "00000000-0000-4000-8000-00000000a001";
 const STATEMENT_ID = "00000000-0000-4000-8000-00000000b001";
 
 const previousRoot = process.env.BITS_FILE_STORAGE_ROOT;
+const previousBackend = process.env.BITS_STATEMENT_PDF_BACKEND;
 
 async function withTempRoot() {
   const root = path.join(
@@ -40,11 +41,20 @@ function pdfBytes(extra = "1 0 obj\n<<>>\nendobj\n") {
   return Buffer.from(`%PDF-1.4\n${extra}`, "utf8");
 }
 
+beforeEach(() => {
+  process.env.BITS_STATEMENT_PDF_BACKEND = "local";
+});
+
 afterEach(() => {
   if (previousRoot === undefined) {
     delete process.env.BITS_FILE_STORAGE_ROOT;
   } else {
     process.env.BITS_FILE_STORAGE_ROOT = previousRoot;
+  }
+  if (previousBackend === undefined) {
+    delete process.env.BITS_STATEMENT_PDF_BACKEND;
+  } else {
+    process.env.BITS_STATEMENT_PDF_BACKEND = previousBackend;
   }
 });
 
@@ -260,6 +270,40 @@ describe("statement PDF storage adapter", () => {
       organizationId: ORG_ID,
       statementId: STATEMENT_ID,
       storageKey,
+      checksum: null,
+    });
+    expect(opened.ok).toBe(false);
+  });
+
+  it("does not treat a local file as a remote s3v1 reference", async () => {
+    await withTempRoot();
+    const localKey = buildPrivateStatementPdfStorageKey(
+      ORG_ID,
+      STATEMENT_ID,
+      "legacy",
+    );
+    const written = await writePrivateStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey: localKey,
+      bytes: pdfBytes(),
+    });
+    expect(written.ok).toBe(true);
+    const opened = await openAuthorizedStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey: `s3v1:${localKey}`,
+      checksum: written.ok ? written.checksum : null,
+    });
+    expect(opened.ok).toBe(false);
+  });
+
+  it("rejects an unknown storage-reference format", async () => {
+    await withTempRoot();
+    const opened = await openAuthorizedStatementPdf({
+      organizationId: ORG_ID,
+      statementId: STATEMENT_ID,
+      storageKey: `https://example.test/${ORG_ID}/${STATEMENT_ID}.pdf`,
       checksum: null,
     });
     expect(opened.ok).toBe(false);

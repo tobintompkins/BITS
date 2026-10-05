@@ -212,9 +212,19 @@ describe("offering type administration", () => {
     expect(m.updateMany.mock.calls[0][0].where).toEqual({
       id: "fund-a",
       organizationId: org.id,
+      updatedAt,
     });
     expect(m.updateMany.mock.calls[0][0].data.code).toBe("STRIPE_TITHES");
     expect(m.updateMany.mock.calls[0][0].data.name).toBe("Tithes (updated)");
+  });
+
+  it("rejects a competing write after the initial timestamp check", async () => {
+    m.find.mockResolvedValue({ ...input, id: "fund-a", organizationId: org.id, code: null, updatedAt });
+    m.updateMany.mockResolvedValue({ count: 0 });
+    await expect(saveOfferingType(org.id, "fund-a", input, updatedAt.toISOString())).rejects.toThrow("updated by someone else");
+    expect(m.updateMany.mock.calls[0][0].where.updatedAt).toEqual(updatedAt);
+    expect(m.updateMany.mock.calls[0][0].data.updatedAt.getTime()).toBeGreaterThan(updatedAt.getTime());
+    expect(m.audit).not.toHaveBeenCalled();
   });
 
   it("rejects concurrent edits that do not match the loaded updatedAt", async () => {

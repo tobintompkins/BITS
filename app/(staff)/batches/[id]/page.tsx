@@ -150,6 +150,12 @@ export default async function OfferingBatchDetailPage({
               disabled={!review.canLock}
             />
           ) : null}
+          <Link
+            href={`/reports/batch-reconciliation?batchId=${batch.id}`}
+            className="rounded-xl border border-[var(--bits-border)] px-4 py-2 text-sm font-semibold text-[var(--bits-navy)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+          >
+            Reconciliation report
+          </Link>
           {detail.canEdit ? (
             <Link
               href={`/batches/${batch.id}/edit`}

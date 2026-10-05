@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type EventRow = {
   id: string;
@@ -470,7 +470,11 @@ function seed() {
   store.requests = [];
 }
 
+// Keep fixture dates stable as the real calendar advances.
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-24T12:00:00.000Z"));
   store.events = [];
   store.members = [];
   store.ministries = [];

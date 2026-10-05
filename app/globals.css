@@ -108,7 +108,8 @@ html[data-bits-reduce-motion="true"] .prayer-wall-track {
 
   body:has(.statement-preview),
   body:has(.gift-receipt),
-  body:has(.volunteer-schedule-print) {
+  body:has(.volunteer-schedule-print),
+  body:has(.batch-reconciliation-print) {
     background: #fff !important;
     color: #000 !important;
   }
@@ -118,17 +119,34 @@ html[data-bits-reduce-motion="true"] .prayer-wall-track {
   body:has(.statement-preview) .portal-app-header,
   body:has(.gift-receipt) .portal-app-header,
   body:has(.volunteer-schedule-print) .staff-app-header,
-  body:has(.volunteer-schedule-print) .staff-app-nav {
+  body:has(.volunteer-schedule-print) .staff-app-nav,
+  body:has(.batch-reconciliation-print) .staff-app-header,
+  body:has(.batch-reconciliation-print) .staff-app-nav,
+  body:has(.batch-reconciliation-print) .report-controls {
     display: none !important;
   }
 
   body:has(.statement-preview) .staff-app-shell,
-  body:has(.volunteer-schedule-print) .staff-app-shell {
+  body:has(.volunteer-schedule-print) .staff-app-shell,
+  body:has(.batch-reconciliation-print) .staff-app-shell {
     display: block;
     max-width: none;
     margin: 0;
     padding: 0;
     gap: 0;
+  }
+
+  body:has(.batch-reconciliation-print) table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  body:has(.batch-reconciliation-print) thead {
+    display: table-header-group;
+  }
+
+  body:has(.batch-reconciliation-print) tr {
+    break-inside: avoid;
   }
 
   body:has(.gift-receipt) main {

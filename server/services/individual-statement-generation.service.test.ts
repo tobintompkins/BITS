@@ -142,6 +142,10 @@ vi.mock("@/lib/storage/statement-pdf", async () => {
   };
 });
 
+vi.mock("@/server/services/statement-pdf-cleanup", () => ({
+  deleteUnreferencedPrivateStatementPdf: mocks.deletePrivateStatementPdf,
+}));
+
 vi.mock("@/lib/db/prisma", () => {
   const tx = {
     $queryRaw: async () => [{ id: "locked" }],

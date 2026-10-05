@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   EQUIPMENT_CHECKOUT_ROW_FIELDS,
@@ -409,7 +409,11 @@ function seed() {
   ];
 }
 
+// Keep fixture dates stable as the real calendar advances.
+afterEach(() => vi.useRealTimers());
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-29T12:00:00.000Z"));
   store.items = [];
   store.checkouts = [];
   store.lastCreateData = null;

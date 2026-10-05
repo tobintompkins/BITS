@@ -78,3 +78,7 @@ against a later-deactivated matching type.
 Remaining original core: donor-household history workflows, contribution
 reports/CSV, production statement storage and launch verification. This
 increment does not mark original v1 complete.
+
+## October 3 corrective verification
+
+Fixed activation redirect handling and atomic updatedAt conflict checks. Removed an unsupported ClerkProvider prop while retaining the SDK-supported environment version pin. Date-sensitive volunteer/equipment test fixtures now use controlled clocks. All 177 test files / 1,387 tests passed; changed-file ESLint and production build (including TypeScript) passed. Authenticated browser, real database and payment acceptance remain outstanding. Original roadmap unchanged.

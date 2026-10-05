@@ -3,19 +3,32 @@ import { createReadStream } from "node:fs";
 import { mkdir, open, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ReadStream } from "node:fs";
+import type { Readable } from "node:stream";
+
+import {
+  resolveStatementPdfS3Config,
+  resolveStatementPdfWriteConfig,
+} from "@/lib/storage/statement-pdf-config";
+import {
+  buildStatementPdfStorageRef,
+  parseStatementPdfStorageRef,
+} from "@/lib/storage/statement-pdf-ref";
+import {
+  deleteRemoteStatementPdf,
+  openRemoteStatementPdf,
+  writeRemoteStatementPdf,
+} from "@/lib/storage/statement-pdf-s3";
 
 /**
- * Private contribution-statement PDF adapter (local development).
+ * Private contribution-statement PDF adapter.
  *
- * Files live under a path Next.js does not serve:
- *   `{BITS_FILE_STORAGE_ROOT|cwd}/storage/private/statements/{orgId}/{statementId}/`
+ * Artifact identity is stored in `ContributionStatement.pdfStorageKey`:
+ *   local legacy: `private/statements/{orgId}/{statementId}/{file}.pdf`
+ *   remote:       `s3v1:private/statements/{orgId}/{statementId}/{file}.pdf`
  *
- * storageKey format:
- *   `private/statements/{orgId}/{statementId}/{file}.pdf`
- *
- * Production follow-up: replace this adapter with a private object-store
- * bucket and short-lived signed URLs. Keep serving through the authenticated
- * portal API — never a public static URL.
+ * Reads dispatch on that identity. A global new-write backend switch never
+ * reinterprets an existing key. Remote failures never fall back to local
+ * files. Serve bytes only through authenticated staff/portal routes.
  */
 
 const PDF_MAGIC = Buffer.from("%PDF-", "ascii");
@@ -66,15 +79,8 @@ export function isSafeStatementPdfStorageKey(
   organizationId: string,
   statementId: string,
 ) {
-  if (!storageKey || storageKey.includes("\0")) return false;
-  if (path.isAbsolute(storageKey)) return false;
-  const normalized = normalizeStorageKey(storageKey);
-  if (!normalized || normalized.startsWith("/")) return false;
-  if (normalized.includes("..")) return false;
-  if (/^[A-Za-z]:\//.test(normalized)) return false;
-
-  const prefix = `private/statements/${organizationId}/${statementId}`;
-  return normalized === `${prefix}.pdf` || normalized.startsWith(`${prefix}/`);
+  return parseStatementPdfStorageRef(storageKey, organizationId, statementId)
+    .ok;
 }
 
 export function resolveStatementPdfAbsolutePath(storageKey: string) {
@@ -83,7 +89,12 @@ export function resolveStatementPdfAbsolutePath(storageKey: string) {
 }
 
 export type StatementPdfOpenResult =
-  | { ok: true; absolutePath: string; stream: ReadStream }
+  | {
+      ok: true;
+      stream: ReadStream | Readable;
+      absolutePath?: string;
+      byteLength?: number;
+    }
   | { ok: false; reason: "UNAVAILABLE" };
 
 async function pathStaysInStatementRoot(
@@ -168,17 +179,26 @@ export async function openAuthorizedStatementPdf(input: {
   storageKey: string;
   checksum: string | null | undefined;
 }): Promise<StatementPdfOpenResult> {
-  if (
-    !isSafeStatementPdfStorageKey(
-      input.storageKey,
-      input.organizationId,
-      input.statementId,
-    )
-  ) {
+  const parsed = parseStatementPdfStorageRef(
+    input.storageKey,
+    input.organizationId,
+    input.statementId,
+  );
+  if (!parsed.ok) {
     return { ok: false, reason: "UNAVAILABLE" };
   }
+  if (parsed.backend === "s3") {
+    const config = resolveStatementPdfS3Config();
+    if (!config.ok || config.backend !== "s3") {
+      return { ok: false, reason: "UNAVAILABLE" };
+    }
+    return openRemoteStatementPdf(config, {
+      objectKey: parsed.objectKey,
+      checksum: input.checksum,
+    });
+  }
 
-  const absolutePath = resolveStatementPdfAbsolutePath(input.storageKey);
+  const absolutePath = resolveStatementPdfAbsolutePath(parsed.objectKey);
 
   try {
     const fileStat = await stat(absolutePath);
@@ -232,7 +252,14 @@ export function buildPrivateStatementPdfStorageKey(
   statementId: string,
   fileName: string,
 ) {
-  return `private/statements/${organizationId}/${statementId}/${sanitizeStatementPdfFileName(fileName)}`;
+  const config = resolveStatementPdfWriteConfig();
+  const backend = config.ok ? config.backend : "local";
+  return buildStatementPdfStorageRef(
+    backend,
+    organizationId,
+    statementId,
+    sanitizeStatementPdfFileName(fileName),
+  );
 }
 
 export type WritePrivateStatementPdfResult =
@@ -255,14 +282,26 @@ export async function writePrivateStatementPdf(input: {
   if (!isUuid(input.organizationId) || !isUuid(input.statementId)) {
     return { ok: false, reason: "UNSAFE_KEY" };
   }
-  if (
-    !isSafeStatementPdfStorageKey(
-      input.storageKey,
-      input.organizationId,
-      input.statementId,
-    )
-  ) {
-    return { ok: false, reason: "UNSAFE_KEY" };
+  const parsed = parseStatementPdfStorageRef(
+    input.storageKey,
+    input.organizationId,
+    input.statementId,
+  );
+  if (!parsed.ok) {
+    return { ok: false, reason: parsed.reason === "UNKNOWN_REF" ? "UNSAFE_KEY" : "UNSAFE_KEY" };
+  }
+  const writeConfig = resolveStatementPdfWriteConfig();
+  if (parsed.backend === "s3") {
+    if (!writeConfig.ok || writeConfig.backend !== "s3") {
+      return { ok: false, reason: "UNAVAILABLE" };
+    }
+    return writeRemoteStatementPdf(writeConfig, {
+      objectKey: parsed.objectKey,
+      bytes: input.bytes,
+    });
+  }
+  if (!writeConfig.ok || writeConfig.backend !== "local") {
+    return { ok: false, reason: "UNAVAILABLE" };
   }
   if (
     input.bytes.byteLength <= 0 ||
@@ -277,7 +316,7 @@ export async function writePrivateStatementPdf(input: {
     return { ok: false, reason: "INVALID_PDF" };
   }
 
-  const absolutePath = resolveStatementPdfAbsolutePath(input.storageKey);
+  const absolutePath = resolveStatementPdfAbsolutePath(parsed.objectKey);
   const destDir = path.dirname(absolutePath);
   const orgRoot = path.join(
     getPrivateStatementStorageRoot(),
@@ -343,17 +382,20 @@ export async function deletePrivateStatementPdf(input: {
   storageKey: string;
 }): Promise<void> {
   if (!isUuid(input.organizationId) || !isUuid(input.statementId)) return;
-  if (
-    !isSafeStatementPdfStorageKey(
-      input.storageKey,
-      input.organizationId,
-      input.statementId,
-    )
-  ) {
+  const parsed = parseStatementPdfStorageRef(
+    input.storageKey,
+    input.organizationId,
+    input.statementId,
+  );
+  if (!parsed.ok) return;
+  if (parsed.backend === "s3") {
+    const config = resolveStatementPdfS3Config();
+    if (!config.ok || config.backend !== "s3") return;
+    await deleteRemoteStatementPdf(config, parsed.objectKey);
     return;
   }
 
-  const absolutePath = resolveStatementPdfAbsolutePath(input.storageKey);
+  const absolutePath = resolveStatementPdfAbsolutePath(parsed.objectKey);
   try {
     const fileStat = await stat(absolutePath);
     if (!fileStat.isFile()) return;

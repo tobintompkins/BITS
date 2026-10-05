@@ -16,9 +16,9 @@ import {
 import { renderContributionStatementPdf } from "@/lib/statements/render-contribution-statement-pdf";
 import {
   buildPrivateStatementPdfStorageKey,
-  deletePrivateStatementPdf,
   writePrivateStatementPdf,
 } from "@/lib/storage/statement-pdf";
+import { deleteUnreferencedPrivateStatementPdf } from "@/server/services/statement-pdf-cleanup";
 import {
   parseStatementReadinessYear,
   statementYearDateRange,
@@ -464,7 +464,7 @@ export async function generateIndividualContributionStatement(
       }
     });
   } catch (error) {
-    await deletePrivateStatementPdf({
+    await deleteUnreferencedPrivateStatementPdf({
       organizationId: organization.id,
       statementId,
       storageKey,

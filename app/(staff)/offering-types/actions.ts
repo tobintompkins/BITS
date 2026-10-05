@@ -74,15 +74,15 @@ export async function setOfferingTypeActiveAction(
       message: "Confirm this change before continuing.",
     };
   }
+  let saved: { id: string };
   try {
-    const saved = await setOfferingTypeActive(
+    saved = await setOfferingTypeActive(
       organizationId,
       id,
       active,
       expectedUpdatedAt,
     );
-    revalidateOfferingTypePaths(saved.id);
-    redirect(`/offering-types/${saved.id}`);
+
   } catch (error) {
     return {
       message:
@@ -91,4 +91,6 @@ export async function setOfferingTypeActiveAction(
           : "Unable to update the offering type. Please try again.",
     };
   }
+  revalidateOfferingTypePaths(saved.id);
+  redirect(`/offering-types/${saved.id}`);
 }
