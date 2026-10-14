@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { parseOriginalV1AcceptanceConfig } from "@/lib/testing/original-v1-acceptance-config";
+
 import { queryOriginalV1Fixture } from "./helpers/fixture-cli";
 import {
   batchCsvPath,
@@ -217,6 +219,61 @@ test.describe("original five staff and donor roles", () => {
       expect([401, 403]).toContain(access.response.status());
     } finally {
       await closeSession(session);
+    }
+  });
+
+  test("ORG_ADMIN can change an existing staff membership from Staff Access", async ({
+    browser,
+  }) => {
+    const session = await signedInSession(browser, "orgAdmin");
+    const emails = parseOriginalV1AcceptanceConfig().emails;
+    try {
+      const { page } = session;
+      await page.goto("/administration/staff-access");
+      await expect(page.getByRole("heading", { name: "Staff Access" })).toBeVisible();
+      await expect(page.getByText(emails.treasurer)).toBeVisible();
+      const row = page.locator("tr", { hasText: emails.treasurer });
+      await row.getByLabel("Intended role").selectOption("DATA_ENTRY");
+      await row.getByLabel("I confirm this role change for this existing staff membership.").check();
+      await row.getByRole("button", { name: "Save membership" }).click();
+      await expect(page.getByRole("alert")).toContainText("Staff membership updated.");
+    } finally {
+      await closeSession(session);
+    }
+  });
+
+  test("ORG_ADMIN sees the staff invitation form without sending live mail", async ({
+    browser,
+  }) => {
+    const session = await signedInSession(browser, "orgAdmin");
+    try {
+      const { page } = session;
+      await page.goto("/administration/staff-access");
+      await expect(page.getByRole("heading", { name: "Staff invitations" })).toBeVisible();
+      await expect(page.getByLabel("Recipient email")).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Send staff invitation" }),
+      ).toBeVisible();
+    } finally {
+      await closeSession(session);
+    }
+  });
+
+  test("non-admin roles cannot mutate Staff Access", async ({ browser }) => {
+    for (const role of ["treasurer", "dataEntry", "reportViewer", "donorA1"] as const) {
+      const session = await signedInSession(browser, role);
+      try {
+        const { page } = session;
+        await page.goto("/administration/staff-access");
+        await expect(page.getByRole("heading", { name: "Staff Access" })).toHaveCount(0);
+        await expect(
+          page.getByRole("heading", { name: "Leadership Home" }),
+        ).toBeVisible();
+        await expect(page.getByRole("button", { name: "Save membership" })).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Send staff invitation" })).toHaveCount(0);
+      } finally {
+        await closeSession(session);
+      }
     }
   });
 });

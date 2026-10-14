@@ -82,3 +82,10 @@ export function moneyLessThanOrEqual(
 ) {
   return new Decimal(left.toString()).lte(new Decimal(right.toString()));
 }
+
+export function moneySubtract(
+  left: string | number | Decimal,
+  right: string | number | Decimal,
+) {
+  return new Decimal(left.toString()).minus(right.toString()).toFixed(2);
+}

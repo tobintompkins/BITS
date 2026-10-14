@@ -134,6 +134,9 @@ export default async function OfferingBatchDetailPage({
               batchId={batch.id}
               kind="complete"
               disabled={!review.canCompleteEntry}
+              recordedTotal={review.recordedTotal}
+              expectedTotal={review.expectedTotal}
+              donationCount={review.donationCount}
             />
           ) : null}
           {review.showReconcile ? (
@@ -141,6 +144,9 @@ export default async function OfferingBatchDetailPage({
               batchId={batch.id}
               kind="reconcile"
               disabled={!review.canReconcile}
+              recordedTotal={review.recordedTotal}
+              expectedTotal={review.expectedTotal}
+              donationCount={review.donationCount}
             />
           ) : null}
           {review.showLock ? (
@@ -148,6 +154,9 @@ export default async function OfferingBatchDetailPage({
               batchId={batch.id}
               kind="lock"
               disabled={!review.canLock}
+              recordedTotal={review.recordedTotal}
+              expectedTotal={review.expectedTotal}
+              donationCount={review.donationCount}
             />
           ) : null}
           <Link
@@ -309,6 +318,15 @@ export default async function OfferingBatchDetailPage({
           The donation was recorded and the batch total was updated.
         </p>
       ) : null}
+      {(Array.isArray(query.donation) ? query.donation[0] : query.donation) ===
+      "deleted" ? (
+        <p
+          role="status"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"
+        >
+          The draft donation was deleted and the batch total was updated.
+        </p>
+      ) : null}
       {transition === "entered" ? (
         <p
           role="status"
@@ -338,6 +356,7 @@ export default async function OfferingBatchDetailPage({
 
       <BatchDonationList
         batchId={batch.id}
+        canCorrectDonations={detail.canAddDonations}
         query={donationQuery.success ? donationQuery.data : { page: 1, pageSize: 20 }}
       />
     </div>
@@ -346,9 +365,11 @@ export default async function OfferingBatchDetailPage({
 
 async function BatchDonationList({
   batchId,
+  canCorrectDonations,
   query,
 }: {
   batchId: string;
+  canCorrectDonations: boolean;
   query: { page: number; pageSize: number };
 }) {
   let list;
@@ -389,6 +410,11 @@ async function BatchDonationList({
                 <th scope="col" className="px-3 py-2">Deductible</th>
                 <th scope="col" className="px-3 py-2">Funds</th>
                 <th scope="col" className="px-3 py-2">Source</th>
+                {canCorrectDonations ? (
+                  <th scope="col" className="px-3 py-2">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -431,6 +457,22 @@ async function BatchDonationList({
                       </span>
                     )}
                   </td>
+                  {canCorrectDonations ? (
+                    <td className="px-3 py-3">
+                      {donation.source === "manual" ? (
+                        <Link
+                          href={`/batches/${batchId}/donations/${donation.id}/edit`}
+                          className="text-sm font-semibold text-[var(--bits-navy)] underline"
+                        >
+                          Edit
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-[var(--bits-muted)]">
+                          Locked source
+                        </span>
+                      )}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

@@ -98,6 +98,7 @@ vi.mock("@/server/repositories/manual-batch-donation.repository", () => ({
   findActiveOfferingTypes: mocks.findActiveOfferingTypes,
   findBatchDonations: mocks.findBatchDonations,
   countBatchDonations: mocks.countBatchDonations,
+  findManualBatchDonationForEdit: vi.fn(),
 }));
 
 vi.mock("@/server/repositories/offering-batch.repository", () => ({
@@ -122,6 +123,31 @@ vi.mock("@/lib/db/prisma", () => ({
         const allocationSnapshot = [...store.allocations];
         const auditSnapshot = [...store.audits];
         const tx = {
+          $queryRaw: async (
+            strings: TemplateStringsArray,
+            ...values: unknown[]
+          ) => {
+            const sql = strings.join("?");
+            if (sql.includes("FROM organizations")) {
+              return [{ id: String(values[0]) }];
+            }
+            if (sql.includes("FROM offering_batches")) {
+              const row = store.batches.get(String(values[0]));
+              if (!row || row.organizationId !== String(values[1])) return [];
+              return [
+                {
+                  id: row.id,
+                  status: row.status,
+                  expectedTotal: null,
+                  recordedTotal: row.recordedTotal.toString(),
+                  offeringDate: row.offeringDate,
+                  depositDate: null,
+                  depositReference: null,
+                },
+              ];
+            }
+            return [];
+          },
           offeringBatch: {
             findFirst: async ({
               where,
@@ -225,6 +251,52 @@ vi.mock("@/lib/db/prisma", () => ({
                 anonymous: row.anonymous,
               };
             },
+            findFirst: async ({
+              where,
+            }: {
+              where: { id: string; organizationId: string; batchId: string };
+            }) => {
+              const row = store.donations.get(where.id);
+              if (
+                !row ||
+                row.organizationId !== where.organizationId ||
+                row.batchId !== where.batchId
+              ) {
+                return null;
+              }
+              return { ...row };
+            },
+            update: async ({
+              where,
+              data,
+            }: {
+              where: { id: string };
+              data: Omit<DonationRow, "id"> & { totalAmount: string; deductibleAmount: string };
+            }) => {
+              const row = store.donations.get(where.id);
+              if (!row) return null;
+              const next: DonationRow = {
+                ...row,
+                donorId: data.donorId,
+                batchId: data.batchId,
+                paymentMethod: data.paymentMethod,
+                totalAmount: money(data.totalAmount),
+                deductibleAmount: money(data.deductibleAmount),
+                anonymous: data.anonymous,
+                isTest: data.isTest,
+                stripeCheckoutSessionId: data.stripeCheckoutSessionId,
+                stripePaymentIntentId: data.stripePaymentIntentId,
+                checkNumber: data.checkNumber,
+                note: data.note,
+              };
+              store.donations.set(where.id, next);
+              return next;
+            },
+            delete: async ({ where }: { where: { id: string } }) => {
+              const row = store.donations.get(where.id);
+              store.donations.delete(where.id);
+              return row;
+            },
           },
           donationAllocation: {
             createMany: async ({
@@ -237,6 +309,19 @@ vi.mock("@/lib/db/prisma", () => ({
               }
               store.allocations.push(...data);
               return { count: data.length };
+            },
+            deleteMany: async ({
+              where,
+            }: {
+              where: { organizationId: string; donationId: string };
+            }) => {
+              const before = store.allocations.length;
+              store.allocations = store.allocations.filter(
+                (row) =>
+                  row.organizationId !== where.organizationId ||
+                  row.donationId !== where.donationId,
+              );
+              return { count: before - store.allocations.length };
             },
           },
           auditEvent: {
@@ -270,10 +355,14 @@ vi.mock("@/lib/db/prisma", () => ({
 
 import {
   CREATE_MANUAL_BATCH_DONATION,
+  DELETE_MANUAL_BATCH_DONATION,
   ManualBatchDonationError,
+  UPDATE_MANUAL_BATCH_DONATION,
   createManualBatchDonation,
+  deleteManualBatchDonation,
   getOfferingBatchDonations,
   searchDonorsForBatchDonation,
+  updateManualBatchDonation,
 } from "./manual-batch-donation.service";
 
 const ORG_ID = "00000000-0000-4000-8000-00000000a001";
@@ -283,6 +372,7 @@ const BATCH_ID = "00000000-0000-4000-8000-00000000b001";
 const DONOR_ID = "00000000-0000-4000-8000-00000000d001";
 const OTHER_DONOR = "00000000-0000-4000-8000-00000000d002";
 const FUND_ID = "00000000-0000-4000-8000-00000000f001";
+const FUND_B = "00000000-0000-4000-8000-00000000f003";
 const OTHER_FUND = "00000000-0000-4000-8000-00000000f002";
 const STRIPE_DONATION = "00000000-0000-4000-8000-00000000e001";
 
@@ -374,6 +464,7 @@ describe("manual batch donation entry", () => {
     seedDraftBatch();
     seedDonor();
     seedFund();
+    seedFund({ id: FUND_B });
   });
 
   it.each([RoleCode.ORG_ADMIN, RoleCode.TREASURER, RoleCode.DATA_ENTRY])(
@@ -621,6 +712,131 @@ describe("manual batch donation entry", () => {
       take: 20,
     });
     expect(mocks.countBatchDonations).toHaveBeenCalledWith(ORG_ID, BATCH_ID);
+  });
+
+  it("records a split check as one gift whose 0.10 + 0.20 allocations equal 0.30", async () => {
+    const result = await createManualBatchDonation(
+      BATCH_ID,
+      validInput({
+        paymentMethod: "CHECK",
+        checkNumber: "441",
+        deductibleAmount: "0.30",
+        allocations: [
+          { offeringTypeId: FUND_ID, amount: "0.10" },
+          { offeringTypeId: FUND_B, amount: "0.20" },
+        ],
+      }),
+    );
+    expect(result.totalAmount).toBe("0.30");
+    expect(store.donations.size).toBe(1);
+    expect(store.allocations).toHaveLength(2);
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("0.30");
+  });
+
+  it("records anonymous cash and a noncash administrative gift without inventing a tax value", async () => {
+    await createManualBatchDonation(
+      BATCH_ID,
+      validInput({ anonymous: true, donorId: "" }),
+    );
+    await createManualBatchDonation(
+      BATCH_ID,
+      validInput({
+        paymentMethod: "STOCK_OR_NONCASH",
+        isTaxDeductible: false,
+        deductibleAmount: "0.00",
+        note: "Share certificate held by the church",
+        allocations: [{ offeringTypeId: FUND_ID, amount: "15.00" }],
+      }),
+    );
+    const gifts = [...store.donations.values()];
+    expect(gifts).toHaveLength(2);
+    expect(gifts.some((row) => row.anonymous && row.donorId == null)).toBe(true);
+    expect(
+      gifts.some(
+        (row) =>
+          row.paymentMethod === "STOCK_OR_NONCASH" &&
+          row.deductibleAmount.toString() === "0.00",
+      ),
+    ).toBe(true);
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("40.00");
+  });
+
+  it("updates a draft gift and adjusts recordedTotal by the exact difference", async () => {
+    const created = await createManualBatchDonation(BATCH_ID, validInput());
+    const updated = await updateManualBatchDonation(
+      BATCH_ID,
+      created.id,
+      validInput({
+        allocations: [
+          { offeringTypeId: FUND_ID, amount: "10.00" },
+          { offeringTypeId: FUND_B, amount: "5.00" },
+        ],
+        deductibleAmount: "15.00",
+      }),
+    );
+    expect(updated.totalAmount).toBe("15.00");
+    expect(store.donations.get(created.id)?.totalAmount.toString()).toBe("15.00");
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("15.00");
+    expect(store.audits.at(-1)).toMatchObject({
+      action: UPDATE_MANUAL_BATCH_DONATION,
+      entityId: created.id,
+    });
+  });
+
+  it("deletes a draft gift and decrements recordedTotal", async () => {
+    const created = await createManualBatchDonation(BATCH_ID, validInput());
+    await deleteManualBatchDonation(BATCH_ID, created.id);
+    expect(store.donations.has(created.id)).toBe(false);
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("0.00");
+    expect(store.audits.at(-1)).toMatchObject({
+      action: DELETE_MANUAL_BATCH_DONATION,
+      entityId: created.id,
+    });
+  });
+
+  it("does not edit or delete a Stripe gift on the same draft batch", async () => {
+    store.donations.set(STRIPE_DONATION, {
+      id: STRIPE_DONATION,
+      organizationId: ORG_ID,
+      donorId: null,
+      batchId: BATCH_ID,
+      paymentMethod: "CARD",
+      totalAmount: money("40.00"),
+      deductibleAmount: money("40.00"),
+      anonymous: false,
+      isTest: true,
+      stripeCheckoutSessionId: "cs_test_keep",
+      stripePaymentIntentId: "pi_test_keep",
+      checkNumber: null,
+      note: "Stripe sandbox test gift",
+    });
+    store.batches.get(BATCH_ID)!.recordedTotal = money("40.00");
+    await expect(
+      updateManualBatchDonation(BATCH_ID, STRIPE_DONATION, validInput()),
+    ).rejects.toMatchObject({ code: "NOT_EDITABLE" });
+    await expect(
+      deleteManualBatchDonation(BATCH_ID, STRIPE_DONATION),
+    ).rejects.toMatchObject({ code: "NOT_EDITABLE" });
+    expect(store.donations.get(STRIPE_DONATION)?.totalAmount.toString()).toBe(
+      "40.00",
+    );
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("40.00");
+  });
+
+  it.each([
+    OfferingBatchStatus.ENTERED,
+    OfferingBatchStatus.RECONCILED,
+    OfferingBatchStatus.LOCKED,
+  ])("rejects draft corrections on %s batches", async (status) => {
+    const created = await createManualBatchDonation(BATCH_ID, validInput());
+    store.batches.get(BATCH_ID)!.status = status;
+    await expect(
+      updateManualBatchDonation(BATCH_ID, created.id, validInput()),
+    ).rejects.toMatchObject({ code: "NOT_EDITABLE" });
+    await expect(
+      deleteManualBatchDonation(BATCH_ID, created.id),
+    ).rejects.toMatchObject({ code: "NOT_EDITABLE" });
+    expect(store.donations.get(created.id)?.totalAmount.toString()).toBe("25.00");
   });
 
   it("never returns donors from another organization", async () => {

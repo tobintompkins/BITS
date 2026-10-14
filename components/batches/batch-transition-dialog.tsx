@@ -39,10 +39,16 @@ export function BatchTransitionDialog({
   batchId,
   kind,
   disabled,
+  recordedTotal,
+  expectedTotal,
+  donationCount,
 }: {
   batchId: string;
   kind: TransitionKind;
   disabled?: boolean;
+  recordedTotal: string;
+  expectedTotal: string | null;
+  donationCount: number;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -62,12 +68,17 @@ export function BatchTransitionDialog({
 
   function confirm() {
     startTransition(async () => {
+      const snapshot = {
+        recordedTotal,
+        expectedTotal,
+        donationCount,
+      };
       const result =
         kind === "complete"
-          ? await completeOfferingBatchEntryAction(batchId)
+          ? await completeOfferingBatchEntryAction(batchId, snapshot)
           : kind === "reconcile"
-            ? await reconcileOfferingBatchAction(batchId)
-            : await lockOfferingBatchAction(batchId);
+            ? await reconcileOfferingBatchAction(batchId, snapshot)
+            : await lockOfferingBatchAction(batchId, snapshot);
       if (!result.ok) {
         setError(result.error);
         return;

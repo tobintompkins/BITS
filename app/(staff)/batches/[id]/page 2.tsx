@@ -134,6 +134,9 @@ export default async function OfferingBatchDetailPage({
               batchId={batch.id}
               kind="complete"
               disabled={!review.canCompleteEntry}
+              recordedTotal={review.recordedTotal}
+              expectedTotal={review.expectedTotal}
+              donationCount={review.donationCount}
             />
           ) : null}
           {review.showReconcile ? (
@@ -141,6 +144,9 @@ export default async function OfferingBatchDetailPage({
               batchId={batch.id}
               kind="reconcile"
               disabled={!review.canReconcile}
+              recordedTotal={review.recordedTotal}
+              expectedTotal={review.expectedTotal}
+              donationCount={review.donationCount}
             />
           ) : null}
           {review.showLock ? (
@@ -148,6 +154,9 @@ export default async function OfferingBatchDetailPage({
               batchId={batch.id}
               kind="lock"
               disabled={!review.canLock}
+              recordedTotal={review.recordedTotal}
+              expectedTotal={review.expectedTotal}
+              donationCount={review.donationCount}
             />
           ) : null}
           {detail.canEdit ? (

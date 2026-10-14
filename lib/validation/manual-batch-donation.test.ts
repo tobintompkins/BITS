@@ -154,6 +154,25 @@ describe("manual batch donation validation", () => {
     if (valid.success) expect(valid.data.totalAmount).toBe("25.00");
   });
 
+  it("computes a 0.10 + 0.20 split without floating-point leftovers", () => {
+    const parsed = manualBatchDonationWriteSchema.safeParse(
+      validInput({
+        paymentMethod: "CHECK",
+        checkNumber: "441",
+        deductibleAmount: "0.30",
+        allocations: [
+          { offeringTypeId: fundA, amount: "0.10" },
+          { offeringTypeId: fundB, amount: "0.20" },
+        ],
+      }),
+    );
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.totalAmount).toBe("0.30");
+      expect(parsed.data.allocations).toHaveLength(2);
+    }
+  });
+
   it("validates donation list pagination", () => {
     const parsed = parseBatchDonationListQuery({ donationsPage: "2" });
     expect(parsed.success).toBe(true);

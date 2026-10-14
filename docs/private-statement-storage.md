@@ -1,4 +1,4 @@
-# Private statement PDF storage — October 3, 2026
+# Private statement PDF storage — October 14, 2026
 
 Original scope: FR-STMT-004 and the operations/storage requirement for
 durable private statement artifacts. The original May specification is
@@ -70,9 +70,15 @@ does not serve. Existing staff and portal PDF routes are unchanged.
    backup or recovery procedure.
 4. Set the `BITS_STATEMENT_*` variables on the server. Run
    `npm run statements:storage-diagnostics` (no secrets printed).
-5. Run `npm run statements:storage-probe` against the configured private
-   test bucket. It writes, reads, checksums and deletes a synthetic PDF
-   under a reserved non-donor key.
+5. Designate an isolated test target (`BITS_STATEMENT_S3_TEST_TARGET=1` and
+   `BITS_STATEMENT_S3_TEST_BUCKET`, never the application bucket). Default
+   `npm run statements:storage-probe` is read-only. `--apply` writes a
+   reserved non-donor key, proves conditional create, rejects overwrite,
+   verifies SHA-256, checks one unsigned object URL, and verifies the exact
+   key is absent after delete. `cleanedUp` is true only after that inspect.
+   AccessDenied or timeout is unknown, not absence.
+6. `npm run statements:storage-restore -- --apply` is a separate synthetic
+   restore rehearsal. See `docs/statement-storage-recovery.md`.
 
 ## Inventory and later migration
 
@@ -95,30 +101,25 @@ deployed.
 - `scripts/statement-storage-diagnostics.ts`
 - `scripts/statement-storage-inventory.ts`
 - `scripts/statement-storage-probe.ts`
+- `scripts/statement-storage-restore.ts`
+- `lib/storage/statement-pdf-probe.ts`
+- `docs/statement-storage-recovery.md`
 - `@aws-sdk/client-s3` (official S3-compatible SDK)
 
 No schema migration. No existing `.env` credentials were changed.
 
 ## Validation performed
 
-- 18 focused storage tests passed (reference local/s3v1/URL rejection;
-  production config and HTTPS endpoint rules; conditional S3 create,
-  ETag-is-not-checksum, missing/corrupt/oversized reads; unreferenced
-  cleanup vs committed-row retain; inventory `--apply` refusal; local
-  adapter still exclusive-writes and does not treat a local file as an
-  `s3v1:` object).
-- Individual/household generation, publish and staff/portal PDF route
-  tests still passed.
-- Focused ESLint, full lint, TypeScript, `git diff --check` and
-  production build passed. Existing middleware/file-tracing warnings
-  remain. No schema migration.
-- Full test suite: 196 files passed; 1,479 tests passed (October 3 Core 05
-  baseline was 191 / 1,461). One unrelated check-in-station concurrency
-  test failed once in a parallel run and passed on rerun; it was not
-  changed here.
+Core 08 (October 14, 2026) adds verified probe cleanup, incremental
+bounded S3 reads, PUT/DELETE timeouts, a designated test-target guard,
+and a synthetic restore rehearsal. After this increment: 207 files /
+1,546 tests passed; lint, typecheck, and production build passed.
+Read-only probe is blocked until `BITS_STATEMENT_S3_TEST_*` is
+designated. Mocked adapter and probe tests are not live provider proof.
+See `docs/original-v1-storage-verification.md`.
 
 Not verified here: a live private bucket or S3-compatible test service,
-signed-in staff/donor download against remote objects, restore from
-backup, or cutover of existing local PDFs. Provider testing is pending.
-Production storage is implemented as an adapter, not marked configured
-or recovered.
+signed-in staff/donor download against remote objects, production restore,
+or cutover of existing local PDFs. Provider testing remains pending until
+`BITS_STATEMENT_S3_TEST_*` is designated. Production storage is an adapter,
+not marked configured or recovered.

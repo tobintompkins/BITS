@@ -231,6 +231,59 @@ export function emptyManualBatchDonationFormValues(
   };
 }
 
+export function splitPersistedDonationNote(note: string | null | undefined) {
+  if (!note) return { reference: "", note: "" };
+  if (note.startsWith("Reference: ")) {
+    const rest = note.slice("Reference: ".length);
+    const newline = rest.indexOf("\n");
+    if (newline === -1) return { reference: rest, note: "" };
+    return {
+      reference: rest.slice(0, newline),
+      note: rest.slice(newline + 1),
+    };
+  }
+  return { reference: "", note };
+}
+
+export function toManualBatchDonationFormValues(input: {
+  donorId: string | null;
+  anonymous: boolean;
+  offeringDate: string;
+  receivedDate: string;
+  paymentMethod: ManualPaymentMethod;
+  checkNumber: string | null;
+  note: string | null;
+  isTaxDeductible: boolean;
+  deductibleAmount: string;
+  goodsOrServicesProvided: boolean;
+  goodsOrServicesDescription: string | null;
+  goodsOrServicesEstimatedValue: string | null;
+  intangibleReligiousBenefitsOnly: boolean;
+  allocations: Array<{ offeringTypeId: string; amount: string }>;
+}): ManualBatchDonationFormValues {
+  const persisted = splitPersistedDonationNote(input.note);
+  return {
+    donorId: input.anonymous ? "" : (input.donorId ?? ""),
+    anonymous: input.anonymous,
+    offeringDate: input.offeringDate,
+    receivedDate: input.receivedDate,
+    confirmOfferingDateOverride: false,
+    paymentMethod: input.paymentMethod,
+    checkNumber: input.checkNumber ?? "",
+    reference: persisted.reference,
+    note: persisted.note,
+    isTaxDeductible: input.isTaxDeductible,
+    deductibleAmount: input.deductibleAmount,
+    goodsOrServicesProvided: input.goodsOrServicesProvided,
+    goodsOrServicesDescription: input.goodsOrServicesDescription ?? "",
+    goodsOrServicesEstimatedValue: input.goodsOrServicesEstimatedValue ?? "",
+    intangibleReligiousBenefitsOnly: input.intangibleReligiousBenefitsOnly,
+    allocations: input.allocations.length
+      ? input.allocations
+      : [{ offeringTypeId: "", amount: "" }],
+  };
+}
+
 export type ManualBatchDonationActionState = {
   status: "idle" | "success" | "error";
   message?: string;

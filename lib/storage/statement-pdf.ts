@@ -295,10 +295,15 @@ export async function writePrivateStatementPdf(input: {
     if (!writeConfig.ok || writeConfig.backend !== "s3") {
       return { ok: false, reason: "UNAVAILABLE" };
     }
-    return writeRemoteStatementPdf(writeConfig, {
+    const written = await writeRemoteStatementPdf(writeConfig, {
       objectKey: parsed.objectKey,
       bytes: input.bytes,
     });
+    if (written.ok) return written;
+    return {
+      ok: false,
+      reason: written.reason === "TIMEOUT" ? "UNAVAILABLE" : written.reason,
+    };
   }
   if (!writeConfig.ok || writeConfig.backend !== "local") {
     return { ok: false, reason: "UNAVAILABLE" };

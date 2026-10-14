@@ -114,6 +114,31 @@ vi.mock("@/lib/db/prisma", () => ({
         }));
         const auditSnapshot = [...store.audits];
         const tx = {
+          $queryRaw: async (
+            strings: TemplateStringsArray,
+            ...values: unknown[]
+          ) => {
+            const sql = strings.join("?");
+            if (sql.includes("FROM organizations")) {
+              return [{ id: String(values[0]) }];
+            }
+            if (sql.includes("FROM offering_batches")) {
+              const row = store.batches.get(String(values[0]));
+              if (!row || row.organizationId !== String(values[1])) return [];
+              return [
+                {
+                  id: row.id,
+                  status: row.status,
+                  expectedTotal: row.expectedTotal?.toString() ?? null,
+                  recordedTotal: row.recordedTotal.toString(),
+                  offeringDate: new Date("2026-09-06T00:00:00.000Z"),
+                  depositDate: null,
+                  depositReference: null,
+                },
+              ];
+            }
+            return [];
+          },
           offeringBatch: {
             findFirst: async ({
               where,
@@ -195,6 +220,22 @@ const OTHER_ORG = "00000000-0000-4000-8000-00000000a002";
 const USER_ID = "00000000-0000-4000-8000-00000000c001";
 const BATCH_ID = "00000000-0000-4000-8000-00000000b001";
 
+function snapshot(
+  overrides: {
+    recordedTotal?: string;
+    expectedTotal?: string | null;
+    donationCount?: number;
+  } = {},
+) {
+  return {
+    confirmed: true as const,
+    recordedTotal: overrides.recordedTotal ?? "25.00",
+    expectedTotal:
+      overrides.expectedTotal === undefined ? "25.00" : overrides.expectedTotal,
+    donationCount: overrides.donationCount ?? 1,
+  };
+}
+
 function seedBatch(
   overrides: Partial<BatchRow> & { expected?: string | null; recorded?: string } = {},
 ) {
@@ -245,7 +286,7 @@ describe("offering batch entry completion and reconciliation", () => {
     "lets %s complete draft entry",
     async (role) => {
       mocks.getGivingAccess.mockResolvedValue(getGivingCapabilitiesForRole(role));
-      const result = await completeOfferingBatchEntry(BATCH_ID, { confirmed: true });
+      const result = await completeOfferingBatchEntry(BATCH_ID, snapshot());
       expect(result.status).toBe(OfferingBatchStatus.ENTERED);
       expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.ENTERED);
       expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("25.00");
@@ -270,17 +311,17 @@ describe("offering batch entry completion and reconciliation", () => {
       getGivingCapabilitiesForRole(RoleCode.REPORT_VIEWER),
     );
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     mocks.getGivingAccess.mockResolvedValue(
       getGivingCapabilitiesForRole(RoleCode.DONOR),
     );
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     mocks.getOrCreateUserAccount.mockResolvedValue(null);
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "SIGNED_OUT" });
     expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.DRAFT);
     expect(store.audits).toHaveLength(0);
@@ -292,14 +333,14 @@ describe("offering batch entry completion and reconciliation", () => {
       getGivingCapabilitiesForRole(RoleCode.DATA_ENTRY),
     );
     await expect(
-      reconcileOfferingBatch(BATCH_ID, { confirmed: true }),
+      reconcileOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     mocks.getGivingAccess.mockResolvedValue(
       getGivingCapabilitiesForRole(RoleCode.TREASURER),
     );
     await expect(
-      reconcileOfferingBatch(BATCH_ID, { confirmed: true }),
+      reconcileOfferingBatch(BATCH_ID, snapshot()),
     ).resolves.toMatchObject({ status: OfferingBatchStatus.RECONCILED });
     expect(store.audits).toHaveLength(1);
     expect(store.audits[0]).toMatchObject({
@@ -311,7 +352,7 @@ describe("offering batch entry completion and reconciliation", () => {
   it("rejects a cross-organization batch", async () => {
     store.batches.get(BATCH_ID)!.organizationId = OTHER_ORG;
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(store.audits).toHaveLength(0);
   });
@@ -319,7 +360,7 @@ describe("offering batch entry completion and reconciliation", () => {
   it("rejects empty batches and allocation problems", async () => {
     store.donations = [];
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "NO_DONATIONS" });
 
     store.donations = [
@@ -331,7 +372,7 @@ describe("offering batch entry completion and reconciliation", () => {
       },
     ];
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "DONATION_WITHOUT_ALLOCATIONS" });
 
     store.donations = [
@@ -343,13 +384,13 @@ describe("offering batch entry completion and reconciliation", () => {
       },
     ];
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "ALLOCATION_TOTAL_MISMATCH" });
 
     seedBalancedDonation();
     store.batches.get(BATCH_ID)!.recordedTotal = money("40.00");
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "BATCH_RECORDED_TOTAL_MISMATCH" });
     expect(store.audits).toHaveLength(0);
     expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.DRAFT);
@@ -358,7 +399,7 @@ describe("offering batch entry completion and reconciliation", () => {
   it("rejects reconciliation without a matching expected total", async () => {
     seedBatch({ status: OfferingBatchStatus.ENTERED, expected: null });
     await expect(
-      reconcileOfferingBatch(BATCH_ID, { confirmed: true }),
+      reconcileOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "EXPECTED_TOTAL_REQUIRED" });
 
     seedBatch({
@@ -367,7 +408,7 @@ describe("offering batch entry completion and reconciliation", () => {
       recorded: "25.00",
     });
     await expect(
-      reconcileOfferingBatch(BATCH_ID, { confirmed: true }),
+      reconcileOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "BATCH_NOT_BALANCED" });
     expect(store.audits).toHaveLength(0);
   });
@@ -380,7 +421,7 @@ describe("offering batch entry completion and reconciliation", () => {
       donation: store.donations[0]?.totalAmount.toString(),
       allocation: store.donations[0]?.allocations[0]?.amount.toString(),
     });
-    await reconcileOfferingBatch(BATCH_ID, { confirmed: true });
+    await reconcileOfferingBatch(BATCH_ID, snapshot());
     expect(store.batches.get(BATCH_ID)?.status).toBe(
       OfferingBatchStatus.RECONCILED,
     );
@@ -398,28 +439,28 @@ describe("offering batch entry completion and reconciliation", () => {
 
   it("does not jump from DRAFT to RECONCILED or change finished batches", async () => {
     await expect(
-      reconcileOfferingBatch(BATCH_ID, { confirmed: true }),
+      reconcileOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "INVALID_STATUS" });
 
     seedBatch({ status: OfferingBatchStatus.RECONCILED });
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "INVALID_STATUS" });
     await expect(
-      reconcileOfferingBatch(BATCH_ID, { confirmed: true }),
+      reconcileOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "INVALID_STATUS" });
 
     seedBatch({ status: OfferingBatchStatus.LOCKED });
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "INVALID_STATUS" });
     expect(store.audits).toHaveLength(0);
   });
 
   it("allows only one concurrent completion", async () => {
     const [first, second] = await Promise.allSettled([
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ]);
     const successes = [first, second].filter((row) => row.status === "fulfilled");
     const failures = [first, second].filter((row) => row.status === "rejected");
@@ -433,7 +474,7 @@ describe("offering batch entry completion and reconciliation", () => {
     seedBatch({ status: OfferingBatchStatus.ENTERED });
     store.pendingRecordedTotal = "40.00";
     await expect(
-      reconcileOfferingBatch(BATCH_ID, { confirmed: true }),
+      reconcileOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "CONCURRENT_CHANGE" });
     expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.ENTERED);
     expect(store.audits).toHaveLength(0);
@@ -442,7 +483,7 @@ describe("offering batch entry completion and reconciliation", () => {
   it("rolls back a successful-looking transition when audit creation fails", async () => {
     store.persistShouldFail = true;
     await expect(
-      completeOfferingBatchEntry(BATCH_ID, { confirmed: true }),
+      completeOfferingBatchEntry(BATCH_ID, snapshot()),
     ).rejects.toBeInstanceOf(OfferingBatchTransitionError);
     expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.DRAFT);
     expect(store.audits).toHaveLength(0);
@@ -453,5 +494,16 @@ describe("offering batch entry completion and reconciliation", () => {
       completeOfferingBatchEntry(BATCH_ID, { confirmed: false }),
     ).rejects.toMatchObject({ code: "NOT_CONFIRMED" });
     expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.DRAFT);
+  });
+
+  it("rejects a stale confirmation that does not match the current snapshot", async () => {
+    await expect(
+      completeOfferingBatchEntry(
+        BATCH_ID,
+        snapshot({ recordedTotal: "10.00", donationCount: 0 }),
+      ),
+    ).rejects.toMatchObject({ code: "CONCURRENT_CHANGE" });
+    expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.DRAFT);
+    expect(store.audits).toHaveLength(0);
   });
 });

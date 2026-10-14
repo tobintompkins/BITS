@@ -18,7 +18,9 @@ import {
 import {
   ManualBatchDonationError,
   createManualBatchDonation,
+  deleteManualBatchDonation,
   searchDonorsForBatchDonation,
+  updateManualBatchDonation,
 } from "@/server/services/manual-batch-donation.service";
 import {
   createOfferingBatchDepositActionState,
@@ -59,6 +61,7 @@ function revalidateBatchPaths(batchId?: string) {
     revalidatePath(`/batches/${batchId}`);
     revalidatePath(`/batches/${batchId}/edit`);
     revalidatePath(`/batches/${batchId}/donations/new`);
+    revalidatePath(`/batches/${batchId}/donations`);
   }
 }
 
@@ -160,6 +163,77 @@ export async function searchBatchDonationDonorsAction(query: string) {
   }
 }
 
+export async function updateManualBatchDonationAction(
+  batchId: string,
+  donationId: string,
+  values: ManualBatchDonationFormValues,
+): Promise<ManualBatchDonationActionState> {
+  const { userId } = await auth();
+  if (!userId) {
+    return {
+      status: "error",
+      message: "You must be signed in to edit donations.",
+      fieldErrors: {},
+    };
+  }
+
+  const parsed = manualBatchDonationFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: "Please correct the highlighted fields and try again.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  try {
+    const donation = await updateManualBatchDonation(
+      batchId,
+      donationId,
+      parsed.data,
+    );
+    revalidateBatchPaths(batchId);
+    return {
+      status: "success",
+      message: "Donation updated.",
+      donationId: donation.id,
+      fieldErrors: {},
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message:
+        error instanceof ManualBatchDonationError
+          ? error.message
+          : "Unable to update this donation.",
+      fieldErrors: {},
+    };
+  }
+}
+
+export async function deleteManualBatchDonationAction(
+  batchId: string,
+  donationId: string,
+) {
+  const { userId } = await auth();
+  if (!userId) {
+    return { ok: false as const, error: "You must be signed in." };
+  }
+  try {
+    await deleteManualBatchDonation(batchId, donationId);
+    revalidateBatchPaths(batchId);
+    return { ok: true as const };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error:
+        error instanceof ManualBatchDonationError
+          ? error.message
+          : "Unable to delete this donation.",
+    };
+  }
+}
+
 export async function createManualBatchDonationAction(
   batchId: string,
   values: ManualBatchDonationFormValues,
@@ -203,12 +277,24 @@ export async function createManualBatchDonationAction(
   }
 }
 
-export async function completeOfferingBatchEntryAction(batchId: string) {
+type TransitionSnapshot = {
+  recordedTotal: string;
+  expectedTotal: string | null;
+  donationCount: number;
+};
+
+export async function completeOfferingBatchEntryAction(
+  batchId: string,
+  snapshot: TransitionSnapshot,
+) {
   const { userId } = await auth();
   if (!userId) {
     return { ok: false as const, error: "You must be signed in." };
   }
-  const parsed = offeringBatchTransitionSchema.safeParse({ confirmed: true });
+  const parsed = offeringBatchTransitionSchema.safeParse({
+    confirmed: true,
+    ...snapshot,
+  });
   if (!parsed.success) {
     return { ok: false as const, error: "Confirm this status change before saving." };
   }
@@ -276,12 +362,18 @@ export async function saveBatchDepositAction(
   }
 }
 
-export async function lockOfferingBatchAction(batchId: string) {
+export async function lockOfferingBatchAction(
+  batchId: string,
+  snapshot: TransitionSnapshot,
+) {
   const { userId } = await auth();
   if (!userId) {
     return { ok: false as const, error: "You must be signed in." };
   }
-  const parsed = offeringBatchTransitionSchema.safeParse({ confirmed: true });
+  const parsed = offeringBatchTransitionSchema.safeParse({
+    confirmed: true,
+    ...snapshot,
+  });
   if (!parsed.success) {
     return { ok: false as const, error: "Confirm this status change before saving." };
   }
@@ -300,12 +392,18 @@ export async function lockOfferingBatchAction(batchId: string) {
   }
 }
 
-export async function reconcileOfferingBatchAction(batchId: string) {
+export async function reconcileOfferingBatchAction(
+  batchId: string,
+  snapshot: TransitionSnapshot,
+) {
   const { userId } = await auth();
   if (!userId) {
     return { ok: false as const, error: "You must be signed in." };
   }
-  const parsed = offeringBatchTransitionSchema.safeParse({ confirmed: true });
+  const parsed = offeringBatchTransitionSchema.safeParse({
+    confirmed: true,
+    ...snapshot,
+  });
   if (!parsed.success) {
     return { ok: false as const, error: "Confirm this status change before saving." };
   }

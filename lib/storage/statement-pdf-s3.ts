@@ -21,8 +21,17 @@ export type StatementPdfS3WriteResult =
   | { ok: true; checksum: string }
   | {
       ok: false;
-      reason: "INVALID_PDF" | "ALREADY_EXISTS" | "UNAVAILABLE";
+      reason: "INVALID_PDF" | "ALREADY_EXISTS" | "UNAVAILABLE" | "TIMEOUT";
     };
+
+export type StatementPdfS3InspectResult =
+  | { status: "present"; byteLength: number; checksum: string }
+  | { status: "absent" }
+  | { status: "unknown"; reason: "TIMEOUT" | "DENIED" | "UNAVAILABLE" };
+
+export type StatementPdfS3CleanupResult =
+  | { cleanedUp: true; status: "absent" }
+  | { cleanedUp: false; status: "present" | "unknown"; reason: string };
 
 export type StatementPdfS3OpenResult =
   | { ok: true; stream: Readable; byteLength: number }
@@ -31,7 +40,10 @@ export type StatementPdfS3OpenResult =
 let client: S3Client | null = null;
 let clientSignature = "";
 
-export type StatementS3Sender = (command: unknown) => Promise<unknown>;
+export type StatementS3Sender = (
+  command: unknown,
+  options?: { abortSignal?: AbortSignal },
+) => Promise<unknown>;
 
 function configSignature(config: StatementPdfS3Config) {
   return [
@@ -55,6 +67,7 @@ function getClient(config: StatementPdfS3Config) {
     forcePathStyle: config.forcePathStyle,
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
+    maxAttempts: 2,
   };
   if (config.endpoint) {
     options.endpoint = config.endpoint;
@@ -104,7 +117,65 @@ function isMissing(error: unknown) {
   );
 }
 
-async function readBody(body: unknown, maxBytes: number) {
+function isDenied(error: unknown) {
+  const key = s3ErrorName(error);
+  return (
+    key.includes("AccessDenied") ||
+    key.includes("Forbidden") ||
+    key.includes(":403") ||
+    key.includes(":401")
+  );
+}
+
+function isTimeout(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const name = "name" in error && typeof error.name === "string" ? error.name : "";
+  const message =
+    "message" in error && typeof error.message === "string" ? error.message : "";
+  return (
+    name === "TimeoutError" ||
+    name === "AbortError" ||
+    name.includes("Timeout") ||
+    message.includes("aborted")
+  );
+}
+
+function destroyBody(body: unknown) {
+  if (!body || typeof body !== "object") return;
+  if ("destroy" in body && typeof body.destroy === "function") {
+    try {
+      body.destroy();
+    } catch {
+      // Best-effort abort of an oversized or rejected body.
+    }
+    return;
+  }
+  if ("cancel" in body && typeof body.cancel === "function") {
+    void (body as { cancel: () => Promise<unknown> | void }).cancel();
+  }
+}
+
+function isAsyncIterable(body: unknown): body is AsyncIterable<unknown> {
+  return Boolean(body && typeof body === "object" && Symbol.asyncIterator in body);
+}
+
+async function readBoundedIterable(source: AsyncIterable<unknown>, maxBytes: number) {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of source) {
+    const buffer = Buffer.isBuffer(chunk)
+      ? chunk
+      : Buffer.from(chunk as Uint8Array);
+    total += buffer.byteLength;
+    if (total > maxBytes) {
+      return null;
+    }
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
+export async function readStatementPdfBody(body: unknown, maxBytes: number) {
   if (!body) return null;
   if (body instanceof Uint8Array) {
     if (body.byteLength > maxBytes) return null;
@@ -114,23 +185,21 @@ async function readBody(body: unknown, maxBytes: number) {
     const buffer = Buffer.from(body);
     return buffer.byteLength > maxBytes ? null : buffer;
   }
-  if (typeof (body as { transformToByteArray?: () => Promise<Uint8Array> }).transformToByteArray === "function") {
-    const bytes = await (
-      body as { transformToByteArray: () => Promise<Uint8Array> }
-    ).transformToByteArray();
-    if (bytes.byteLength > maxBytes) return null;
-    return Buffer.from(bytes);
-  }
-  if (body instanceof Readable) {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    for await (const chunk of body) {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      total += buffer.byteLength;
-      if (total > maxBytes) return null;
-      chunks.push(buffer);
+  // AWS SDK streams often expose both transformToByteArray and an async
+  // iterator. Stream incrementally so an oversized body is rejected before
+  // the whole payload is buffered.
+  if (body instanceof Readable || isAsyncIterable(body)) {
+    try {
+      const bytes = await readBoundedIterable(body, maxBytes);
+      if (!bytes) {
+        destroyBody(body);
+        return null;
+      }
+      return bytes;
+    } catch {
+      destroyBody(body);
+      return null;
     }
-    return Buffer.concat(chunks);
   }
   return null;
 }
@@ -163,10 +232,16 @@ export async function writeRemoteStatementPdf(
     IfNoneMatch: "*",
   });
   try {
-    await (send ?? ((next) => getClient(config).send(next as never)))(command);
+    await (send ?? ((next, options) => getClient(config).send(next as never, options)))(
+      command,
+      { abortSignal: abortSignal() },
+    );
   } catch (error) {
     if (isAlreadyExists(error)) {
       return { ok: false, reason: "ALREADY_EXISTS" };
+    }
+    if (isTimeout(error)) {
+      return { ok: false, reason: "TIMEOUT" };
     }
     return { ok: false, reason: "UNAVAILABLE" };
   }
@@ -183,12 +258,13 @@ export async function openRemoteStatementPdf(
 ): Promise<StatementPdfS3OpenResult> {
   try {
     const response = (await (
-      send ?? ((next) => getClient(config).send(next as never, { abortSignal: abortSignal() }))
+      send ?? ((next, options) => getClient(config).send(next as never, options))
     )(
       new GetObjectCommand({
         Bucket: config.bucket,
         Key: objectKey(config, input.objectKey),
       }),
+      { abortSignal: abortSignal() },
     )) as {
       ContentLength?: number;
       Body?: unknown;
@@ -198,9 +274,10 @@ export async function openRemoteStatementPdf(
       (response.ContentLength <= 0 ||
         response.ContentLength > STATEMENT_PDF_MAX_BYTES)
     ) {
+      destroyBody(response.Body);
       return { ok: false, reason: "UNAVAILABLE" };
     }
-    const bytes = await readBody(response.Body, STATEMENT_PDF_MAX_BYTES);
+    const bytes = await readStatementPdfBody(response.Body, STATEMENT_PDF_MAX_BYTES);
     if (!bytes || bytes.byteLength <= 0) {
       return { ok: false, reason: "UNAVAILABLE" };
     }
@@ -233,19 +310,115 @@ export async function openRemoteStatementPdf(
   }
 }
 
+export async function inspectRemoteStatementPdf(
+  config: StatementPdfS3Config,
+  objectKeyValue: string,
+  send?: StatementS3Sender,
+): Promise<StatementPdfS3InspectResult> {
+  try {
+    const response = (await (
+      send ?? ((next, options) => getClient(config).send(next as never, options))
+    )(
+      new GetObjectCommand({
+        Bucket: config.bucket,
+        Key: objectKey(config, objectKeyValue),
+      }),
+      { abortSignal: abortSignal() },
+    )) as { Body?: unknown; ContentLength?: number };
+    if (
+      typeof response.ContentLength === "number" &&
+      (response.ContentLength <= 0 ||
+        response.ContentLength > STATEMENT_PDF_MAX_BYTES)
+    ) {
+      destroyBody(response.Body);
+      return { status: "unknown", reason: "UNAVAILABLE" };
+    }
+    const bytes = await readStatementPdfBody(
+      response.Body,
+      STATEMENT_PDF_MAX_BYTES,
+    );
+    if (!bytes) {
+      return { status: "unknown", reason: "UNAVAILABLE" };
+    }
+    return {
+      status: "present",
+      byteLength: bytes.byteLength,
+      checksum: createHash("sha256").update(bytes).digest("hex"),
+    };
+  } catch (error) {
+    if (isMissing(error)) return { status: "absent" };
+    if (isTimeout(error)) return { status: "unknown", reason: "TIMEOUT" };
+    if (isDenied(error)) return { status: "unknown", reason: "DENIED" };
+    return { status: "unknown", reason: "UNAVAILABLE" };
+  }
+}
+
 export async function deleteRemoteStatementPdf(
   config: StatementPdfS3Config,
   objectKeyValue: string,
   send?: StatementS3Sender,
 ): Promise<void> {
   try {
-    await (send ?? ((next) => getClient(config).send(next as never)))(
+    await (send ?? ((next, options) => getClient(config).send(next as never, options)))(
       new DeleteObjectCommand({
         Bucket: config.bucket,
         Key: objectKey(config, objectKeyValue),
       }),
+      { abortSignal: abortSignal() },
     );
   } catch {
     // Compensating cleanup is best-effort for a single proven key.
   }
+}
+
+export async function deleteAndVerifyRemoteStatementPdf(
+  config: StatementPdfS3Config,
+  objectKeyValue: string,
+  send?: StatementS3Sender,
+): Promise<StatementPdfS3CleanupResult> {
+  try {
+    await (send ?? ((next, options) => getClient(config).send(next as never, options)))(
+      new DeleteObjectCommand({
+        Bucket: config.bucket,
+        Key: objectKey(config, objectKeyValue),
+      }),
+      { abortSignal: abortSignal() },
+    );
+  } catch (error) {
+    if (isTimeout(error)) {
+      return {
+        cleanedUp: false,
+        status: "unknown",
+        reason: "Delete timed out; absence was not verified.",
+      };
+    }
+    if (isDenied(error)) {
+      return {
+        cleanedUp: false,
+        status: "unknown",
+        reason: "Delete was denied; absence was not verified.",
+      };
+    }
+  }
+
+  const inspected = await inspectRemoteStatementPdf(
+    config,
+    objectKeyValue,
+    send,
+  );
+  if (inspected.status === "absent") {
+    return { cleanedUp: true, status: "absent" };
+  }
+  if (inspected.status === "present") {
+    return {
+      cleanedUp: false,
+      status: "present",
+      reason: "The exact probe key is still readable after delete.",
+    };
+  }
+  return {
+    cleanedUp: false,
+    status: "unknown",
+    reason: `Post-delete inspect was ${inspected.reason}; this is not proof of absence.`,
+  };
 }

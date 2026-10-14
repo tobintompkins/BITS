@@ -8,6 +8,7 @@ import { useFieldArray, useForm, type Resolver } from "react-hook-form";
 import {
   createManualBatchDonationAction,
   searchBatchDonationDonorsAction,
+  updateManualBatchDonationAction,
 } from "@/app/(staff)/batches/actions";
 import { Toast } from "@/components/ui/toast";
 import {
@@ -39,6 +40,9 @@ type ManualDonationFormProps = {
   batchName: string;
   batchOfferingDate: string;
   funds: FundOption[];
+  donationId?: string;
+  initialValues?: ManualBatchDonationFormValues;
+  selectedDonor?: DonorOption | null;
 };
 
 const inputClassName =
@@ -54,6 +58,9 @@ export function ManualDonationForm({
   batchName,
   batchOfferingDate,
   funds,
+  donationId,
+  initialValues,
+  selectedDonor = null,
 }: ManualDonationFormProps) {
   const router = useRouter();
   const [toast, setToast] = useState<{
@@ -63,14 +70,17 @@ export function ManualDonationForm({
   const [isPending, startTransition] = useTransition();
   const [searching, startSearch] = useTransition();
   const [query, setQuery] = useState("");
-  const [donors, setDonors] = useState<DonorOption[]>([]);
+  const [donors, setDonors] = useState<DonorOption[]>(
+    selectedDonor ? [selectedDonor] : [],
+  );
   const [searchError, setSearchError] = useState<string | null>(null);
 
   const form = useForm<ManualBatchDonationFormValues>({
     resolver: zodResolver(
       manualBatchDonationFormSchema,
     ) as Resolver<ManualBatchDonationFormValues>,
-    defaultValues: emptyManualBatchDonationFormValues(batchOfferingDate),
+    defaultValues:
+      initialValues ?? emptyManualBatchDonationFormValues(batchOfferingDate),
   });
 
   const allocations = useFieldArray({
@@ -78,12 +88,22 @@ export function ManualDonationForm({
     name: "allocations",
   });
 
-  const [anonymous, setAnonymous] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [offeringDate, setOfferingDate] = useState(batchOfferingDate);
-  const [goodsProvided, setGoodsProvided] = useState(false);
-  const [taxDeductible, setTaxDeductible] = useState(true);
-  const [allocationAmounts, setAllocationAmounts] = useState<string[]>([""]);
+  const [anonymous, setAnonymous] = useState(initialValues?.anonymous ?? false);
+  const [paymentMethod, setPaymentMethod] = useState(
+    initialValues?.paymentMethod ?? "CASH",
+  );
+  const [offeringDate, setOfferingDate] = useState(
+    initialValues?.offeringDate ?? batchOfferingDate,
+  );
+  const [goodsProvided, setGoodsProvided] = useState(
+    initialValues?.goodsOrServicesProvided ?? false,
+  );
+  const [taxDeductible, setTaxDeductible] = useState(
+    initialValues?.isTaxDeductible ?? true,
+  );
+  const [allocationAmounts, setAllocationAmounts] = useState<string[]>(
+    initialValues?.allocations.map((row) => row.amount) ?? [""],
+  );
 
   const allocationTotal = useMemo(() => {
     const valid = allocationAmounts.filter(isValidPositiveMoneyInput);
@@ -110,7 +130,9 @@ export function ManualDonationForm({
 
   function onSubmit(values: ManualBatchDonationFormValues) {
     startTransition(async () => {
-      const result = await createManualBatchDonationAction(batchId, values);
+      const result = donationId
+        ? await updateManualBatchDonationAction(batchId, donationId, values)
+        : await createManualBatchDonationAction(batchId, values);
       if (result.status === "success") {
         router.push(`/batches/${batchId}?donation=created`);
         router.refresh();
@@ -494,7 +516,11 @@ export function ManualDonationForm({
           disabled={isPending}
           className="rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
         >
-          {isPending ? "Saving..." : "Save donation"}
+          {isPending
+            ? "Saving..."
+            : donationId
+              ? "Save changes"
+              : "Save donation"}
         </button>
       </div>
     </form>

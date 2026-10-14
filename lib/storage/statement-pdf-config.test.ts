@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  resolveStatementPdfTestTarget,
   resolveStatementPdfWriteConfig,
   statementStorageDiagnostics,
 } from "./statement-pdf-config";
@@ -52,6 +53,31 @@ describe("statement PDF write configuration", () => {
       "test",
     );
     expect(ok).toMatchObject({ ok: true, backend: "s3", bucket: "bits-statements" });
+  });
+
+  it("does not inherit the application bucket for synthetic writes", () => {
+    const missing = resolveStatementPdfTestTarget({
+      BITS_STATEMENT_S3_BUCKET: "bits-statements",
+      BITS_STATEMENT_S3_REGION: "us-east-1",
+    });
+    expect(missing.ok).toBe(false);
+    const shared = resolveStatementPdfTestTarget({
+      BITS_STATEMENT_S3_TEST_TARGET: "1",
+      BITS_STATEMENT_S3_TEST_BUCKET: "bits-statements",
+      BITS_STATEMENT_S3_BUCKET: "bits-statements",
+      BITS_STATEMENT_S3_REGION: "us-east-1",
+    });
+    expect(shared.ok).toBe(false);
+    const ok = resolveStatementPdfTestTarget({
+      BITS_STATEMENT_S3_TEST_TARGET: "1",
+      BITS_STATEMENT_S3_TEST_BUCKET: "bits-statements-test",
+      BITS_STATEMENT_S3_TEST_REGION: "us-east-1",
+    });
+    expect(ok).toMatchObject({
+      ok: true,
+      backend: "s3",
+      bucket: "bits-statements-test",
+    });
   });
 
   it("reports readiness without exposing secrets", () => {

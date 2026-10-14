@@ -22,7 +22,13 @@
     "prisma:generate": "prisma generate",
     "statements:storage-diagnostics": "npx tsx scripts/statement-storage-diagnostics.ts",
     "statements:storage-inventory": "npx tsx scripts/statement-storage-inventory.ts",
-    "statements:storage-probe": "npx tsx scripts/statement-storage-probe.ts"
+    "statements:storage-probe": "npx tsx scripts/statement-storage-probe.ts",
+    "statements:storage-restore": "npx tsx scripts/statement-storage-restore.ts",
+    "staff:membership-schema-setup": "npx tsx scripts/staff-membership-schema-setup.ts",
+    "staff:membership-local-migrate": "npx tsx scripts/staff-membership-local-migrate.ts",
+    "staff:invitation-schema-setup": "npx tsx scripts/staff-invitation-schema-setup.ts",
+    "staff:invitation-local-migrate": "npx tsx scripts/staff-invitation-local-migrate.ts",
+    "staff:first-admin-bootstrap": "npx tsx scripts/staff-first-admin-bootstrap.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",

@@ -2,8 +2,8 @@
 
 **Last updated:** October 14, 2026
 
-**Current handoff:** Original Core 07A review fixes: login no longer auto-assigns ORG_ADMIN; acceptance audit cleanup is current-run owned entities only; database-target equivalence ignores login username. Live authenticated two-tenant execution is still blocked on Clerk development identities. Do not treat this as original v1 completion. Preserve statement-storage, report-catalog, contribution-report, giving-household, offering-type, donor, child-pickup, and Clerk-pin work.
-**Status basis:** Source and Git on October 14, 2026; HEAD `1fef2d0` plus uncommitted Core 02–07A and earlier local work. Today's unit suite: 206 files / 1,533 tests, all passed. Isolated `bits_e2e` exists; live signed-in two-tenant acceptance is blocked on Clerk development identities. Live object-store, restore, and launch verification remain.
+**Current handoff:** Original Core 11 ledger acceptance repairs stale transition snapshots and adds draft-only gift correction on the existing batch/donation path. Isolated ledger concurrency is implemented against `bits_e2e` when that database is dedicated. Live Clerk browser acceptance, invitation send/accept, storage/restore, household concurrency, and launch gates stay open. Do not treat this as original v1 completion.
+**Status basis:** Source and Git on October 14, 2026; HEAD `1fef2d0` plus uncommitted Core 02–11 and earlier local work. Core 11 readiness check: 221 files / 1,642 tests passed, including configured isolated ledger concurrency. Lint, typecheck, `git diff --check`, Prisma validate, and production build passed. See `docs/original-v1-ledger-acceptance.md`.
 
 ## How to read this tracker
 
@@ -26,15 +26,15 @@ Primary source: **BITS — Bring In The Sheaves, Product and Technical Design Sp
 | May phase / requirement | Current assessment | Evidence and remaining acceptance |
 |---|---|---|
 | Phase 0 — architecture, database, Clerk, policies, audit, testing, Railway test deployment | Foundation present; deployment unverified | App/service/repository structure and Prisma schema exist. Current two-organization tests and Railway configuration were not exercised. |
-| Phase 1A — organization and original staff roles (`FR-ORG-*`, `FR-AUTH-*`) | Partial / live acceptance blocked | Organization settings, membership schema, role codes and permission helpers exist. Core 07/07A add a fail-closed authenticated role/tenant harness and stop login-time admin auto-provisioning (`docs/original-v1-role-tenant-acceptance.md`). Live two-church Clerk execution is not evidenced. Staff invitations and role-change administration remain a separate gap. |
+| Phase 1A — organization and original staff roles (`FR-ORG-*`, `FR-AUTH-*`) | Partial / live acceptance blocked | Organization settings, membership schema, role codes and permission helpers exist. Core 07/07A add a fail-closed authenticated role/tenant harness and stop login-time admin auto-provisioning (`docs/original-v1-role-tenant-acceptance.md`). Core 09 adds authorized role/status edits for existing original-role staff memberships (`docs/original-v1-staff-membership-administration.md`). Core 10 adds mocked staff invitations and explicit acceptance (`docs/original-v1-staff-invitations.md`). Live two-church Clerk execution is not evidenced. |
 | Phase 1A — donors independent of accounts (`FR-DONOR-001–003`) | Core maintenance implemented; acceptance pending | `/donors`, `/donors/new` and `/donors/[id]` now provide paginated search, active/inactive filters, accountless creation, contact/address/preferences/notes editing and deactivation. Donor detail now shows giving-household history. Full workflow acceptance remains. See `docs/donor-management-core.md`. |
 | Phase 1A — donor households/history (`FR-HH-001–004`) | Core maintenance implemented; acceptance pending | `/giving-households` directory, create/edit, link/move/end, and donor-detail history. 03A adds atomic `updatedAt` settings writes, household-then-donor sorted locks, searchable 25-row donor/household pickers, and server-derived donor/household revalidation. Partial unique index `household_memberships_one_open_per_donor` remains. Member-household screens at `/households` remain a separate system. Authenticated browser acceptance and live two-session lock tests remain. See `docs/donor-household-history.md`. |
 | Phase 1A — offering-type administration (`FR-TYPE-001–003`) | Core maintenance implemented; acceptance pending | `/offering-types`, `/offering-types/new` and `/offering-types/[id]` now provide paginated name/code search, active/inactive/all filters, create/edit, tax/online flags, immutable nonempty codes, and deactivate/reactivate that preserves allocations. Stripe checkout honors active/online flags for matching allowlisted funds without rewriting existing types on settlement. Authenticated browser acceptance remains. See `docs/offering-type-administration.md`. |
-| Phase 1B — batches, gift/allocation entry, reconcile/lock (`FR-BATCH-*`, `FR-DON-*`) | Core implemented; acceptance outstanding | Batch, manual donation, transition and deposit services exist. Recheck identified/anonymous gifts, allocation totals, original payment methods, keyboard entry and locked-history protection. |
+| Phase 1B — batches, gift/allocation entry, reconcile/lock (`FR-BATCH-*`, `FR-DON-*`) | Core implemented; live acceptance outstanding | Core 11 reviews the existing ledger and adds snapshot-bound complete/reconcile/lock plus draft-only audited gift correction. CARD/ACH stay Stripe-reserved. Isolated `bits_e2e` concurrency is implemented. Live Clerk browser acceptance remains blocked. See `docs/original-v1-ledger-acceptance.md`. |
 | Phase 1C — giving reports and CSV (`FR-REPORT-001–002`, section 14) | Catalog views/exports implemented; acceptance pending | `/reports` provides donation-detail, donor, giving-household and offering-type views plus matching audited CSV. `/reports/batch-reconciliation` adds the batch worksheet, CSV and print view. `/reports/statement-access` adds the restricted access-event report and CSV. Attendance reports and church-data export remain separate. Authenticated treasurer/report-viewer acceptance remains. See `docs/contribution-reports.md` and `docs/report-catalog-exports.md`. |
-| Phase 1C — statements and donor portal (`FR-STMT-*`) | Substantial implementation; storage adapter present, not production-verified | Individual/household generation, publication, registry, void/reissue, gifts and authorized PDF access services exist. Local legacy PDF keys remain valid. New writes can use a private S3-compatible backend (`s3v1:` references) when configured. No live bucket, migration, or restore has been verified. See `docs/private-statement-storage.md`. |
+| Phase 1C — statements and donor portal (`FR-STMT-*`) | Substantial implementation; storage adapter present, not production-verified | Individual/household generation, publication, registry, void/reissue, gifts and authorized PDF access services exist. Local legacy PDF keys remain valid. New writes can use a private S3-compatible backend (`s3v1:` references) when configured. Core 08 adds a fail-closed synthetic probe/restore against a designated test target. Mocked adapter/probe tests passed; no live bucket, migration, or production restore has been verified. See `docs/private-statement-storage.md`, `docs/statement-storage-recovery.md`, and `docs/original-v1-storage-verification.md`. |
 | Audit (`FR-AUDIT-001–004`) | Helpers/workflows present; complete coverage unverified | Verify all original entities and protected export/view/download operations, safe metadata and append-only behavior. |
-| Phase 1D — hardening and launch | Not established complete | Core 07/07A implement the role/tenant acceptance harness and isolated preflight/setup. Live two-tenant execution is still blocked on Clerk identities. Accessibility, backups/restore, production runbook, private durable PDF storage verification, and staff documentation remain required. Historical event-only checks do not certify this release. |
+| Phase 1D — hardening and launch | Not established complete | Core 07/07A implement the role/tenant acceptance harness. Core 08 implements synthetic storage verification and a recovery rehearsal; live provider and disaster recovery are not evidenced. Live two-tenant execution is still blocked on Clerk identities. Accessibility, production runbook, and staff documentation remain required. |
 | Phase 2 — one-time Stripe gifts | Implementation present; payment acceptance outstanding | Member checkout uses `mode: "payment"`; verified/idempotent webhook service exists. Live deployment/payment success not verified here. |
 | Phase 2 — recurring gifts, fee coverage, transactions/refunds (`FR-PAY-FUTURE-*`) | Remaining / not established | Weekly/monthly giving, optional fee coverage, payment lifecycle review, BITS-initiated refunds and statement impacts require implementation or evidence. Dedicated payment/recurring/refund models were not identified in the reviewed schema. |
 
@@ -107,12 +107,95 @@ The detailed phase lists below preserve requested scope; they are not all comple
 | 9 — Website/CMS | Public pages exist; full editorial CMS, revision/publish workflow and media management not established. |
 | 10 — Launch | Not verified. Pastor/board review, production configuration, test accounts, backup/rollback rehearsal, training and acceptance remain. |
 
+### Core 08 storage verification (October 14, 2026)
+
+| Check | Result |
+|---|---|
+| Full `npx vitest run` | 207 files / 1,546 tests passed |
+| Lint, typecheck, `git diff --check`, production build | Passed |
+| Mocked adapter/probe/restore tests | Passed; not live-provider proof |
+| Read-only storage probe | Blocked: `BITS_STATEMENT_S3_TEST_*` is not designated |
+| Live `--apply` probe/restore | Not executed |
+| Live Clerk two-tenant acceptance | Unchanged blocker on identities |
+
+### Core 09 staff membership administration (October 14, 2026)
+
+| Check | Result |
+|---|---|
+| Full `npx vitest run` | 210 files / 1,572 tests passed, 1 skipped |
+| Isolated `bits_e2e` two-session membership serialization | Passed against dedicated `bits_e2e` (not the working `bits` database) |
+| Lint, typecheck, `git diff --check`, production build | Passed |
+| Playwright Staff Access scenarios | Added to the Core 07 harness; live run still blocked on Clerk identities |
+| Invitations / first-admin bootstrap | Not implemented |
+| Live Clerk two-tenant acceptance | Unchanged blocker on identities |
+
+### Core 11 ledger acceptance (October 14, 2026)
+
+| Check | Result |
+|---|---|
+| Ledger code | Existing batch/donation/transition/deposit/report paths reviewed in place |
+| Confirmed repairs | Stale transition snapshot rejected; DRAFT manual gift update/delete with audit and `recordedTotal` adjustment |
+| Isolated `bits_e2e` ledger serialization | Passed against dedicated `bits_e2e` (not working `bits`) |
+| Full `npx vitest run` | 221 files / 1,642 tests passed |
+| Lint, typecheck, `git diff --check`, Prisma validate, production build | Passed |
+| Playwright ledger journeys | Added to the Core 07 harness; live run still blocked on Clerk identities |
+| New migration | None |
+| Live gift edits / invitations / storage / charges | Not executed |
+| Original v1 | Still incomplete |
+
+### Core 10 staff invitations and onboarding (October 14, 2026)
+
+| Check | Result |
+|---|---|
+| Invitation/onboarding code | Implemented on Staff Access + `OrganizationMembership`; mock provider by default |
+| Working-app `bits` invitation table | Applied October 14 after full custom-format dump; 2 memberships unchanged; invitation table empty |
+| Local backup | `e2e/.local/backups/bits-core10-before-invitations.dump` (gitignored). Archive inventory verified; restore rehearsal not performed |
+| Isolated `bits_e2e` | `20261014180000_add_staff_invitations` applied with `npm run staff:invitation-schema-setup` |
+| Isolated invitation serialization | Passed against dedicated `bits_e2e` (not working `bits`) |
+| Live Clerk invitation send | Not executed |
+| First-admin apply | Dry-run tool only; no working-app/production grant |
+| Full `npx vitest run` | 219 files / 1,625 tests passed after the review repairs |
+| Live Clerk two-tenant acceptance | Unchanged blocker on identities |
+
+### Core 10 review and local migration (October 14, 2026)
+
+Preview hides invitation details from wrong recipients, invalid IDs, and revoked/expired intents. Retry claims the submitted version and does not send another provider invitation on missing references, failed lookups, or unknown outcomes. First-admin still requires a matching verified provider identity and was not executed. Working `bits` is schema-ready for invitations; that is not signed-in acceptance.
+
+### Core 10 readiness check (October 14, 2026)
+
+Bounded source review plus local automated/runtime check. No new invitation blocker found. This is not exhaustive certification of every app feature and is not production sign-off.
+
+| Check | Result |
+|---|---|
+| Full `npx vitest run` | 219 files / 1,625 tests passed, including configured isolated membership/invitation concurrency |
+| Lint, typecheck, `git diff --check`, production build | Passed |
+| Prisma validate | Passed; existing SetNull/required-field relation warning remains |
+| Local `bits` (read-only) | Zero pending or unresolved migrations; both memberships match the pre-invitation snapshot; `staff_invitations` has 0 rows |
+| Unsigned Staff Access and accept routes | Temporary production-mode local server returned 307; stopped afterward. Not signed-in acceptance |
+| Login-time admin grants | Still absent |
+| Application source / migrate / live send / first-admin | Unchanged during this check |
+
+Live two-church Clerk acceptance remains blocked on two organization IDs and seven test identities. Live invitation delivery and explicit recipient acceptance were not run. Unknown provider delivery still needs operator reconciliation. Live statement-storage/restore and other original-roadmap financial/concurrency/launch gates remain pending.
+
+### Core 09A review and migration (October 14, 2026)
+
+| Check | Result |
+|---|---|
+| Local working `bits` (loopback) | Schema-ready: `20261014130000_add_organization_membership_version` applied; 2 memberships unchanged, `version=1` |
+| Recoverable snapshot | `e2e/.local/backups/bits-2026-10-14-staff-membership-version.json` (gitignored; 2 rows). `pg_dump` was not on PATH |
+| Isolated `bits_e2e` | Column had existed from test DDL without history; reconciled with `prisma migrate resolve --applied` after shape check. Now ready |
+| Full `npx vitest run` | 211 files / 1,577 tests passed (no skipped fallback) |
+| Isolated two-session serialization | Ran against `bits_e2e` after migration history was confirmed |
+| Staff Access unsigned GET | 307 to `/sign-in`, not a missing-column 500 |
+| Lint, typecheck, `git diff --check`, `prisma validate`, production build | Passed. Prisma still warns about a SetNull/required-field relation |
+
 ## Immediate next steps
 
 1. Finish Clerk development identities, start `npm run test:e2e:acceptance:server`, rerun preflight, then run `npm run test:e2e:acceptance`. Record that live result separately from the harness implementation.
-2. Preserve patches 80–81 and Core 02–07A work. Do not treat Core 07A as original v1 completion.
-3. Remaining original v1 gaps: live object-store probe/restore, broader ledger acceptance, staff-management completeness, two-session household locking, and deployment readiness.
-4. Keep later church-management expansion and Phase 2 payments visible as separate workstreams. Reaching expanded Phase 6 does not establish completion of original v1.
+2. Designate `BITS_STATEMENT_S3_TEST_*` and run `statements:storage-probe -- --apply` plus `statements:storage-restore -- --apply`. Record emulator vs live-provider results separately.
+3. Preserve patches 80–81 and Core 02–11 work. Do not treat Core 11 as original v1 completion.
+4. Remaining original v1 gaps: live Clerk two-tenant acceptance, authorized live invitation send/accept against isolated `bits_e2e`, live object-store/restore, two-session household locking, and deployment readiness.
+5. Keep later church-management expansion and Phase 2 payments visible as separate workstreams. Reaching expanded Phase 6 does not establish completion of original v1.
 
 ## Earlier work
 

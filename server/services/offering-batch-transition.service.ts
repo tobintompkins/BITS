@@ -1,3 +1,4 @@
+import type { Prisma } from "@/app/generated/prisma/client";
 import { OfferingBatchStatus } from "@/app/generated/prisma/client";
 
 import { prisma } from "@/lib/db/prisma";
@@ -12,7 +13,11 @@ import {
   evaluateOfferingBatchIntegrity,
   type BatchIntegrityIssue,
 } from "@/lib/batches/integrity";
-import { offeringBatchTransitionSchema } from "@/lib/validation/offering-batch-transition";
+import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
+import {
+  offeringBatchTransitionSchema,
+  transitionSnapshotMatches,
+} from "@/lib/validation/offering-batch-transition";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
 import { findBatchIntegrityRows } from "@/server/repositories/offering-batch.repository";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
@@ -67,6 +72,7 @@ function requireConfirmation(rawInput: unknown) {
       "Confirm this status change before saving.",
     );
   }
+  return parsed.data;
 }
 
 function throwIntegrityFailure(issues: BatchIntegrityIssue[]): never {
@@ -225,97 +231,21 @@ async function transitionOfferingBatch(input: {
       "You do not have permission to change this batch status.",
     );
   }
-  requireConfirmation(input.rawInput);
+  const snapshot = requireConfirmation(input.rawInput);
 
   try {
     return await prisma.$transaction(async (tx) => {
-      const batch = await tx.offeringBatch.findFirst({
-        where: { id: input.batchId, organizationId: organization.id },
-        select: {
-          id: true,
-          status: true,
-          expectedTotal: true,
-          recordedTotal: true,
-        },
+      return applyOfferingBatchTransition({
+        db: tx,
+        organizationId: organization.id,
+        actorUserAccountId: userAccount.id,
+        batchId: input.batchId,
+        fromStatus: input.fromStatus,
+        toStatus: input.toStatus,
+        requireBalancedExpected: input.requireBalancedExpected,
+        action: input.action,
+        snapshot,
       });
-      if (!batch) {
-        throw new OfferingBatchTransitionError(
-          "NOT_FOUND",
-          "Offering batch not found.",
-        );
-      }
-
-      const donations = await findBatchIntegrityRows(
-        organization.id,
-        input.batchId,
-        tx,
-      );
-      const integrity = toIntegrityResult(
-        batch,
-        donations,
-        input.fromStatus,
-        input.requireBalancedExpected,
-      );
-      if (!integrity.ok) {
-        throwIntegrityFailure(integrity.issues);
-      }
-
-      const updated = await tx.offeringBatch.updateMany({
-        where: {
-          id: input.batchId,
-          organizationId: organization.id,
-          status: input.fromStatus,
-          recordedTotal: integrity.recordedTotal,
-        },
-        data: { status: input.toStatus },
-      });
-      if (updated.count !== 1) {
-        throw new OfferingBatchTransitionError(
-          "CONCURRENT_CHANGE",
-          BATCH_INTEGRITY_MESSAGES.CONCURRENT_CHANGE,
-          ["CONCURRENT_CHANGE"],
-        );
-      }
-
-      await createAuditEvent(
-        {
-          organizationId: organization.id,
-          actorUserAccountId: userAccount.id,
-          action: input.action,
-          entityType: "OfferingBatch",
-          entityId: batch.id,
-          changes: [
-            { field: "status", oldValue: input.fromStatus, newValue: input.toStatus },
-            {
-              field: "expectedTotal",
-              oldValue: integrity.expectedTotal,
-              newValue: integrity.expectedTotal,
-            },
-            {
-              field: "recordedTotal",
-              oldValue: integrity.recordedTotal,
-              newValue: integrity.recordedTotal,
-            },
-            {
-              field: "integrity",
-              oldValue: null,
-              newValue: JSON.stringify({
-                ok: true,
-                donationCount: integrity.donationCount,
-                allocationCount: integrity.allocationCount,
-              }),
-            },
-          ],
-        },
-        tx,
-      );
-
-      return {
-        id: batch.id,
-        status: input.toStatus,
-        expectedTotal: integrity.expectedTotal,
-        recordedTotal: integrity.recordedTotal,
-      };
     });
   } catch (error) {
     if (error instanceof OfferingBatchTransitionError) throw error;
@@ -324,6 +254,125 @@ async function transitionOfferingBatch(input: {
       "This batch status could not be changed.",
     );
   }
+}
+
+export async function applyOfferingBatchTransition(input: {
+  db: Prisma.TransactionClient;
+  organizationId: string;
+  actorUserAccountId: string;
+  batchId: string;
+  fromStatus: OfferingBatchStatus;
+  toStatus: OfferingBatchStatus;
+  requireBalancedExpected: boolean;
+  action: string;
+  snapshot: ReturnType<typeof requireConfirmation>;
+}) {
+  const locked = await lockChurchThenOfferingBatch(
+    input.db,
+    input.organizationId,
+    input.batchId,
+  );
+  if (!locked.organization || !locked.batch) {
+    throw new OfferingBatchTransitionError(
+      "NOT_FOUND",
+      "Offering batch not found.",
+    );
+  }
+
+  const batch = await input.db.offeringBatch.findFirst({
+    where: { id: input.batchId, organizationId: input.organizationId },
+    select: {
+      id: true,
+      status: true,
+      expectedTotal: true,
+      recordedTotal: true,
+    },
+  });
+  if (!batch) {
+    throw new OfferingBatchTransitionError(
+      "NOT_FOUND",
+      "Offering batch not found.",
+    );
+  }
+
+  const donations = await findBatchIntegrityRows(
+    input.organizationId,
+    input.batchId,
+    input.db,
+  );
+  const integrity = toIntegrityResult(
+    batch,
+    donations,
+    input.fromStatus,
+    input.requireBalancedExpected,
+  );
+  if (!integrity.ok) {
+    throwIntegrityFailure(integrity.issues);
+  }
+  if (!transitionSnapshotMatches(input.snapshot, integrity)) {
+    throw new OfferingBatchTransitionError(
+      "CONCURRENT_CHANGE",
+      BATCH_INTEGRITY_MESSAGES.CONCURRENT_CHANGE,
+      ["CONCURRENT_CHANGE"],
+    );
+  }
+
+  const updated = await input.db.offeringBatch.updateMany({
+    where: {
+      id: input.batchId,
+      organizationId: input.organizationId,
+      status: input.fromStatus,
+      recordedTotal: integrity.recordedTotal,
+    },
+    data: { status: input.toStatus },
+  });
+  if (updated.count !== 1) {
+    throw new OfferingBatchTransitionError(
+      "CONCURRENT_CHANGE",
+      BATCH_INTEGRITY_MESSAGES.CONCURRENT_CHANGE,
+      ["CONCURRENT_CHANGE"],
+    );
+  }
+
+  await createAuditEvent(
+    {
+      organizationId: input.organizationId,
+      actorUserAccountId: input.actorUserAccountId,
+      action: input.action,
+      entityType: "OfferingBatch",
+      entityId: batch.id,
+      changes: [
+        { field: "status", oldValue: input.fromStatus, newValue: input.toStatus },
+        {
+          field: "expectedTotal",
+          oldValue: integrity.expectedTotal,
+          newValue: integrity.expectedTotal,
+        },
+        {
+          field: "recordedTotal",
+          oldValue: integrity.recordedTotal,
+          newValue: integrity.recordedTotal,
+        },
+        {
+          field: "integrity",
+          oldValue: null,
+          newValue: JSON.stringify({
+            ok: true,
+            donationCount: integrity.donationCount,
+            allocationCount: integrity.allocationCount,
+          }),
+        },
+      ],
+    },
+    input.db,
+  );
+
+  return {
+    id: batch.id,
+    status: input.toStatus,
+    expectedTotal: integrity.expectedTotal,
+    recordedTotal: integrity.recordedTotal,
+  };
 }
 
 export async function completeOfferingBatchEntry(

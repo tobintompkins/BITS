@@ -1,3 +1,4 @@
+import type { Prisma } from "@/app/generated/prisma/client";
 import { OfferingBatchStatus } from "@/app/generated/prisma/client";
 
 import { prisma } from "@/lib/db/prisma";
@@ -13,8 +14,12 @@ import {
   evaluateOfferingBatchIntegrity,
   type BatchIntegrityIssue,
 } from "@/lib/batches/integrity";
+import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
 import { offeringBatchDepositWriteSchema } from "@/lib/validation/offering-batch-deposit";
-import { offeringBatchTransitionSchema } from "@/lib/validation/offering-batch-transition";
+import {
+  offeringBatchTransitionSchema,
+  transitionSnapshotMatches,
+} from "@/lib/validation/offering-batch-transition";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
 import { findBatchIntegrityRows } from "@/server/repositories/offering-batch.repository";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
@@ -133,6 +138,17 @@ export async function recordOfferingBatchDeposit(
 
   try {
     return await prisma.$transaction(async (tx) => {
+      const locked = await lockChurchThenOfferingBatch(
+        tx,
+        organization.id,
+        batchId,
+      );
+      if (!locked.organization || !locked.batch) {
+        throw new OfferingBatchDepositError(
+          "NOT_FOUND",
+          "Offering batch not found.",
+        );
+      }
       const batch = await tx.offeringBatch.findFirst({
         where: { id: batchId, organizationId: organization.id },
         select: {
@@ -292,101 +308,13 @@ export async function lockOfferingBatch(batchId: string, rawInput: unknown) {
 
   try {
     return await prisma.$transaction(async (tx) => {
-      const batch = await tx.offeringBatch.findFirst({
-        where: { id: batchId, organizationId: organization.id },
-        select: {
-          id: true,
-          status: true,
-          expectedTotal: true,
-          recordedTotal: true,
-          offeringDate: true,
-          depositDate: true,
-          depositReference: true,
-        },
-      });
-      if (!batch) {
-        throw new OfferingBatchDepositError(
-          "NOT_FOUND",
-          "Offering batch not found.",
-        );
-      }
-
-      const donations = await findBatchIntegrityRows(
-        organization.id,
+      return applyLockOfferingBatch({
+        db: tx,
+        organizationId: organization.id,
+        actorUserAccountId: userAccount.id,
         batchId,
-        tx,
-      );
-      const integrity = assessReconciledBatch(batch, donations, {
-        requireDeposit: true,
+        snapshot: confirmed.data,
       });
-      if (!integrity.ok) {
-        throwIntegrityFailure(integrity.issues);
-      }
-
-      const updated = await tx.offeringBatch.updateMany({
-        where: {
-          id: batchId,
-          organizationId: organization.id,
-          status: OfferingBatchStatus.RECONCILED,
-          recordedTotal: integrity.recordedTotal,
-        },
-        data: { status: OfferingBatchStatus.LOCKED },
-      });
-      if (updated.count !== 1) {
-        throw new OfferingBatchDepositError(
-          "CONCURRENT_CHANGE",
-          BATCH_INTEGRITY_MESSAGES.CONCURRENT_CHANGE,
-          ["CONCURRENT_CHANGE"],
-        );
-      }
-
-      const depositDate = depositDateString(batch.depositDate);
-      await createAuditEvent(
-        {
-          organizationId: organization.id,
-          actorUserAccountId: userAccount.id,
-          action: LOCK_OFFERING_BATCH,
-          entityType: "OfferingBatch",
-          entityId: batch.id,
-          changes: [
-            {
-              field: "status",
-              oldValue: OfferingBatchStatus.RECONCILED,
-              newValue: OfferingBatchStatus.LOCKED,
-            },
-            {
-              field: "expectedTotal",
-              oldValue: integrity.expectedTotal,
-              newValue: integrity.expectedTotal,
-            },
-            {
-              field: "recordedTotal",
-              oldValue: integrity.recordedTotal,
-              newValue: integrity.recordedTotal,
-            },
-            {
-              field: "depositDate",
-              oldValue: depositDate,
-              newValue: depositDate,
-            },
-            {
-              field: "depositReference",
-              oldValue: batch.depositReference,
-              newValue: batch.depositReference,
-            },
-          ],
-        },
-        tx,
-      );
-
-      return {
-        id: batch.id,
-        status: OfferingBatchStatus.LOCKED,
-        expectedTotal: integrity.expectedTotal,
-        recordedTotal: integrity.recordedTotal,
-        depositDate,
-        depositReference: batch.depositReference,
-      };
     });
   } catch (error) {
     if (error instanceof OfferingBatchDepositError) throw error;
@@ -395,4 +323,127 @@ export async function lockOfferingBatch(batchId: string, rawInput: unknown) {
       "This batch could not be locked.",
     );
   }
+}
+
+export async function applyLockOfferingBatch(input: {
+  db: Prisma.TransactionClient;
+  organizationId: string;
+  actorUserAccountId: string;
+  batchId: string;
+  snapshot: (typeof offeringBatchTransitionSchema)["_output"];
+}) {
+  const locked = await lockChurchThenOfferingBatch(
+    input.db,
+    input.organizationId,
+    input.batchId,
+  );
+  if (!locked.organization || !locked.batch) {
+    throw new OfferingBatchDepositError(
+      "NOT_FOUND",
+      "Offering batch not found.",
+    );
+  }
+
+  const batch = await input.db.offeringBatch.findFirst({
+    where: { id: input.batchId, organizationId: input.organizationId },
+    select: {
+      id: true,
+      status: true,
+      expectedTotal: true,
+      recordedTotal: true,
+      offeringDate: true,
+      depositDate: true,
+      depositReference: true,
+    },
+  });
+  if (!batch) {
+    throw new OfferingBatchDepositError(
+      "NOT_FOUND",
+      "Offering batch not found.",
+    );
+  }
+
+  const donations = await findBatchIntegrityRows(
+    input.organizationId,
+    input.batchId,
+    input.db,
+  );
+  const integrity = assessReconciledBatch(batch, donations, {
+    requireDeposit: true,
+  });
+  if (!integrity.ok) {
+    throwIntegrityFailure(integrity.issues);
+  }
+  if (!transitionSnapshotMatches(input.snapshot, integrity)) {
+    throw new OfferingBatchDepositError(
+      "CONCURRENT_CHANGE",
+      BATCH_INTEGRITY_MESSAGES.CONCURRENT_CHANGE,
+      ["CONCURRENT_CHANGE"],
+    );
+  }
+
+  const updated = await input.db.offeringBatch.updateMany({
+    where: {
+      id: input.batchId,
+      organizationId: input.organizationId,
+      status: OfferingBatchStatus.RECONCILED,
+      recordedTotal: integrity.recordedTotal,
+    },
+    data: { status: OfferingBatchStatus.LOCKED },
+  });
+  if (updated.count !== 1) {
+    throw new OfferingBatchDepositError(
+      "CONCURRENT_CHANGE",
+      BATCH_INTEGRITY_MESSAGES.CONCURRENT_CHANGE,
+      ["CONCURRENT_CHANGE"],
+    );
+  }
+
+  const depositDate = depositDateString(batch.depositDate);
+  await createAuditEvent(
+    {
+      organizationId: input.organizationId,
+      actorUserAccountId: input.actorUserAccountId,
+      action: LOCK_OFFERING_BATCH,
+      entityType: "OfferingBatch",
+      entityId: batch.id,
+      changes: [
+        {
+          field: "status",
+          oldValue: OfferingBatchStatus.RECONCILED,
+          newValue: OfferingBatchStatus.LOCKED,
+        },
+        {
+          field: "expectedTotal",
+          oldValue: integrity.expectedTotal,
+          newValue: integrity.expectedTotal,
+        },
+        {
+          field: "recordedTotal",
+          oldValue: integrity.recordedTotal,
+          newValue: integrity.recordedTotal,
+        },
+        {
+          field: "depositDate",
+          oldValue: depositDate,
+          newValue: depositDate,
+        },
+        {
+          field: "depositReference",
+          oldValue: batch.depositReference,
+          newValue: batch.depositReference,
+        },
+      ],
+    },
+    input.db,
+  );
+
+  return {
+    id: batch.id,
+    status: OfferingBatchStatus.LOCKED,
+    expectedTotal: integrity.expectedTotal,
+    recordedTotal: integrity.recordedTotal,
+    depositDate,
+    depositReference: batch.depositReference,
+  };
 }

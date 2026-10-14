@@ -4,6 +4,7 @@ import {
   moneyDifference,
   moneyEquals,
   moneyIsPositive,
+  moneySubtract,
   parseMoneyInput,
   parsePositiveMoneyInput,
   sumMoneyAmounts,
@@ -18,6 +19,8 @@ describe("decimal money helpers", () => {
     expect(moneyDifference("0.30", "0.10")).toBe("0.20");
     expect(sumMoneyAmounts(["10.10", "0.20", "0.01"])).toBe("10.31");
     expect(moneyEquals(sumMoneyAmounts(["0.10", "0.20"]), "0.30")).toBe(true);
+    expect(moneySubtract("0.30", "0.10")).toBe("0.20");
+    expect(moneySubtract("0.00", "10.00")).toBe("-10.00");
     expect(parsePositiveMoneyInput("1.00")).toBe("1.00");
     expect(moneyIsPositive("0.01")).toBe(true);
     expect(moneyIsPositive("0.00")).toBe(false);

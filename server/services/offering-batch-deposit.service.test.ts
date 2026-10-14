@@ -113,6 +113,31 @@ vi.mock("@/lib/db/prisma", () => ({
         }));
         const auditSnapshot = [...store.audits];
         const tx = {
+          $queryRaw: async (
+            strings: TemplateStringsArray,
+            ...values: unknown[]
+          ) => {
+            const sql = strings.join("?");
+            if (sql.includes("FROM organizations")) {
+              return [{ id: String(values[0]) }];
+            }
+            if (sql.includes("FROM offering_batches")) {
+              const row = store.batches.get(String(values[0]));
+              if (!row || row.organizationId !== String(values[1])) return [];
+              return [
+                {
+                  id: row.id,
+                  status: row.status,
+                  expectedTotal: row.expectedTotal?.toString() ?? null,
+                  recordedTotal: row.recordedTotal.toString(),
+                  offeringDate: row.offeringDate,
+                  depositDate: row.depositDate,
+                  depositReference: row.depositReference,
+                },
+              ];
+            }
+            return [];
+          },
           offeringBatch: {
             findFirst: async ({
               where,
@@ -209,6 +234,22 @@ const USER_ID = "00000000-0000-4000-8000-00000000c001";
 const BATCH_ID = "00000000-0000-4000-8000-00000000b001";
 const OFFERING_DATE = new Date("2026-09-06T00:00:00.000Z");
 const DEPOSIT_DATE = new Date("2026-09-10T00:00:00.000Z");
+
+function snapshot(
+  overrides: {
+    recordedTotal?: string;
+    expectedTotal?: string | null;
+    donationCount?: number;
+  } = {},
+) {
+  return {
+    confirmed: true as const,
+    recordedTotal: overrides.recordedTotal ?? "25.00",
+    expectedTotal:
+      overrides.expectedTotal === undefined ? "25.00" : overrides.expectedTotal,
+    donationCount: overrides.donationCount ?? 1,
+  };
+}
 
 const validDeposit = {
   depositDate: "2026-09-10",
@@ -342,7 +383,7 @@ describe("offering batch deposit tracking and locking", () => {
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
       seedDepositedBatch();
       await expect(
-        lockOfferingBatch(BATCH_ID, { confirmed: true }),
+        lockOfferingBatch(BATCH_ID, snapshot()),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
       expect(store.batches.get(BATCH_ID)?.depositReference).toBe("SLIP-1001");
       expect(store.batches.get(BATCH_ID)?.status).toBe(
@@ -364,7 +405,7 @@ describe("offering batch deposit tracking and locking", () => {
         allocation: store.donations[0]?.allocations[0]?.amount.toString(),
         deposit: store.batches.get(BATCH_ID)?.depositReference,
       });
-      const result = await lockOfferingBatch(BATCH_ID, { confirmed: true });
+      const result = await lockOfferingBatch(BATCH_ID, snapshot());
       expect(result.status).toBe(OfferingBatchStatus.LOCKED);
       expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.LOCKED);
       expect(store.batches.get(BATCH_ID)?.expectedTotal?.toString()).toBe(
@@ -398,14 +439,14 @@ describe("offering batch deposit tracking and locking", () => {
       recordOfferingBatchDeposit(BATCH_ID, validDeposit),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     mocks.getOrCreateUserAccount.mockResolvedValue(null);
     await expect(
       recordOfferingBatchDeposit(BATCH_ID, validDeposit),
     ).rejects.toMatchObject({ code: "SIGNED_OUT" });
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "SIGNED_OUT" });
     expect(store.audits).toHaveLength(0);
   });
@@ -416,7 +457,7 @@ describe("offering batch deposit tracking and locking", () => {
       recordOfferingBatchDeposit(BATCH_ID, validDeposit),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(store.audits).toHaveLength(0);
   });
@@ -429,7 +470,7 @@ describe("offering batch deposit tracking and locking", () => {
         recordOfferingBatchDeposit(BATCH_ID, validDeposit),
       ).rejects.toMatchObject({ code: "INVALID_STATUS" });
       await expect(
-        lockOfferingBatch(BATCH_ID, { confirmed: true }),
+        lockOfferingBatch(BATCH_ID, snapshot()),
       ).rejects.toMatchObject({ code: "INVALID_STATUS" });
       expect(store.batches.get(BATCH_ID)?.depositReference).toBeNull();
       expect(store.batches.get(BATCH_ID)?.status).toBe(status);
@@ -439,7 +480,7 @@ describe("offering batch deposit tracking and locking", () => {
 
   it("cannot lock a reconciled batch without deposit information", async () => {
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "DEPOSIT_REQUIRED" });
     expect(store.batches.get(BATCH_ID)?.status).toBe(
       OfferingBatchStatus.RECONCILED,
@@ -489,13 +530,13 @@ describe("offering batch deposit tracking and locking", () => {
     seedDepositedBatch();
     store.batches.get(BATCH_ID)!.expectedTotal = money("30.00");
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "BATCH_NOT_BALANCED" });
 
     seedDepositedBatch();
     store.donations = [];
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "NO_DONATIONS" });
 
     seedDepositedBatch();
@@ -508,7 +549,7 @@ describe("offering batch deposit tracking and locking", () => {
       },
     ];
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "ALLOCATION_TOTAL_MISMATCH" });
 
     seedDepositedBatch();
@@ -521,7 +562,7 @@ describe("offering batch deposit tracking and locking", () => {
       },
     ];
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "DONATION_WITHOUT_ALLOCATIONS" });
     expect(store.audits).toHaveLength(0);
     expect(store.batches.get(BATCH_ID)?.status).toBe(
@@ -545,7 +586,7 @@ describe("offering batch deposit tracking and locking", () => {
       },
     ];
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "RECORDED_TOTAL_NOT_POSITIVE" });
     await expect(
       recordOfferingBatchDeposit(BATCH_ID, validDeposit),
@@ -568,8 +609,8 @@ describe("offering batch deposit tracking and locking", () => {
   it("allows only one concurrent lock to succeed", async () => {
     seedDepositedBatch();
     const [first, second] = await Promise.allSettled([
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ]);
     const successes = [first, second].filter((row) => row.status === "fulfilled");
     const failures = [first, second].filter((row) => row.status === "rejected");
@@ -593,7 +634,7 @@ describe("offering batch deposit tracking and locking", () => {
     seedDepositedBatch();
     store.persistShouldFail = true;
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toBeInstanceOf(OfferingBatchDepositError);
     expect(store.batches.get(BATCH_ID)?.status).toBe(
       OfferingBatchStatus.RECONCILED,
@@ -614,7 +655,7 @@ describe("offering batch deposit tracking and locking", () => {
       }),
     ).rejects.toMatchObject({ code: "INVALID_STATUS" });
     await expect(
-      lockOfferingBatch(BATCH_ID, { confirmed: true }),
+      lockOfferingBatch(BATCH_ID, snapshot()),
     ).rejects.toMatchObject({ code: "INVALID_STATUS" });
     expect(store.batches.get(BATCH_ID)?.depositReference).toBe("SLIP-1001");
     expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.LOCKED);
@@ -629,5 +670,16 @@ describe("offering batch deposit tracking and locking", () => {
     expect(store.batches.get(BATCH_ID)?.status).toBe(
       OfferingBatchStatus.RECONCILED,
     );
+  });
+
+  it("rejects a stale lock confirmation after the reviewed snapshot changes", async () => {
+    seedDepositedBatch();
+    await expect(
+      lockOfferingBatch(BATCH_ID, snapshot({ recordedTotal: "40.00" })),
+    ).rejects.toMatchObject({ code: "CONCURRENT_CHANGE" });
+    expect(store.batches.get(BATCH_ID)?.status).toBe(
+      OfferingBatchStatus.RECONCILED,
+    );
+    expect(store.audits).toHaveLength(0);
   });
 });

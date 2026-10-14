@@ -151,6 +151,78 @@ export function resolveStatementPdfS3Config(
   };
 }
 
+export const STATEMENT_PDF_PROBE_ORGANIZATION_ID =
+  "00000000-0000-4000-8000-00000000f00d";
+
+function dedicatedTestBucketName(name: string) {
+  const bucket = name.trim().toLowerCase();
+  return (
+    bucket.includes("test") ||
+    /(^|[_-])e2e([_-]|$)/.test(bucket) ||
+    bucket.endsWith("e2e")
+  );
+}
+
+export function resolveStatementPdfTestTarget(
+  env: StatementPdfEnv = process.env,
+): StatementPdfWriteConfig {
+  if (read(env, "BITS_STATEMENT_S3_TEST_TARGET") !== "1") {
+    return {
+      ok: false,
+      reason: "MISSING_DURABLE_CONFIG",
+      message:
+        "Synthetic statement-storage writes require BITS_STATEMENT_S3_TEST_TARGET=1 and a dedicated BITS_STATEMENT_S3_TEST_BUCKET. The application BITS_STATEMENT_S3_BUCKET is not inherited.",
+    };
+  }
+  const bucket = read(env, "BITS_STATEMENT_S3_TEST_BUCKET");
+  if (!bucket) {
+    return {
+      ok: false,
+      reason: "MISSING_DURABLE_CONFIG",
+      message:
+        "BITS_STATEMENT_S3_TEST_BUCKET is required for synthetic probe and restore writes.",
+    };
+  }
+  if (!dedicatedTestBucketName(bucket)) {
+    return {
+      ok: false,
+      reason: "INVALID_CONFIG",
+      message:
+        "BITS_STATEMENT_S3_TEST_BUCKET must be a dedicated test or e2e bucket name.",
+    };
+  }
+  const appBucket = read(env, "BITS_STATEMENT_S3_BUCKET");
+  if (appBucket && appBucket === bucket) {
+    return {
+      ok: false,
+      reason: "INVALID_CONFIG",
+      message:
+        "BITS_STATEMENT_S3_TEST_BUCKET must not equal BITS_STATEMENT_S3_BUCKET. Designate an isolated test target.",
+    };
+  }
+
+  const scoped: StatementPdfEnv = {
+    ...env,
+    BITS_STATEMENT_S3_BUCKET: bucket,
+    BITS_STATEMENT_S3_REGION:
+      read(env, "BITS_STATEMENT_S3_TEST_REGION") ||
+      read(env, "BITS_STATEMENT_S3_REGION"),
+    BITS_STATEMENT_S3_ENDPOINT:
+      read(env, "BITS_STATEMENT_S3_TEST_ENDPOINT") ||
+      read(env, "BITS_STATEMENT_S3_ENDPOINT"),
+    BITS_STATEMENT_S3_PREFIX:
+      read(env, "BITS_STATEMENT_S3_TEST_PREFIX") ||
+      read(env, "BITS_STATEMENT_S3_PREFIX"),
+    BITS_STATEMENT_S3_FORCE_PATH_STYLE:
+      read(env, "BITS_STATEMENT_S3_TEST_FORCE_PATH_STYLE") ||
+      read(env, "BITS_STATEMENT_S3_FORCE_PATH_STYLE"),
+    BITS_STATEMENT_S3_ALLOW_INSECURE_HTTP:
+      read(env, "BITS_STATEMENT_S3_TEST_ALLOW_INSECURE_HTTP") ||
+      read(env, "BITS_STATEMENT_S3_ALLOW_INSECURE_HTTP"),
+  };
+  return resolveStatementPdfS3Config(scoped);
+}
+
 export function statementStorageDiagnostics(env: StatementPdfEnv = process.env) {
   const write = resolveStatementPdfWriteConfig(env);
   return {

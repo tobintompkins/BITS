@@ -82,3 +82,47 @@ export function countBatchDonations(organizationId: string, batchId: string) {
     where: { organizationId, batchId },
   });
 }
+
+const donationEditSelect = {
+  id: true,
+  organizationId: true,
+  batchId: true,
+  donorId: true,
+  offeringDate: true,
+  receivedDate: true,
+  paymentMethod: true,
+  totalAmount: true,
+  checkNumber: true,
+  note: true,
+  anonymous: true,
+  isTaxDeductible: true,
+  deductibleAmount: true,
+  goodsOrServicesProvided: true,
+  goodsOrServicesDescription: true,
+  goodsOrServicesEstimatedValue: true,
+  intangibleReligiousBenefitsOnly: true,
+  stripeCheckoutSessionId: true,
+  stripePaymentIntentId: true,
+  isTest: true,
+  donor: {
+    select: { id: true, firstName: true, lastName: true },
+  },
+  allocations: {
+    select: {
+      offeringTypeId: true,
+      amount: true,
+    },
+    orderBy: { offeringType: { displayOrder: "asc" } },
+  },
+} satisfies Prisma.DonationSelect;
+
+export function findManualBatchDonationForEdit(
+  organizationId: string,
+  batchId: string,
+  donationId: string,
+) {
+  return prisma.donation.findFirst({
+    where: { id: donationId, organizationId, batchId },
+    select: donationEditSelect,
+  });
+}

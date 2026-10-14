@@ -23,6 +23,16 @@ enum RoleCode {
   DONOR
 }
 
+enum StaffInvitationStatus {
+  AUTHORIZED
+  SENT
+  FAILED
+  UNKNOWN
+  REVOKED
+  ACCEPTED
+  EXPIRED
+}
+
 enum OfferingBatchStatus {
   DRAFT
   ENTERED
@@ -645,6 +655,7 @@ model Organization {
   backupReadinessLogs       BackupReadinessLog[]
   memberApprovedPickups     MemberApprovedPickup[]
   childPickupCheckoutVerifications ChildPickupCheckoutVerification[]
+  staffInvitations          StaffInvitation[]
   events                    Event[]
   eventRegistrationSettings EventRegistrationSettings[]
   eventRegistrations        EventRegistration[]
@@ -754,6 +765,9 @@ model UserAccount {
   backupReadinessLogsPerformed BackupReadinessLog[] @relation("BackupReadinessLogPerformedBy")
   memberApprovedPickupsDeactivated MemberApprovedPickup[] @relation("MemberApprovedPickupDeactivatedBy")
   childPickupCheckoutVerifications ChildPickupCheckoutVerification[] @relation("ChildPickupCheckoutVerifiedBy")
+  staffInvitationsSent             StaffInvitation[] @relation("StaffInvitationInvitedBy")
+  staffInvitationsAccepted         StaffInvitation[] @relation("StaffInvitationAcceptedBy")
+  staffInvitationsReapproved       StaffInvitation[] @relation("StaffInvitationReapprovedBy")
 
   @@map("user_accounts")
 }
@@ -776,6 +790,7 @@ model OrganizationMembership {
   userAccountId  String   @db.Uuid
   roleTypeId     String   @db.Uuid
   active         Boolean  @default(true)
+  version        Int      @default(1)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -788,6 +803,38 @@ model OrganizationMembership {
   @@index([userAccountId])
   @@index([organizationId, active])
   @@map("organization_memberships")
+}
+
+model StaffInvitation {
+  id                        String                 @id @default(uuid()) @db.Uuid
+  organizationId            String                 @db.Uuid
+  emailNormalized           String
+  emailDisplay              String
+  roleCode                  RoleCode
+  invitedByUserAccountId    String                 @db.Uuid
+  status                    StaffInvitationStatus
+  version                   Int                    @default(1)
+  clerkInvitationId         String?
+  clerkOrganizationId       String
+  expiresAt                 DateTime
+  acceptedUserAccountId     String?                @db.Uuid
+  acceptedAt                DateTime?
+  lastProviderErrorRedacted String?
+  reapprovedByUserAccountId String?                @db.Uuid
+  reapprovedAt              DateTime?
+  activeEmailKey            String?
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    UserAccount  @relation("StaffInvitationInvitedBy", fields: [invitedByUserAccountId], references: [id], onDelete: Restrict)
+  acceptedBy   UserAccount? @relation("StaffInvitationAcceptedBy", fields: [acceptedUserAccountId], references: [id], onDelete: SetNull)
+  reapprovedBy UserAccount? @relation("StaffInvitationReapprovedBy", fields: [reapprovedByUserAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, activeEmailKey])
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+  @@map("staff_invitations")
 }
 
 // ---------------------------------------------------------------------------
