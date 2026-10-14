@@ -4,12 +4,12 @@ import {
   StatementStatus,
   StatementType,
 } from "@/app/generated/prisma/client";
+import { findCurrentOrganizationForUser } from "@/lib/auth/current-organization";
 import { requireStatementManageAccess } from "@/lib/auth/giving-permissions";
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { prisma } from "@/lib/db/prisma";
 import { isSafeStatementPdfStorageKey } from "@/lib/storage/statement-pdf";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
 const statementIdSchema = z.string().uuid();
 const CHECKSUM_PATTERN = /^[0-9a-f]{64}$/i;
@@ -53,7 +53,7 @@ export async function authorizeStaffGeneratedStatementPdf(
     return { status: "SIGNED_OUT" };
   }
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findCurrentOrganizationForUser(userAccount.id);
   if (!organization) {
     return { status: "NOT_AVAILABLE" };
   }

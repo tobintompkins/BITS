@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type MemberRow = {
   id: string;
@@ -306,6 +306,8 @@ function seed() {
   ];
 }
 
+const NOW = new Date("2026-09-25T12:00:00.000Z");
+
 beforeEach(() => {
   store.members = [];
   store.requests = [];
@@ -313,6 +315,7 @@ beforeEach(() => {
   store.lastRequestWhere = null;
   store.lastRequestSelect = null;
   store.lastCreateData = null;
+  vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
   mocks.getOrCreateUserAccount.mockReset();
   mocks.findPrimaryOrganization.mockReset();
   mocks.getMemberEngagementAccess.mockReset();
@@ -324,6 +327,10 @@ beforeEach(() => {
   mocks.findPrimaryOrganization.mockResolvedValue({ id: ORG_ID });
   mocks.getMemberEngagementAccess.mockResolvedValue(staffAccess());
   seed();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("member volunteer time-off requests", () => {

@@ -1,9 +1,9 @@
 # BITS Roadmap Tracker
 
-**Last updated:** October 3, 2026
+**Last updated:** October 14, 2026
 
-**Current handoff:** Durable private statement PDF storage adapter implemented October 3 (local legacy keys plus optional S3-compatible `s3v1:` writes). Adapter tests are not production configuration, migration, or restore evidence. Authenticated report/household acceptance and launch verification remain. Preserve existing child-pickup, offering-type, donor, giving-household, report-catalog, and Clerk-pin work.
-**Status basis:** Source, Git, tests, lint, typecheck and production build on October 3, 2026; HEAD `1fef2d0` plus uncommitted statement-storage, report-catalog, contribution-report, giving-household, offering-type, donor, child-pickup, and Clerk-pin work. Latest suite: 196 files / 1,479 tests. Kiosk work is committed. Approved pickup and child checkout code and migrations remain present as uncommitted changes. Live object-store, restore, and signed-in browser acceptance were not completed in this increment.
+**Current handoff:** Original Core 07A review fixes: login no longer auto-assigns ORG_ADMIN; acceptance audit cleanup is current-run owned entities only; database-target equivalence ignores login username. Live authenticated two-tenant execution is still blocked on Clerk development identities. Do not treat this as original v1 completion. Preserve statement-storage, report-catalog, contribution-report, giving-household, offering-type, donor, child-pickup, and Clerk-pin work.
+**Status basis:** Source and Git on October 14, 2026; HEAD `1fef2d0` plus uncommitted Core 02–07A and earlier local work. Today's unit suite: 206 files / 1,533 tests, all passed. Isolated `bits_e2e` exists; live signed-in two-tenant acceptance is blocked on Clerk development identities. Live object-store, restore, and launch verification remain.
 
 ## How to read this tracker
 
@@ -26,7 +26,7 @@ Primary source: **BITS — Bring In The Sheaves, Product and Technical Design Sp
 | May phase / requirement | Current assessment | Evidence and remaining acceptance |
 |---|---|---|
 | Phase 0 — architecture, database, Clerk, policies, audit, testing, Railway test deployment | Foundation present; deployment unverified | App/service/repository structure and Prisma schema exist. Current two-organization tests and Railway configuration were not exercised. |
-| Phase 1A — organization and original staff roles (`FR-ORG-*`, `FR-AUTH-*`) | Partial / acceptance outstanding | Organization settings, membership schema, role codes and permission helpers exist. Access directory alone does not prove staff invitations, role changes and full original role matrix. |
+| Phase 1A — organization and original staff roles (`FR-ORG-*`, `FR-AUTH-*`) | Partial / live acceptance blocked | Organization settings, membership schema, role codes and permission helpers exist. Core 07/07A add a fail-closed authenticated role/tenant harness and stop login-time admin auto-provisioning (`docs/original-v1-role-tenant-acceptance.md`). Live two-church Clerk execution is not evidenced. Staff invitations and role-change administration remain a separate gap. |
 | Phase 1A — donors independent of accounts (`FR-DONOR-001–003`) | Core maintenance implemented; acceptance pending | `/donors`, `/donors/new` and `/donors/[id]` now provide paginated search, active/inactive filters, accountless creation, contact/address/preferences/notes editing and deactivation. Donor detail now shows giving-household history. Full workflow acceptance remains. See `docs/donor-management-core.md`. |
 | Phase 1A — donor households/history (`FR-HH-001–004`) | Core maintenance implemented; acceptance pending | `/giving-households` directory, create/edit, link/move/end, and donor-detail history. 03A adds atomic `updatedAt` settings writes, household-then-donor sorted locks, searchable 25-row donor/household pickers, and server-derived donor/household revalidation. Partial unique index `household_memberships_one_open_per_donor` remains. Member-household screens at `/households` remain a separate system. Authenticated browser acceptance and live two-session lock tests remain. See `docs/donor-household-history.md`. |
 | Phase 1A — offering-type administration (`FR-TYPE-001–003`) | Core maintenance implemented; acceptance pending | `/offering-types`, `/offering-types/new` and `/offering-types/[id]` now provide paginated name/code search, active/inactive/all filters, create/edit, tax/online flags, immutable nonempty codes, and deactivate/reactivate that preserves allocations. Stripe checkout honors active/online flags for matching allowlisted funds without rewriting existing types on settlement. Authenticated browser acceptance remains. See `docs/offering-type-administration.md`. |
@@ -34,7 +34,7 @@ Primary source: **BITS — Bring In The Sheaves, Product and Technical Design Sp
 | Phase 1C — giving reports and CSV (`FR-REPORT-001–002`, section 14) | Catalog views/exports implemented; acceptance pending | `/reports` provides donation-detail, donor, giving-household and offering-type views plus matching audited CSV. `/reports/batch-reconciliation` adds the batch worksheet, CSV and print view. `/reports/statement-access` adds the restricted access-event report and CSV. Attendance reports and church-data export remain separate. Authenticated treasurer/report-viewer acceptance remains. See `docs/contribution-reports.md` and `docs/report-catalog-exports.md`. |
 | Phase 1C — statements and donor portal (`FR-STMT-*`) | Substantial implementation; storage adapter present, not production-verified | Individual/household generation, publication, registry, void/reissue, gifts and authorized PDF access services exist. Local legacy PDF keys remain valid. New writes can use a private S3-compatible backend (`s3v1:` references) when configured. No live bucket, migration, or restore has been verified. See `docs/private-statement-storage.md`. |
 | Audit (`FR-AUDIT-001–004`) | Helpers/workflows present; complete coverage unverified | Verify all original entities and protected export/view/download operations, safe metadata and append-only behavior. |
-| Phase 1D — hardening and launch | Not established complete | Fresh financial/tenant/role end-to-end acceptance, accessibility, backups/restore, production runbook, private durable PDF storage and staff documentation remain required. Historical event-only checks do not certify this release. |
+| Phase 1D — hardening and launch | Not established complete | Core 07/07A implement the role/tenant acceptance harness and isolated preflight/setup. Live two-tenant execution is still blocked on Clerk identities. Accessibility, backups/restore, production runbook, private durable PDF storage verification, and staff documentation remain required. Historical event-only checks do not certify this release. |
 | Phase 2 — one-time Stripe gifts | Implementation present; payment acceptance outstanding | Member checkout uses `mode: "payment"`; verified/idempotent webhook service exists. Live deployment/payment success not verified here. |
 | Phase 2 — recurring gifts, fee coverage, transactions/refunds (`FR-PAY-FUTURE-*`) | Remaining / not established | Weekly/monthly giving, optional fee coverage, payment lifecycle review, BITS-initiated refunds and statement impacts require implementation or evidence. Dedicated payment/recurring/refund models were not identified in the reviewed schema. |
 
@@ -42,8 +42,8 @@ Primary source: **BITS — Bring In The Sheaves, Product and Technical Design Sp
 
 Original version 1 is **not established complete**. Require evidence for all of these before marking it complete:
 
-1. Two organizations coexist with passing isolation tests.
-2. Staff/donor authentication and the five original roles pass authorization tests.
+1. Two organizations coexist with passing isolation tests. Harness exists; live two-tenant run is blocked on Clerk identities and an isolated database.
+2. Staff/donor authentication and the five original roles pass authorization tests. Harness exists; live authenticated execution is pending configuration.
 3. Donor, donor-household and offering-type maintenance is usable.
 4. Identified and anonymous gift entry preserves allocation totals and lock rules.
 5. Required contribution reports/CSV and individual/household PDFs work.
@@ -109,11 +109,10 @@ The detailed phase lists below preserve requested scope; they are not all comple
 
 ## Immediate next steps
 
-1. Accept the donor, offering-type, giving-household, contribution-report, and report-catalog increments with authorized staff/report-viewer accounts. Preserve patches 80–81 for their own migration, permission and pickup acceptance checks.
-2. Record current lint/typecheck/build/test results and hands-on outcomes. Preserve historical checks separately.
-3. Prioritize the remaining original v1 gaps: configure and probe private statement object storage, migrate local PDFs only after review, complete authenticated giving-household and report acceptance, and launch verification.
-4. Validate original v1 financial and tenant/role journeys in staging, including backup/restore and deployment evidence.
-5. Keep later church-management expansion and Phase 2 payments visible as separate workstreams. Reaching expanded Phase 6 does not establish completion of original v1.
+1. Finish Clerk development identities, start `npm run test:e2e:acceptance:server`, rerun preflight, then run `npm run test:e2e:acceptance`. Record that live result separately from the harness implementation.
+2. Preserve patches 80–81 and Core 02–07A work. Do not treat Core 07A as original v1 completion.
+3. Remaining original v1 gaps: live object-store probe/restore, broader ledger acceptance, staff-management completeness, two-session household locking, and deployment readiness.
+4. Keep later church-management expansion and Phase 2 payments visible as separate workstreams. Reaching expanded Phase 6 does not establish completion of original v1.
 
 ## Earlier work
 

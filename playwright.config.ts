@@ -13,6 +13,7 @@ const hasClerkE2E =
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["**/acceptance/**"],
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,

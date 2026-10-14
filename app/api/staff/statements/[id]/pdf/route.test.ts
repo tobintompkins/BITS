@@ -29,7 +29,7 @@ const store = vi.hoisted(() => ({
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   getOrCreateUserAccount: vi.fn(),
-  findPrimaryOrganization: vi.fn(),
+  findCurrentOrganizationForUser: vi.fn(),
   getGivingAccess: vi.fn(),
   openAuthorizedStatementPdf: vi.fn(),
   createAuditEvent: vi.fn(),
@@ -43,8 +43,8 @@ vi.mock("@/lib/auth/user-account", () => ({
   getOrCreateUserAccount: mocks.getOrCreateUserAccount,
 }));
 
-vi.mock("@/server/repositories/organization.repository", () => ({
-  findPrimaryOrganization: mocks.findPrimaryOrganization,
+vi.mock("@/lib/auth/current-organization", () => ({
+  findCurrentOrganizationForUser: mocks.findCurrentOrganizationForUser,
 }));
 
 vi.mock("@/lib/auth/giving-permissions", async () => {
@@ -182,7 +182,7 @@ describe("GET /api/staff/statements/[id]/pdf", () => {
     store.findFirstCalls = 0;
     mocks.auth.mockResolvedValue({ userId: "clerk_1" });
     mocks.getOrCreateUserAccount.mockResolvedValue({ id: USER_ID });
-    mocks.findPrimaryOrganization.mockResolvedValue({ id: ORG_ID });
+    mocks.findCurrentOrganizationForUser.mockResolvedValue({ id: ORG_ID });
     mocks.getGivingAccess.mockResolvedValue(
       getGivingCapabilitiesForRole(RoleCode.TREASURER),
     );

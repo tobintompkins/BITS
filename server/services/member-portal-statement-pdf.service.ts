@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { prisma } from "@/lib/db/prisma";
+import { findCurrentOrganizationForUser } from "@/lib/auth/current-organization";
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { prisma } from "@/lib/db/prisma";
 
 export const portalStatementPdfModeSchema = z.enum(["view", "download"]);
 export const portalStatementIdSchema = z.string().uuid();
@@ -143,7 +143,7 @@ export async function authorizePortalStatementPdf(
     return { status: "SIGNED_OUT" };
   }
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findCurrentOrganizationForUser(userAccount.id);
   if (!organization) {
     return { status: "NOT_AVAILABLE" };
   }

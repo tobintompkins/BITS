@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getOrCreateUserAccount: vi.fn(),
-  findPrimaryOrganization: vi.fn(),
+  findCurrentOrganizationForUser: vi.fn(),
   donorFindFirst: vi.fn(),
   householdFindMany: vi.fn(),
   statementFindFirst: vi.fn(),
@@ -13,8 +13,8 @@ vi.mock("@/lib/auth/user-account", () => ({
   getOrCreateUserAccount: mocks.getOrCreateUserAccount,
 }));
 
-vi.mock("@/server/repositories/organization.repository", () => ({
-  findPrimaryOrganization: mocks.findPrimaryOrganization,
+vi.mock("@/lib/auth/current-organization", () => ({
+  findCurrentOrganizationForUser: mocks.findCurrentOrganizationForUser,
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
@@ -56,7 +56,7 @@ function authorizedPdf(id = STATEMENT_ID) {
 describe("authorizePortalStatementPdf", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.findPrimaryOrganization.mockResolvedValue({ id: ORG_ID });
+    mocks.findCurrentOrganizationForUser.mockResolvedValue({ id: ORG_ID });
     mocks.getOrCreateUserAccount.mockResolvedValue({ id: USER_ID });
     mocks.donorFindFirst.mockResolvedValue({ id: DONOR_ID });
     mocks.householdFindMany.mockResolvedValue([]);

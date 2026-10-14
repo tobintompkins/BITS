@@ -1,3 +1,5 @@
+import { auth } from "@clerk/nextjs/server";
+
 import { isDatabaseUnavailableError } from "@/lib/db/database-unavailable";
 import { prisma } from "@/lib/db/prisma";
 
@@ -20,13 +22,54 @@ export type OrganizationWriteInput = {
   logoStorageKey?: string | null;
 };
 
+async function oldestOrganization() {
+  return prisma.organization.findFirst({
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+}
+
+/**
+ * Resolve the current church.
+ *
+ * Signed-in callers use the active Clerk organization, then exactly one
+ * active membership. A lone active church is not authorization. Signed-out
+ * public pages keep the legacy oldest-organization fallback for branding
+ * only; that path must not grant financial or staff privileges.
+ */
 export async function findPrimaryOrganization() {
   try {
-    return await prisma.organization.findFirst({
-      orderBy: {
-        createdAt: "asc",
-      },
-    });
+    const { userId, orgId } = await auth();
+
+    if (orgId) {
+      return await prisma.organization.findFirst({
+        where: { active: true, clerkOrganizationId: orgId },
+      });
+    }
+
+    if (userId) {
+      const account = await prisma.userAccount.findUnique({
+        where: { clerkUserId: userId },
+        select: { id: true },
+      });
+      if (!account) {
+        return null;
+      }
+
+      const memberships = await prisma.organizationMembership.findMany({
+        where: {
+          userAccountId: account.id,
+          active: true,
+          organization: { active: true },
+        },
+        include: { organization: true },
+        take: 2,
+      });
+      return memberships.length === 1 ? memberships[0].organization : null;
+    }
+
+    return await oldestOrganization();
   } catch (error) {
     if (!isDatabaseUnavailableError(error)) throw error;
     return null;

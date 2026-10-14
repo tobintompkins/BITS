@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   formatVolunteerConfirmationWhen,
@@ -440,6 +440,7 @@ describe("volunteer service confirmation", () => {
   beforeEach(() => {
     seed();
     vi.clearAllMocks();
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
     mocks.getOrCreateUserAccount.mockResolvedValue({
       id: USER_ID,
       primaryEmail: OWN_EMAIL,
@@ -451,6 +452,10 @@ describe("volunteer service confirmation", () => {
     mocks.getMemberEngagementAccess.mockResolvedValue({
       canManageMinistryRosters: true,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("denies signed-out, missing-organization, and pending members", async () => {
