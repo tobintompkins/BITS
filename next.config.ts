@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Next blocks dev assets for any host other than localhost. Cloud agents
+  // and local browsers open the app at 127.0.0.1.
+  allowedDevOrigins: ["127.0.0.1"],
   images: {
     remotePatterns: [
       {
