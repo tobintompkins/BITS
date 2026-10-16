@@ -78,6 +78,7 @@ export default async function EditBatchDonationPage({
           donationId={donationId}
           initialValues={detail.formValues}
           selectedDonor={detail.selectedDonor}
+          expectedReviewVersion={detail.reviewVersion}
         />
       ) : (
         <p
@@ -91,6 +92,7 @@ export default async function EditBatchDonationPage({
       <DeleteDraftDonationForm
         batchId={detail.batch.id}
         donationId={donationId}
+        expectedReviewVersion={detail.reviewVersion}
       />
     </div>
   );

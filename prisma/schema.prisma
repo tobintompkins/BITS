@@ -656,6 +656,7 @@ model Organization {
   memberApprovedPickups     MemberApprovedPickup[]
   childPickupCheckoutVerifications ChildPickupCheckoutVerification[]
   staffInvitations          StaffInvitation[]
+  ledgerCreateIdempotency   LedgerCreateIdempotency[]
   events                    Event[]
   eventRegistrationSettings EventRegistrationSettings[]
   eventRegistrations        EventRegistration[]
@@ -768,6 +769,7 @@ model UserAccount {
   staffInvitationsSent             StaffInvitation[] @relation("StaffInvitationInvitedBy")
   staffInvitationsAccepted         StaffInvitation[] @relation("StaffInvitationAcceptedBy")
   staffInvitationsReapproved       StaffInvitation[] @relation("StaffInvitationReapprovedBy")
+  ledgerCreateIdempotency          LedgerCreateIdempotency[]
 
   @@map("user_accounts")
 }
@@ -973,6 +975,7 @@ model OfferingBatch {
   depositReference       String?
   notes                  String?
   createdByUserAccountId String              @db.Uuid
+  reviewVersion          Int                 @default(1)
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
 
@@ -980,6 +983,7 @@ model OfferingBatch {
   createdBy    UserAccount  @relation(fields: [createdByUserAccountId], references: [id], onDelete: Restrict)
   donations    Donation[]
   correctionRequests FinancialCorrectionRequest[]
+  createIdempotency  LedgerCreateIdempotency[]
 
   @@index([organizationId])
   @@index([organizationId, status])
@@ -1042,6 +1046,7 @@ model Donation {
   donor        Donor?               @relation(fields: [donorId], references: [id], onDelete: Restrict)
   batch        OfferingBatch?       @relation(fields: [batchId], references: [id], onDelete: SetNull)
   allocations  DonationAllocation[]
+  createIdempotency LedgerCreateIdempotency[]
 
   @@index([organizationId])
   @@index([organizationId, offeringDate])
@@ -1070,6 +1075,28 @@ model DonationAllocation {
   @@index([offeringTypeId])
   @@index([organizationId, offeringTypeId])
   @@map("donation_allocations")
+}
+
+model LedgerCreateIdempotency {
+  id                   String   @id @default(uuid()) @db.Uuid
+  organizationId       String   @db.Uuid
+  action               String
+  operationToken       String
+  actorUserAccountId   String   @db.Uuid
+  batchId              String   @db.Uuid
+  payloadFingerprint   String
+  donationId           String?  @db.Uuid
+  resultJson           String?
+  createdAt            DateTime @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        UserAccount   @relation(fields: [actorUserAccountId], references: [id], onDelete: Restrict)
+  batch        OfferingBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  donation     Donation?     @relation(fields: [donationId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, action, operationToken], map: "ledger_create_idempotency_org_action_token_key")
+  @@index([organizationId, batchId])
+  @@map("ledger_create_idempotency")
 }
 
 model StripeWebhookEvent {

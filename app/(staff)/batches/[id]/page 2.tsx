@@ -137,6 +137,7 @@ export default async function OfferingBatchDetailPage({
               recordedTotal={review.recordedTotal}
               expectedTotal={review.expectedTotal}
               donationCount={review.donationCount}
+              reviewVersion={review.reviewVersion}
             />
           ) : null}
           {review.showReconcile ? (
@@ -147,6 +148,7 @@ export default async function OfferingBatchDetailPage({
               recordedTotal={review.recordedTotal}
               expectedTotal={review.expectedTotal}
               donationCount={review.donationCount}
+              reviewVersion={review.reviewVersion}
             />
           ) : null}
           {review.showLock ? (
@@ -157,6 +159,7 @@ export default async function OfferingBatchDetailPage({
               recordedTotal={review.recordedTotal}
               expectedTotal={review.expectedTotal}
               donationCount={review.donationCount}
+              reviewVersion={review.reviewVersion}
             />
           ) : null}
           {detail.canEdit ? (

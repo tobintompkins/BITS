@@ -10,6 +10,7 @@ const snapshot = {
   recordedTotal: "25.00",
   expectedTotal: "25.00",
   donationCount: 1,
+  reviewVersion: 1,
 };
 
 describe("offering batch transition validation", () => {
@@ -30,6 +31,7 @@ describe("offering batch transition validation", () => {
         recordedTotal: "30.00",
         expectedTotal: "25.00",
         donationCount: 1,
+        reviewVersion: 1,
       }),
     ).toBe(false);
     expect(
@@ -37,12 +39,26 @@ describe("offering batch transition validation", () => {
         recordedTotal: "25.00",
         expectedTotal: "25.00",
         donationCount: 2,
+        reviewVersion: 1,
+      }),
+    ).toBe(false);
+    expect(
+      transitionSnapshotMatches(snapshot, {
+        recordedTotal: "25.00",
+        expectedTotal: "25.00",
+        donationCount: 1,
+        reviewVersion: 2,
       }),
     ).toBe(false);
     expect(
       transitionSnapshotMatches(
         { ...snapshot, expectedTotal: null },
-        { recordedTotal: "25.00", expectedTotal: null, donationCount: 1 },
+        {
+          recordedTotal: "25.00",
+          expectedTotal: null,
+          donationCount: 1,
+          reviewVersion: 1,
+        },
       ),
     ).toBe(true);
   });

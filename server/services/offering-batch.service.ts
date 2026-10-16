@@ -7,6 +7,8 @@ import {
   requireBatchManageAccess,
   requireBatchViewAccess,
 } from "@/lib/auth/giving-permissions";
+import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
+import { reviewVersionIncrement } from "@/lib/batches/review-version";
 import { moneyDifference } from "@/lib/money/decimal";
 import {
   offeringBatchAuditChanges,
@@ -301,6 +303,14 @@ export async function updateDraftOfferingBatch(
 
   try {
     return await prisma.$transaction(async (tx) => {
+      const locked = await lockChurchThenOfferingBatch(
+        tx,
+        organization.id,
+        batchId,
+      );
+      if (!locked.organization || !locked.batch) {
+        throw new OfferingBatchError("NOT_FOUND", "Offering batch not found.");
+      }
       const existing = await tx.offeringBatch.findFirst({
         where: { id: batchId, organizationId: organization.id },
         select: {
@@ -334,6 +344,7 @@ export async function updateDraftOfferingBatch(
           serviceDescription: input.serviceDescription,
           expectedTotal: input.expectedTotal,
           notes: input.notes,
+          reviewVersion: reviewVersionIncrement(),
         },
       });
       if (updated.count !== 1) {

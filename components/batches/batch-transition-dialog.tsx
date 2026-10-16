@@ -42,6 +42,7 @@ export function BatchTransitionDialog({
   recordedTotal,
   expectedTotal,
   donationCount,
+  reviewVersion,
 }: {
   batchId: string;
   kind: TransitionKind;
@@ -49,6 +50,7 @@ export function BatchTransitionDialog({
   recordedTotal: string;
   expectedTotal: string | null;
   donationCount: number;
+  reviewVersion: number;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -72,6 +74,7 @@ export function BatchTransitionDialog({
         recordedTotal,
         expectedTotal,
         donationCount,
+        reviewVersion,
       };
       const result =
         kind === "complete"

@@ -19,10 +19,20 @@ import {
   inspectLedgerSchema,
   ledgerSchemaReadinessMessage,
 } from "@/lib/testing/ledger-schema-readiness";
+import {
+  assertLedgerReviewSchemaReady,
+  inspectLedgerReviewSchema,
+  ledgerReviewSchemaReadinessMessage,
+} from "@/lib/testing/ledger-review-schema-readiness";
 import type { ManualBatchDonationWriteInput } from "@/lib/validation/manual-batch-donation";
-import { applyManualBatchDonationCreate } from "@/server/services/manual-batch-donation.service";
+import {
+  ManualBatchDonationError,
+  applyManualBatchDonationCreate,
+  applyManualBatchDonationUpdate,
+} from "@/server/services/manual-batch-donation.service";
 import {
   COMPLETE_OFFERING_BATCH_ENTRY,
+  OfferingBatchTransitionError,
   RECONCILE_OFFERING_BATCH,
   applyOfferingBatchTransition,
 } from "@/server/services/offering-batch-transition.service";
@@ -75,6 +85,9 @@ describe.skipIf(!canUseIsolatedDb)(
           await prisma.auditEvent.deleteMany({
             where: { organizationId: { in: created.organizationIds } },
           });
+          await prisma.ledgerCreateIdempotency.deleteMany({
+            where: { organizationId: { in: created.organizationIds } },
+          });
           await prisma.donationAllocation.deleteMany({
             where: { organizationId: { in: created.organizationIds } },
           });
@@ -114,6 +127,13 @@ describe.skipIf(!canUseIsolatedDb)(
         );
       }
       assertLedgerSchemaReady(schema);
+      const reviewSchema = await inspectLedgerReviewSchema(setup);
+      if (reviewSchema.status !== "ready") {
+        throw new Error(
+          `${ledgerReviewSchemaReadinessMessage(reviewSchema)} Isolated ledger tests refuse to ALTER TABLE or use the working database.`,
+        );
+      }
+      assertLedgerReviewSchemaReady(reviewSchema);
 
       const seedKey = `${runId}-${randomUUID().slice(0, 8)}`;
       const actor = await setup.userAccount.create({
@@ -255,6 +275,7 @@ describe.skipIf(!canUseIsolatedDb)(
             input: giftInput(donor.id, [
               { offeringTypeId: fundA.id, amount: "10.00" },
             ]),
+            operationToken: randomUUID(),
           }),
         ),
         clientB.$transaction((tx) =>
@@ -268,6 +289,7 @@ describe.skipIf(!canUseIsolatedDb)(
               [{ offeringTypeId: fundB.id, amount: "20.00" }],
               { checkNumber: "102" },
             ),
+            operationToken: randomUUID(),
           }),
         ),
       ]);
@@ -293,9 +315,13 @@ describe.skipIf(!canUseIsolatedDb)(
           input: giftInput(donor.id, [
             { offeringTypeId: fundA.id, amount: "10.00" },
           ]),
+          operationToken: randomUUID(),
         }),
       );
       expect(moneyEquals(first.totalAmount, "10.00")).toBe(true);
+      const afterFirst = await setup.offeringBatch.findFirstOrThrow({
+        where: { id: batch.id },
+      });
 
       const clientA = createClient();
       const clientB = createClient();
@@ -317,6 +343,7 @@ describe.skipIf(!canUseIsolatedDb)(
               recordedTotal: "10.00",
               expectedTotal: "30.00",
               donationCount: 1,
+              reviewVersion: afterFirst.reviewVersion,
             },
           }),
         ),
@@ -331,6 +358,7 @@ describe.skipIf(!canUseIsolatedDb)(
               [{ offeringTypeId: fundA.id, amount: "20.00" }],
               { checkNumber: "103" },
             ),
+            operationToken: randomUUID(),
           }),
         ),
       ]);
@@ -374,8 +402,12 @@ describe.skipIf(!canUseIsolatedDb)(
           input: giftInput(donor.id, [
             { offeringTypeId: fundA.id, amount: "30.00" },
           ]),
+          operationToken: randomUUID(),
         }),
       );
+      const afterCreate = await setup.offeringBatch.findFirstOrThrow({
+        where: { id: batch.id },
+      });
       await setup.offeringBatch.update({
         where: { id: batch.id },
         data: { status: OfferingBatchStatus.ENTERED },
@@ -389,6 +421,7 @@ describe.skipIf(!canUseIsolatedDb)(
         recordedTotal: "30.00",
         expectedTotal: "30.00",
         donationCount: 1,
+        reviewVersion: afterCreate.reviewVersion,
       };
       const results = await Promise.allSettled([
         clientA.$transaction((tx) =>
@@ -430,6 +463,116 @@ describe.skipIf(!canUseIsolatedDb)(
       expect(
         await setup.donation.count({ where: { batchId: batch.id } }),
       ).toBe(1);
+    });
+
+    it("replays one create token and rejects the same token with a different payload", async () => {
+      const { org, actor, donor, fundA, fundB, batch, setup } = await seedLedger();
+      const token = randomUUID();
+      const payload = giftInput(donor.id, [
+        { offeringTypeId: fundA.id, amount: "10.00" },
+      ]);
+      const first = await setup.$transaction((tx) =>
+        applyManualBatchDonationCreate({
+          db: tx,
+          organizationId: org.id,
+          actorUserAccountId: actor.id,
+          batchId: batch.id,
+          input: payload,
+          operationToken: token,
+        }),
+      );
+      const replay = await setup.$transaction((tx) =>
+        applyManualBatchDonationCreate({
+          db: tx,
+          organizationId: org.id,
+          actorUserAccountId: actor.id,
+          batchId: batch.id,
+          input: payload,
+          operationToken: token,
+        }),
+      );
+      expect(replay.id).toBe(first.id);
+      expect(
+        await setup.donation.count({ where: { batchId: batch.id } }),
+      ).toBe(1);
+
+      await expect(
+        setup.$transaction((tx) =>
+          applyManualBatchDonationCreate({
+            db: tx,
+            organizationId: org.id,
+            actorUserAccountId: actor.id,
+            batchId: batch.id,
+            input: giftInput(donor.id, [
+              { offeringTypeId: fundB.id, amount: "10.00" },
+            ]),
+            operationToken: token,
+          }),
+        ),
+      ).rejects.toBeInstanceOf(ManualBatchDonationError);
+      expect(
+        await setup.donation.count({ where: { batchId: batch.id } }),
+      ).toBe(1);
+    });
+
+    it("rejects complete-entry after a same-total donor or allocation change", async () => {
+      const { org, actor, donor, fundA, fundB, batch, setup } = await seedLedger();
+      const created = await setup.$transaction((tx) =>
+        applyManualBatchDonationCreate({
+          db: tx,
+          organizationId: org.id,
+          actorUserAccountId: actor.id,
+          batchId: batch.id,
+          input: giftInput(donor.id, [
+            { offeringTypeId: fundA.id, amount: "30.00" },
+          ]),
+          operationToken: randomUUID(),
+        }),
+      );
+      const beforeEdit = await setup.offeringBatch.findFirstOrThrow({
+        where: { id: batch.id },
+      });
+      await setup.$transaction((tx) =>
+        applyManualBatchDonationUpdate({
+          db: tx,
+          organizationId: org.id,
+          actorUserAccountId: actor.id,
+          batchId: batch.id,
+          donationId: created.id,
+          input: giftInput(donor.id, [
+            { offeringTypeId: fundB.id, amount: "30.00" },
+          ]),
+          expectedReviewVersion: beforeEdit.reviewVersion,
+        }),
+      );
+
+      await expect(
+        setup.$transaction((tx) =>
+          applyOfferingBatchTransition({
+            db: tx,
+            organizationId: org.id,
+            actorUserAccountId: actor.id,
+            batchId: batch.id,
+            fromStatus: OfferingBatchStatus.DRAFT,
+            toStatus: OfferingBatchStatus.ENTERED,
+            requireBalancedExpected: false,
+            action: COMPLETE_OFFERING_BATCH_ENTRY,
+            snapshot: {
+              confirmed: true,
+              recordedTotal: "30.00",
+              expectedTotal: "30.00",
+              donationCount: 1,
+              reviewVersion: beforeEdit.reviewVersion,
+            },
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OfferingBatchTransitionError);
+
+      const next = await setup.offeringBatch.findFirstOrThrow({
+        where: { id: batch.id },
+      });
+      expect(next.status).toBe(OfferingBatchStatus.DRAFT);
+      expect(moneyEquals(next.recordedTotal.toString(), "30.00")).toBe(true);
     });
   },
 );

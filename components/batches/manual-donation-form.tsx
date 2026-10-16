@@ -43,6 +43,7 @@ type ManualDonationFormProps = {
   donationId?: string;
   initialValues?: ManualBatchDonationFormValues;
   selectedDonor?: DonorOption | null;
+  expectedReviewVersion?: number;
 };
 
 const inputClassName =
@@ -61,8 +62,14 @@ export function ManualDonationForm({
   donationId,
   initialValues,
   selectedDonor = null,
+  expectedReviewVersion,
 }: ManualDonationFormProps) {
   const router = useRouter();
+  const [operationToken] = useState(() =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : "",
+  );
   const [toast, setToast] = useState<{
     message: string;
     variant: "success" | "error";
@@ -131,8 +138,17 @@ export function ManualDonationForm({
   function onSubmit(values: ManualBatchDonationFormValues) {
     startTransition(async () => {
       const result = donationId
-        ? await updateManualBatchDonationAction(batchId, donationId, values)
-        : await createManualBatchDonationAction(batchId, values);
+        ? await updateManualBatchDonationAction(
+            batchId,
+            donationId,
+            values,
+            expectedReviewVersion ?? 0,
+          )
+        : await createManualBatchDonationAction(
+            batchId,
+            values,
+            operationToken,
+          );
       if (result.status === "success") {
         router.push(`/batches/${batchId}?donation=created`);
         router.refresh();

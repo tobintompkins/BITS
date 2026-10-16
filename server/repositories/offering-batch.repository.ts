@@ -11,6 +11,7 @@ const directorySelect = {
   status: true,
   expectedTotal: true,
   recordedTotal: true,
+  reviewVersion: true,
   depositDate: true,
   depositReference: true,
   createdAt: true,

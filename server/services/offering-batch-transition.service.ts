@@ -15,6 +15,10 @@ import {
 } from "@/lib/batches/integrity";
 import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
 import {
+  reviewVersionIncrement,
+  STALE_BATCH_REVIEW_MESSAGE,
+} from "@/lib/batches/review-version";
+import {
   offeringBatchTransitionSchema,
   transitionSnapshotMatches,
 } from "@/lib/validation/offering-batch-transition";
@@ -30,7 +34,8 @@ export class OfferingBatchTransitionError extends Error {
       | "FORBIDDEN"
       | "NOT_FOUND"
       | "NOT_CONFIRMED"
-      | "INVALID_REQUEST",
+      | "INVALID_REQUEST"
+      | "STALE_REVIEW",
     message: string,
     public readonly issues: BatchIntegrityIssue[] = [],
   ) {
@@ -127,6 +132,7 @@ export async function getOfferingBatchReview(batchId: string) {
       status: true,
       expectedTotal: true,
       recordedTotal: true,
+      reviewVersion: true,
       offeringDate: true,
       depositDate: true,
       depositReference: true,
@@ -182,6 +188,7 @@ export async function getOfferingBatchReview(batchId: string) {
     donationTotal: current.donationTotal,
     expectedTotal: current.expectedTotal,
     recordedTotal: current.recordedTotal,
+    reviewVersion: batch.reviewVersion,
     difference: current.difference,
     issues,
     isLocked: batch.status === OfferingBatchStatus.LOCKED,
@@ -286,6 +293,7 @@ export async function applyOfferingBatchTransition(input: {
       status: true,
       expectedTotal: true,
       recordedTotal: true,
+      reviewVersion: true,
     },
   });
   if (!batch) {
@@ -309,11 +317,22 @@ export async function applyOfferingBatchTransition(input: {
   if (!integrity.ok) {
     throwIntegrityFailure(integrity.issues);
   }
-  if (!transitionSnapshotMatches(input.snapshot, integrity)) {
+  if (
+    !transitionSnapshotMatches(input.snapshot, {
+      ...integrity,
+      reviewVersion: batch.reviewVersion,
+    })
+  ) {
     throw new OfferingBatchTransitionError(
-      "CONCURRENT_CHANGE",
-      BATCH_INTEGRITY_MESSAGES.CONCURRENT_CHANGE,
-      ["CONCURRENT_CHANGE"],
+      input.snapshot.reviewVersion === batch.reviewVersion
+        ? "CONCURRENT_CHANGE"
+        : "STALE_REVIEW",
+      input.snapshot.reviewVersion === batch.reviewVersion
+        ? BATCH_INTEGRITY_MESSAGES.CONCURRENT_CHANGE
+        : STALE_BATCH_REVIEW_MESSAGE,
+      input.snapshot.reviewVersion === batch.reviewVersion
+        ? ["CONCURRENT_CHANGE"]
+        : [],
     );
   }
 
@@ -323,8 +342,12 @@ export async function applyOfferingBatchTransition(input: {
       organizationId: input.organizationId,
       status: input.fromStatus,
       recordedTotal: integrity.recordedTotal,
+      reviewVersion: batch.reviewVersion,
     },
-    data: { status: input.toStatus },
+    data: {
+      status: input.toStatus,
+      reviewVersion: reviewVersionIncrement(),
+    },
   });
   if (updated.count !== 1) {
     throw new OfferingBatchTransitionError(

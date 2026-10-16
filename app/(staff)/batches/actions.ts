@@ -167,6 +167,7 @@ export async function updateManualBatchDonationAction(
   batchId: string,
   donationId: string,
   values: ManualBatchDonationFormValues,
+  expectedReviewVersion: number,
 ): Promise<ManualBatchDonationActionState> {
   const { userId } = await auth();
   if (!userId) {
@@ -191,6 +192,7 @@ export async function updateManualBatchDonationAction(
       batchId,
       donationId,
       parsed.data,
+      expectedReviewVersion,
     );
     revalidateBatchPaths(batchId);
     return {
@@ -214,13 +216,14 @@ export async function updateManualBatchDonationAction(
 export async function deleteManualBatchDonationAction(
   batchId: string,
   donationId: string,
+  expectedReviewVersion: number,
 ) {
   const { userId } = await auth();
   if (!userId) {
     return { ok: false as const, error: "You must be signed in." };
   }
   try {
-    await deleteManualBatchDonation(batchId, donationId);
+    await deleteManualBatchDonation(batchId, donationId, expectedReviewVersion);
     revalidateBatchPaths(batchId);
     return { ok: true as const };
   } catch (error) {
@@ -237,6 +240,7 @@ export async function deleteManualBatchDonationAction(
 export async function createManualBatchDonationAction(
   batchId: string,
   values: ManualBatchDonationFormValues,
+  operationToken: string,
 ): Promise<ManualBatchDonationActionState> {
   const { userId } = await auth();
   if (!userId) {
@@ -257,7 +261,11 @@ export async function createManualBatchDonationAction(
   }
 
   try {
-    const donation = await createManualBatchDonation(batchId, parsed.data);
+    const donation = await createManualBatchDonation(
+      batchId,
+      parsed.data,
+      operationToken,
+    );
     revalidateBatchPaths(batchId);
     return {
       status: "success",
@@ -281,6 +289,7 @@ type TransitionSnapshot = {
   recordedTotal: string;
   expectedTotal: string | null;
   donationCount: number;
+  reviewVersion: number;
 };
 
 export async function completeOfferingBatchEntryAction(

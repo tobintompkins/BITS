@@ -28,7 +28,9 @@
     "staff:membership-local-migrate": "npx tsx scripts/staff-membership-local-migrate.ts",
     "staff:invitation-schema-setup": "npx tsx scripts/staff-invitation-schema-setup.ts",
     "staff:invitation-local-migrate": "npx tsx scripts/staff-invitation-local-migrate.ts",
-    "staff:first-admin-bootstrap": "npx tsx scripts/staff-first-admin-bootstrap.ts"
+    "staff:first-admin-bootstrap": "npx tsx scripts/staff-first-admin-bootstrap.ts",
+    "ledger:review-schema-setup": "npx tsx scripts/ledger-review-schema-setup.ts",
+    "ledger:review-local-migrate": "npx tsx scripts/ledger-review-local-migrate.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",

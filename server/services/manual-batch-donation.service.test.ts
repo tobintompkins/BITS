@@ -10,6 +10,18 @@ type BatchRow = {
   status: OfferingBatchStatus;
   offeringDate: Date;
   recordedTotal: { toString(): string };
+  reviewVersion: number;
+};
+
+type ClaimRow = {
+  organizationId: string;
+  action: string;
+  operationToken: string;
+  actorUserAccountId: string;
+  batchId: string;
+  payloadFingerprint: string;
+  donationId: string | null;
+  resultJson: string | null;
 };
 
 type DonorRow = {
@@ -47,6 +59,7 @@ const store = vi.hoisted(() => ({
   donations: new Map<string, DonationRow>(),
   allocations: [] as Array<Record<string, unknown>>,
   audits: [] as Array<Record<string, unknown>>,
+  claims: new Map<string, ClaimRow>(),
   persistShouldFail: false,
   allocationShouldFail: false,
   flipStatusAfterRead: null as OfferingBatchStatus | null,
@@ -122,6 +135,10 @@ vi.mock("@/lib/db/prisma", () => ({
         ) as Array<[string, DonationRow]>;
         const allocationSnapshot = [...store.allocations];
         const auditSnapshot = [...store.audits];
+        const claimSnapshot = [...store.claims.entries()].map(([id, row]) => [
+          id,
+          { ...row },
+        ]) as Array<[string, ClaimRow]>;
         const tx = {
           $queryRaw: async (
             strings: TemplateStringsArray,
@@ -145,6 +162,23 @@ vi.mock("@/lib/db/prisma", () => ({
                   depositReference: null,
                 },
               ];
+            }
+            if (sql.includes("ledger_create_idempotency") && sql.includes("ON CONFLICT")) {
+              const [organizationId, action, operationToken, actorUserAccountId, batchId, payloadFingerprint] =
+                values as string[];
+              const key = `${organizationId}|${action}|${operationToken}`;
+              if (store.claims.has(key)) return [];
+              store.claims.set(key, {
+                organizationId,
+                action,
+                operationToken,
+                actorUserAccountId,
+                batchId,
+                payloadFingerprint,
+                donationId: null,
+                resultJson: null,
+              });
+              return [{ id: key }];
             }
             return [];
           },
@@ -176,7 +210,10 @@ vi.mock("@/lib/db/prisma", () => ({
                 organizationId: string;
                 status: OfferingBatchStatus;
               };
-              data: { recordedTotal?: { increment: string } };
+              data: {
+                recordedTotal?: { increment: string };
+                reviewVersion?: { increment: number };
+              };
             }) => {
               const row = store.batches.get(where.id);
               if (
@@ -193,7 +230,55 @@ vi.mock("@/lib/db/prisma", () => ({
                     .toFixed(2),
                 );
               }
+              if (data.reviewVersion?.increment) {
+                row.reviewVersion += data.reviewVersion.increment;
+              }
               return { count: 1 };
+            },
+          },
+          ledgerCreateIdempotency: {
+            create: async ({ data }: { data: ClaimRow }) => {
+              const key = `${data.organizationId}|${data.action}|${data.operationToken}`;
+              if (store.claims.has(key)) {
+                throw { code: "P2002" };
+              }
+              store.claims.set(key, { ...data, donationId: null, resultJson: null });
+              return { id: key };
+            },
+            findUnique: async ({
+              where,
+            }: {
+              where: {
+                organizationId_action_operationToken: {
+                  organizationId: string;
+                  action: string;
+                  operationToken: string;
+                };
+              };
+            }) => {
+              const key = `${where.organizationId_action_operationToken.organizationId}|${where.organizationId_action_operationToken.action}|${where.organizationId_action_operationToken.operationToken}`;
+              const row = store.claims.get(key);
+              return row ? { ...row } : null;
+            },
+            update: async ({
+              where,
+              data,
+            }: {
+              where: {
+                organizationId_action_operationToken: {
+                  organizationId: string;
+                  action: string;
+                  operationToken: string;
+                };
+              };
+              data: { donationId: string; resultJson: string };
+            }) => {
+              const key = `${where.organizationId_action_operationToken.organizationId}|${where.organizationId_action_operationToken.action}|${where.organizationId_action_operationToken.operationToken}`;
+              const row = store.claims.get(key);
+              if (!row) return null;
+              const next = { ...row, ...data };
+              store.claims.set(key, next);
+              return next;
             },
           },
           donor: {
@@ -254,14 +339,13 @@ vi.mock("@/lib/db/prisma", () => ({
             findFirst: async ({
               where,
             }: {
-              where: { id: string; organizationId: string; batchId: string };
+              where: { id: string; organizationId: string; batchId?: string };
             }) => {
               const row = store.donations.get(where.id);
-              if (
-                !row ||
-                row.organizationId !== where.organizationId ||
-                row.batchId !== where.batchId
-              ) {
+              if (!row || row.organizationId !== where.organizationId) {
+                return null;
+              }
+              if (where.batchId && row.batchId !== where.batchId) {
                 return null;
               }
               return { ...row };
@@ -341,6 +425,7 @@ vi.mock("@/lib/db/prisma", () => ({
           store.donations = new Map(donationSnapshot);
           store.allocations = allocationSnapshot;
           store.audits = auditSnapshot;
+          store.claims = new Map(claimSnapshot);
           throw error;
         }
       });
@@ -375,6 +460,9 @@ const FUND_ID = "00000000-0000-4000-8000-00000000f001";
 const FUND_B = "00000000-0000-4000-8000-00000000f003";
 const OTHER_FUND = "00000000-0000-4000-8000-00000000f002";
 const STRIPE_DONATION = "00000000-0000-4000-8000-00000000e001";
+const TOKEN_A = "11111111-1111-4111-8111-111111111111";
+const TOKEN_B = "22222222-2222-4222-8222-222222222222";
+const TOKEN_C = "33333333-3333-4333-8333-333333333333";
 
 function validInput(overrides: Record<string, unknown> = {}) {
   return {
@@ -405,6 +493,7 @@ function seedDraftBatch() {
     status: OfferingBatchStatus.DRAFT,
     offeringDate: new Date("2026-09-06T00:00:00.000Z"),
     recordedTotal: money("0.00"),
+    reviewVersion: 1,
   });
 }
 
@@ -436,6 +525,7 @@ describe("manual batch donation entry", () => {
     store.donations.clear();
     store.allocations = [];
     store.audits = [];
+    store.claims.clear();
     store.persistShouldFail = false;
     store.allocationShouldFail = false;
     store.flipStatusAfterRead = null;
@@ -473,7 +563,7 @@ describe("manual batch donation entry", () => {
       mocks.getGivingAccess.mockResolvedValue(
         getGivingCapabilitiesForRole(role),
       );
-      const result = await createManualBatchDonation(BATCH_ID, validInput());
+      const result = await createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A);
       const donation = [...store.donations.values()][0];
       expect(result.totalAmount).toBe("25.00");
       expect(donation?.organizationId).toBe(ORG_ID);
@@ -504,14 +594,14 @@ describe("manual batch donation entry", () => {
       getGivingCapabilitiesForRole(RoleCode.REPORT_VIEWER),
     );
     await expect(
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     mocks.getGivingAccess.mockResolvedValue(
       getGivingCapabilitiesForRole(RoleCode.DONOR),
     );
     await expect(
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(searchDonorsForBatchDonation("Pat")).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -519,7 +609,7 @@ describe("manual batch donation entry", () => {
 
     mocks.getOrCreateUserAccount.mockResolvedValue(null);
     await expect(
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
     ).rejects.toMatchObject({ code: "SIGNED_OUT" });
     expect(store.donations.size).toBe(0);
     expect(store.audits).toHaveLength(0);
@@ -531,7 +621,7 @@ describe("manual batch donation entry", () => {
       organizationId: OTHER_ORG,
     });
     await expect(
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
     seedDraftBatch();
@@ -544,6 +634,7 @@ describe("manual batch donation entry", () => {
       createManualBatchDonation(
         BATCH_ID,
         validInput({ donorId: OTHER_DONOR }),
+        TOKEN_A,
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
@@ -558,6 +649,7 @@ describe("manual batch donation entry", () => {
         validInput({
           allocations: [{ offeringTypeId: OTHER_FUND, amount: "25.00" }],
         }),
+        TOKEN_A,
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(store.donations.size).toBe(0);
@@ -566,12 +658,12 @@ describe("manual batch donation entry", () => {
   it("rejects inactive donors and inactive funds", async () => {
     seedDonor({ active: false });
     await expect(
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
     ).rejects.toMatchObject({ code: "INACTIVE_DONOR" });
     seedDonor({ active: true });
     seedFund({ active: false });
     await expect(
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
     ).rejects.toMatchObject({ code: "INACTIVE_FUND" });
   });
 
@@ -580,6 +672,7 @@ describe("manual batch donation entry", () => {
       createManualBatchDonation(
         BATCH_ID,
         validInput({ offeringDate: "2026-09-13" }),
+        TOKEN_A,
       ),
     ).rejects.toMatchObject({ code: "INVALID_REQUEST" });
     await expect(
@@ -589,6 +682,7 @@ describe("manual batch donation entry", () => {
           offeringDate: "2026-09-13",
           confirmOfferingDateOverride: true,
         }),
+        TOKEN_A,
       ),
     ).resolves.toMatchObject({ totalAmount: "25.00" });
   });
@@ -597,6 +691,7 @@ describe("manual batch donation entry", () => {
     const result = await createManualBatchDonation(
       BATCH_ID,
       validInput({ anonymous: true, donorId: "" }),
+      TOKEN_A,
     );
     expect(store.donations.get(result.id)?.donorId).toBeNull();
     expect(store.donations.get(result.id)?.anonymous).toBe(true);
@@ -611,7 +706,7 @@ describe("manual batch donation entry", () => {
       isTest: true,
       recordedTotal: "999.00",
       totalAmount: "999.00",
-    });
+    }, TOKEN_A);
     const donation = [...store.donations.values()][0];
     expect(donation?.organizationId).toBe(ORG_ID);
     expect(donation?.stripeCheckoutSessionId).toBeNull();
@@ -628,7 +723,7 @@ describe("manual batch donation entry", () => {
   ])("rejects donations on %s batches", async (status) => {
     store.batches.get(BATCH_ID)!.status = status;
     await expect(
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
     ).rejects.toMatchObject({ code: "NOT_EDITABLE" });
     expect(store.donations.size).toBe(0);
   });
@@ -636,7 +731,7 @@ describe("manual batch donation entry", () => {
   it("rolls back when the batch status changes concurrently", async () => {
     store.flipStatusAfterRead = OfferingBatchStatus.ENTERED;
     await expect(
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
     ).rejects.toMatchObject({
       code: "NOT_EDITABLE",
       message: "This batch is no longer a draft and cannot accept donations.",
@@ -648,13 +743,14 @@ describe("manual batch donation entry", () => {
 
   it("adds concurrent valid donations without losing recordedTotal updates", async () => {
     const [first, second] = await Promise.allSettled([
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
       createManualBatchDonation(
         BATCH_ID,
         validInput({
           allocations: [{ offeringTypeId: FUND_ID, amount: "10.00" }],
           deductibleAmount: "10.00",
         }),
+        TOKEN_B,
       ),
     ]);
     expect(first.status).toBe("fulfilled");
@@ -667,7 +763,7 @@ describe("manual batch donation entry", () => {
   it("rolls back the donation and batch total when allocation or audit writes fail", async () => {
     store.allocationShouldFail = true;
     await expect(
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
     ).rejects.toBeInstanceOf(ManualBatchDonationError);
     expect(store.donations.size).toBe(0);
     expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("0.00");
@@ -675,7 +771,7 @@ describe("manual batch donation entry", () => {
     store.allocationShouldFail = false;
     store.persistShouldFail = true;
     await expect(
-      createManualBatchDonation(BATCH_ID, validInput()),
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
     ).rejects.toBeInstanceOf(ManualBatchDonationError);
     expect(store.donations.size).toBe(0);
     expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("0.00");
@@ -700,7 +796,7 @@ describe("manual batch donation entry", () => {
     };
     store.donations.set(STRIPE_DONATION, stripeGift);
     store.batches.get(BATCH_ID)!.recordedTotal = money("40.00");
-    await createManualBatchDonation(BATCH_ID, validInput());
+    await createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A);
     expect(store.donations.get(STRIPE_DONATION)).toEqual(stripeGift);
     expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("65.00");
   });
@@ -726,6 +822,7 @@ describe("manual batch donation entry", () => {
           { offeringTypeId: FUND_B, amount: "0.20" },
         ],
       }),
+      TOKEN_A,
     );
     expect(result.totalAmount).toBe("0.30");
     expect(store.donations.size).toBe(1);
@@ -737,6 +834,7 @@ describe("manual batch donation entry", () => {
     await createManualBatchDonation(
       BATCH_ID,
       validInput({ anonymous: true, donorId: "" }),
+      TOKEN_A,
     );
     await createManualBatchDonation(
       BATCH_ID,
@@ -747,6 +845,7 @@ describe("manual batch donation entry", () => {
         note: "Share certificate held by the church",
         allocations: [{ offeringTypeId: FUND_ID, amount: "15.00" }],
       }),
+      TOKEN_B,
     );
     const gifts = [...store.donations.values()];
     expect(gifts).toHaveLength(2);
@@ -762,7 +861,7 @@ describe("manual batch donation entry", () => {
   });
 
   it("updates a draft gift and adjusts recordedTotal by the exact difference", async () => {
-    const created = await createManualBatchDonation(BATCH_ID, validInput());
+    const created = await createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A);
     const updated = await updateManualBatchDonation(
       BATCH_ID,
       created.id,
@@ -773,6 +872,7 @@ describe("manual batch donation entry", () => {
         ],
         deductibleAmount: "15.00",
       }),
+      store.batches.get(BATCH_ID)!.reviewVersion,
     );
     expect(updated.totalAmount).toBe("15.00");
     expect(store.donations.get(created.id)?.totalAmount.toString()).toBe("15.00");
@@ -784,8 +884,12 @@ describe("manual batch donation entry", () => {
   });
 
   it("deletes a draft gift and decrements recordedTotal", async () => {
-    const created = await createManualBatchDonation(BATCH_ID, validInput());
-    await deleteManualBatchDonation(BATCH_ID, created.id);
+    const created = await createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A);
+    await deleteManualBatchDonation(
+      BATCH_ID,
+      created.id,
+      store.batches.get(BATCH_ID)!.reviewVersion,
+    );
     expect(store.donations.has(created.id)).toBe(false);
     expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("0.00");
     expect(store.audits.at(-1)).toMatchObject({
@@ -812,10 +916,19 @@ describe("manual batch donation entry", () => {
     });
     store.batches.get(BATCH_ID)!.recordedTotal = money("40.00");
     await expect(
-      updateManualBatchDonation(BATCH_ID, STRIPE_DONATION, validInput()),
+      updateManualBatchDonation(
+        BATCH_ID,
+        STRIPE_DONATION,
+        validInput(),
+        store.batches.get(BATCH_ID)!.reviewVersion,
+      ),
     ).rejects.toMatchObject({ code: "NOT_EDITABLE" });
     await expect(
-      deleteManualBatchDonation(BATCH_ID, STRIPE_DONATION),
+      deleteManualBatchDonation(
+        BATCH_ID,
+        STRIPE_DONATION,
+        store.batches.get(BATCH_ID)!.reviewVersion,
+      ),
     ).rejects.toMatchObject({ code: "NOT_EDITABLE" });
     expect(store.donations.get(STRIPE_DONATION)?.totalAmount.toString()).toBe(
       "40.00",
@@ -828,15 +941,127 @@ describe("manual batch donation entry", () => {
     OfferingBatchStatus.RECONCILED,
     OfferingBatchStatus.LOCKED,
   ])("rejects draft corrections on %s batches", async (status) => {
-    const created = await createManualBatchDonation(BATCH_ID, validInput());
+    const created = await createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A);
     store.batches.get(BATCH_ID)!.status = status;
     await expect(
-      updateManualBatchDonation(BATCH_ID, created.id, validInput()),
+      updateManualBatchDonation(
+        BATCH_ID,
+        created.id,
+        validInput(),
+        store.batches.get(BATCH_ID)!.reviewVersion,
+      ),
     ).rejects.toMatchObject({ code: "NOT_EDITABLE" });
     await expect(
-      deleteManualBatchDonation(BATCH_ID, created.id),
+      deleteManualBatchDonation(
+        BATCH_ID,
+        created.id,
+        store.batches.get(BATCH_ID)!.reviewVersion,
+      ),
     ).rejects.toMatchObject({ code: "NOT_EDITABLE" });
     expect(store.donations.get(created.id)?.totalAmount.toString()).toBe("25.00");
+  });
+
+  it("replays the same create token and payload without inserting a second gift", async () => {
+    const first = await createManualBatchDonation(
+      BATCH_ID,
+      validInput(),
+      TOKEN_A,
+    );
+    const second = await createManualBatchDonation(
+      BATCH_ID,
+      validInput(),
+      TOKEN_A,
+    );
+    expect(second.id).toBe(first.id);
+    expect(store.donations.size).toBe(1);
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("25.00");
+    expect(store.audits).toHaveLength(1);
+  });
+
+  it("rejects the same create token when the payload or actor differs", async () => {
+    await createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A);
+    await expect(
+      createManualBatchDonation(
+        BATCH_ID,
+        validInput({
+          allocations: [{ offeringTypeId: FUND_ID, amount: "10.00" }],
+          deductibleAmount: "10.00",
+        }),
+        TOKEN_A,
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(store.donations.size).toBe(1);
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("25.00");
+  });
+
+  it("records two distinct tokens with the same gift details as two gifts", async () => {
+    await createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A);
+    await createManualBatchDonation(BATCH_ID, validInput(), TOKEN_B);
+    expect(store.donations.size).toBe(2);
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("50.00");
+  });
+
+  it("returns already-processed when the original gift for a token was deleted", async () => {
+    const created = await createManualBatchDonation(
+      BATCH_ID,
+      validInput(),
+      TOKEN_A,
+    );
+    await deleteManualBatchDonation(
+      BATCH_ID,
+      created.id,
+      store.batches.get(BATCH_ID)!.reviewVersion,
+    );
+    await expect(
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
+    ).rejects.toMatchObject({ code: "ALREADY_PROCESSED" });
+    expect(store.donations.size).toBe(0);
+  });
+
+  it("rejects a stale draft edit after another writer incremented the review version", async () => {
+    const created = await createManualBatchDonation(
+      BATCH_ID,
+      validInput(),
+      TOKEN_A,
+    );
+    const staleVersion = store.batches.get(BATCH_ID)!.reviewVersion;
+    await updateManualBatchDonation(
+      BATCH_ID,
+      created.id,
+      validInput({
+        allocations: [{ offeringTypeId: FUND_ID, amount: "20.00" }],
+        deductibleAmount: "20.00",
+      }),
+      staleVersion,
+    );
+    await expect(
+      updateManualBatchDonation(
+        BATCH_ID,
+        created.id,
+        validInput({
+          allocations: [{ offeringTypeId: FUND_ID, amount: "5.00" }],
+          deductibleAmount: "5.00",
+        }),
+        staleVersion,
+      ),
+    ).rejects.toMatchObject({ code: "STALE_REVIEW" });
+    expect(store.donations.get(created.id)?.totalAmount.toString()).toBe("20.00");
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("20.00");
+  });
+
+  it("keeps a failed create token reusable after rollback", async () => {
+    store.allocationShouldFail = true;
+    await expect(
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_C),
+    ).rejects.toBeInstanceOf(ManualBatchDonationError);
+    store.allocationShouldFail = false;
+    const result = await createManualBatchDonation(
+      BATCH_ID,
+      validInput(),
+      TOKEN_C,
+    );
+    expect(result.totalAmount).toBe("25.00");
+    expect(store.donations.size).toBe(1);
   });
 
   it("never returns donors from another organization", async () => {

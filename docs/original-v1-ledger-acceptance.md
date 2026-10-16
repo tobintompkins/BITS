@@ -32,7 +32,9 @@ processing, a formal adjustment journal, or mark original version 1 complete.
 3. `0.10 + 0.20` is stored as `0.30` with two allocations and one Donation.
 4. Complete entry may proceed with an expected-total mismatch. Reconcile requires an
    exact expected/recorded match. A stale confirmation (`recordedTotal` /
-   `expectedTotal` / `donationCount`) is rejected after the transaction recheck.
+   `expectedTotal` / `donationCount` / `reviewVersion`) is rejected after the
+   transaction recheck. A same-total donor, date, or allocation change increments
+   `reviewVersion` and cannot ride a previous dialog.
 5. After lock, new gifts, draft edits, deletes, batch metadata edits, deposit edits,
    and transition rollback are rejected server-side. A correction request writes only
    `FinancialCorrectionRequest` rows.
@@ -67,22 +69,50 @@ service-path creates are asserted. Entry versus complete-entry must end in an
 allowed serial order: either ENTERED with no later gift, or DRAFT with both gifts.
 Competing reconcile requests must leave exactly one RECONCILED row.
 
-Idempotency: the save button disables while pending. Server create is **not**
-idempotent. Repeated successful submits remain distinct gifts. No operation token
-was added.
+Idempotency: the save button still disables while pending (usability only). Manual
+gift CREATE now also uses one client `operationToken` per logical submission,
+retained across timeout/retry and rotated only after confirmed success or a new
+gift form. Uniqueness is `(organizationId, action, operationToken)`. The same
+actor+token+canonical payload returns the original result. The same token with a
+different payload, batch, or actor is `CONFLICT` without leaking details. Two
+distinct tokens with identical gift details remain two gifts. Replay after lock
+returns the historical result when still authorized and does not reopen the
+batch. If the original gift was deleted, the token is `ALREADY_PROCESSED` and is
+not recreated. Claim, gift, allocations, total, version, and audit commit in one
+transaction. A failed validation or audit does not leave a successful token.
 
 ## Repairs in this increment
 
-1. **Stale transition confirmation.** Confirmations now bind to the reviewed
-   `recordedTotal`, `expectedTotal`, and `donationCount`. A later gift or total
-   change cannot ride a previous dialog.
+1. **Stale transition confirmation.** Confirmations bind to the reviewed
+   `recordedTotal`, `expectedTotal`, `donationCount`, and monotonic
+   `reviewVersion`. Totals/count alone cannot authorize a same-total rewrite.
+   Draft gift edit/delete also submit the expected revision.
 2. **Draft gift correction.** FR-DON-009 requires audited modifications before
-   lock. Without edit/delete, a mistyped DRAFT gift could not be corrected. Update
-   and delete are DRAFT-only, manual-only, church-scoped, and adjust `recordedTotal`
-   by the exact difference.
+   lock. Update and delete are DRAFT-only, manual-only, church-scoped, and adjust
+   `recordedTotal` by the exact difference.
+3. **Durable create idempotency (Core 11A).** Manual gift CREATE claims
+   `ledger_create_idempotency` in the same transaction as the gift write.
 
-No new Prisma migration. No working-database reset. No live gifts, invitations,
-charges, or object-store writes.
+### Core 11A writers that increment `reviewVersion`
+
+- Manual gift create / update / delete
+- Draft batch header edit (`updateDraftOfferingBatch`)
+- Complete entry, reconcile, deposit record/update, and lock
+
+Stripe settlement, unmatched-online-gift, and financial correction-request writers
+do not attach gifts to batches or mutate reviewed totals; they are out of this
+review-version contract. Event check-in idempotency is event-scoped and was not
+reused.
+
+Additive migration `20261014200000_add_ledger_review_and_idempotency` is applied
+to isolated `bits_e2e` with `npm run ledger:review-schema-setup`. Working-app
+`bits` is **not** migrated automatically. Run `npm run ledger:review-local-migrate`
+only on the identified loopback `bits` database when you are ready. Until then,
+`npm run dev` against unmigrated `bits` will fail batch writes that read
+`reviewVersion`.
+
+No working-database reset. No live gifts, invitations, charges, or object-store
+writes.
 
 ## Remaining original gaps
 
@@ -92,13 +122,13 @@ charges, or object-store writes.
 - Two-session household locking
 - Formal locked-batch adjustment ledger (explicitly deferred by FR-BATCH-006)
 - Administrative CARD/ACH recording without Stripe processing
-- Server-side create idempotency token
+- Working-app `bits` ledger-review migration (pending operator `ledger:review-local-migrate`)
 - Deployment readiness
 
 ## Verification (October 14, 2026)
 
-- Full `npx vitest run`: 221 files / 1,642 tests passed, including isolated `bits_e2e` increment, add-versus-complete, and competing-reconcile cases.
-- Lint, typecheck, `git diff --check`, Prisma validate, and production build passed.
+- Core 11: Full `npx vitest run`: 221 files / 1,642 tests passed, including isolated `bits_e2e` increment, add-versus-complete, and competing-reconcile cases.
+- Core 11A: Full `npx vitest run`: 224 files / 1,662 tests passed, including isolated same-token replay/conflict and same-total stale complete-entry. Lint, typecheck, `git diff --check`, Prisma validate, and production build passed. Isolated `bits_e2e` received `20261014200000_add_ledger_review_and_idempotency`. Working `bits` was not migrated.
 - Signed-in Playwright ledger journeys were not executed. Unsigned `/batches` still redirects to sign-in.
 - No working-database gift edits, invitations, charges, or object-store writes.
 

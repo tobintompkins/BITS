@@ -18,6 +18,7 @@ type BatchRow = {
   createdByUserAccountId: string;
   createdAt: Date;
   updatedAt: Date;
+  reviewVersion: number;
 };
 
 const store = vi.hoisted(() => ({
@@ -109,6 +110,31 @@ vi.mock("@/lib/db/prisma", () => ({
         ]) as Array<[string, BatchRow]>;
         const auditSnapshot = [...store.audits];
         const tx = {
+          $queryRaw: async (
+            strings: TemplateStringsArray,
+            ...values: unknown[]
+          ) => {
+            const sql = strings.join("?");
+            if (sql.includes("FROM organizations")) {
+              return [{ id: String(values[0]) }];
+            }
+            if (sql.includes("FROM offering_batches")) {
+              const row = store.batches.get(String(values[0]));
+              if (!row || row.organizationId !== String(values[1])) return [];
+              return [
+                {
+                  id: row.id,
+                  status: row.status,
+                  expectedTotal: row.expectedTotal?.toString() ?? null,
+                  recordedTotal: row.recordedTotal.toString(),
+                  offeringDate: row.offeringDate,
+                  depositDate: row.depositDate,
+                  depositReference: row.depositReference,
+                },
+              ];
+            }
+            return [];
+          },
           offeringBatch: {
             create: async ({
               data,
@@ -143,6 +169,7 @@ vi.mock("@/lib/db/prisma", () => ({
                 createdByUserAccountId: data.createdByUserAccountId,
                 createdAt: new Date("2026-09-10T12:00:00.000Z"),
                 updatedAt: new Date("2026-09-10T12:00:00.000Z"),
+                reviewVersion: 1,
               };
               store.batches.set(id, row);
               return {
@@ -197,6 +224,7 @@ vi.mock("@/lib/db/prisma", () => ({
                 serviceDescription: string | null;
                 expectedTotal: string | null;
                 notes: string | null;
+                reviewVersion?: { increment: number };
               };
             }) => {
               if (!matchesDraftUpdate(where)) return { count: 0 };
@@ -207,6 +235,9 @@ vi.mock("@/lib/db/prisma", () => ({
               row.serviceDescription = data.serviceDescription;
               row.expectedTotal = money(data.expectedTotal);
               row.notes = data.notes;
+              if (data.reviewVersion?.increment) {
+                row.reviewVersion += data.reviewVersion.increment;
+              }
               return { count: 1 };
             },
           },
@@ -284,6 +315,7 @@ function seedBatch(overrides: Partial<BatchRow> = {}) {
     createdByUserAccountId: USER_ID,
     createdAt: new Date("2026-09-06T12:00:00.000Z"),
     updatedAt: new Date("2026-09-06T12:00:00.000Z"),
+    reviewVersion: 1,
     ...overrides,
   };
   store.batches.set(row.id, row);

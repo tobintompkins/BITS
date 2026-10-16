@@ -9,6 +9,7 @@ type BatchRow = {
   status: OfferingBatchStatus;
   expectedTotal: { toString(): string } | null;
   recordedTotal: { toString(): string };
+  reviewVersion: number;
   offeringDate: Date;
   depositDate: Date | null;
   depositReference: string | null;
@@ -159,11 +160,13 @@ vi.mock("@/lib/db/prisma", () => ({
                 organizationId: string;
                 status: OfferingBatchStatus;
                 recordedTotal: string;
+                reviewVersion?: number;
               };
               data: {
                 status?: OfferingBatchStatus;
                 depositDate?: Date;
                 depositReference?: string;
+                reviewVersion?: { increment: number };
               };
             }) => {
               const row = store.batches.get(where.id);
@@ -177,11 +180,16 @@ vi.mock("@/lib/db/prisma", () => ({
                 !row ||
                 row.organizationId !== where.organizationId ||
                 row.status !== where.status ||
-                row.recordedTotal.toString() !== where.recordedTotal
+                row.recordedTotal.toString() !== where.recordedTotal ||
+                (where.reviewVersion != null &&
+                  row.reviewVersion !== where.reviewVersion)
               ) {
                 return { count: 0 };
               }
               if (data.status !== undefined) row.status = data.status;
+              if (data.reviewVersion?.increment) {
+                row.reviewVersion += data.reviewVersion.increment;
+              }
               if (data.depositDate !== undefined) {
                 row.depositDate = data.depositDate;
               }
@@ -240,6 +248,7 @@ function snapshot(
     recordedTotal?: string;
     expectedTotal?: string | null;
     donationCount?: number;
+    reviewVersion?: number;
   } = {},
 ) {
   return {
@@ -248,6 +257,7 @@ function snapshot(
     expectedTotal:
       overrides.expectedTotal === undefined ? "25.00" : overrides.expectedTotal,
     donationCount: overrides.donationCount ?? 1,
+    reviewVersion: overrides.reviewVersion ?? 1,
   };
 }
 
@@ -275,6 +285,7 @@ function seedBatch(
           ? null
           : money(overrides.expected),
     recordedTotal: money(overrides.recorded ?? "25.00"),
+    reviewVersion: overrides.reviewVersion ?? 1,
     offeringDate: overrides.offeringDate ?? OFFERING_DATE,
     depositDate: overrides.depositDate ?? null,
     depositReference: overrides.depositReference ?? null,
@@ -677,6 +688,18 @@ describe("offering batch deposit tracking and locking", () => {
     await expect(
       lockOfferingBatch(BATCH_ID, snapshot({ recordedTotal: "40.00" })),
     ).rejects.toMatchObject({ code: "CONCURRENT_CHANGE" });
+    expect(store.batches.get(BATCH_ID)?.status).toBe(
+      OfferingBatchStatus.RECONCILED,
+    );
+    expect(store.audits).toHaveLength(0);
+  });
+
+  it("rejects a lock confirmation bound to an older review version", async () => {
+    seedDepositedBatch();
+    store.batches.get(BATCH_ID)!.reviewVersion = 4;
+    await expect(
+      lockOfferingBatch(BATCH_ID, snapshot({ reviewVersion: 1 })),
+    ).rejects.toMatchObject({ code: "STALE_REVIEW" });
     expect(store.batches.get(BATCH_ID)?.status).toBe(
       OfferingBatchStatus.RECONCILED,
     );

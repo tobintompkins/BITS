@@ -23,6 +23,7 @@ export const offeringBatchTransitionSchema = z.object({
     .refine(isValidMoneyInput, "Recorded total snapshot is required."),
   expectedTotal: optionalMoneySnapshot,
   donationCount: z.coerce.number().int().min(0),
+  reviewVersion: z.coerce.number().int().min(1),
 });
 
 export type OfferingBatchTransitionInput = z.infer<
@@ -35,6 +36,7 @@ export function transitionSnapshotMatches(
     recordedTotal: string;
     expectedTotal: string | null;
     donationCount: number;
+    reviewVersion: number;
   },
 ) {
   const expectedMatches =
@@ -43,6 +45,7 @@ export function transitionSnapshotMatches(
       : current.expectedTotal != null &&
         moneyEquals(snapshot.expectedTotal, current.expectedTotal);
   return (
+    snapshot.reviewVersion === current.reviewVersion &&
     moneyEquals(snapshot.recordedTotal, current.recordedTotal) &&
     snapshot.donationCount === current.donationCount &&
     expectedMatches

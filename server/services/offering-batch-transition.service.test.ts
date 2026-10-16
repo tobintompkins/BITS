@@ -9,6 +9,7 @@ type BatchRow = {
   status: OfferingBatchStatus;
   expectedTotal: { toString(): string } | null;
   recordedTotal: { toString(): string };
+  reviewVersion: number;
 };
 
 type DonationRow = {
@@ -160,8 +161,12 @@ vi.mock("@/lib/db/prisma", () => ({
                 organizationId: string;
                 status: OfferingBatchStatus;
                 recordedTotal: string;
+                reviewVersion?: number;
               };
-              data: { status: OfferingBatchStatus };
+              data: {
+                status: OfferingBatchStatus;
+                reviewVersion?: { increment: number };
+              };
             }) => {
               const row = store.batches.get(where.id);
               if (store.pendingRecordedTotal && row) {
@@ -171,11 +176,16 @@ vi.mock("@/lib/db/prisma", () => ({
                 !row ||
                 row.organizationId !== where.organizationId ||
                 row.status !== where.status ||
-                row.recordedTotal.toString() !== where.recordedTotal
+                row.recordedTotal.toString() !== where.recordedTotal ||
+                (where.reviewVersion != null &&
+                  row.reviewVersion !== where.reviewVersion)
               ) {
                 return { count: 0 };
               }
               row.status = data.status;
+              if (data.reviewVersion?.increment) {
+                row.reviewVersion += data.reviewVersion.increment;
+              }
               return { count: 1 };
             },
           },
@@ -225,6 +235,7 @@ function snapshot(
     recordedTotal?: string;
     expectedTotal?: string | null;
     donationCount?: number;
+    reviewVersion?: number;
   } = {},
 ) {
   return {
@@ -233,6 +244,7 @@ function snapshot(
     expectedTotal:
       overrides.expectedTotal === undefined ? "25.00" : overrides.expectedTotal,
     donationCount: overrides.donationCount ?? 1,
+    reviewVersion: overrides.reviewVersion ?? 1,
   };
 }
 
@@ -250,6 +262,7 @@ function seedBatch(
           ? null
           : money(overrides.expected),
     recordedTotal: money(overrides.recorded ?? "25.00"),
+    reviewVersion: overrides.reviewVersion ?? 1,
   });
 }
 
@@ -503,6 +516,15 @@ describe("offering batch entry completion and reconciliation", () => {
         snapshot({ recordedTotal: "10.00", donationCount: 0 }),
       ),
     ).rejects.toMatchObject({ code: "CONCURRENT_CHANGE" });
+    expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.DRAFT);
+    expect(store.audits).toHaveLength(0);
+  });
+
+  it("rejects a same-total confirmation bound to an older review version", async () => {
+    store.batches.get(BATCH_ID)!.reviewVersion = 3;
+    await expect(
+      completeOfferingBatchEntry(BATCH_ID, snapshot({ reviewVersion: 2 })),
+    ).rejects.toMatchObject({ code: "STALE_REVIEW" });
     expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.DRAFT);
     expect(store.audits).toHaveLength(0);
   });

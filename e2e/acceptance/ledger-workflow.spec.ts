@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 import { closeSession, signedInSession } from "./helpers/session";
 
+// Core 11A: Save donation retains one client operation token across retry.
+// Complete/Reconcile/Lock bind the server reviewVersion, not totals alone.
 test.describe("original ledger workflow", () => {
   test.describe.configure({ mode: "serial" });
 

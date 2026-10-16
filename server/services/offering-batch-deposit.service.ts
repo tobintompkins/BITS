@@ -15,6 +15,10 @@ import {
   type BatchIntegrityIssue,
 } from "@/lib/batches/integrity";
 import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
+import {
+  reviewVersionIncrement,
+  STALE_BATCH_REVIEW_MESSAGE,
+} from "@/lib/batches/review-version";
 import { offeringBatchDepositWriteSchema } from "@/lib/validation/offering-batch-deposit";
 import {
   offeringBatchTransitionSchema,
@@ -32,7 +36,8 @@ export class OfferingBatchDepositError extends Error {
       | "FORBIDDEN"
       | "NOT_FOUND"
       | "NOT_CONFIRMED"
-      | "INVALID_REQUEST",
+      | "INVALID_REQUEST"
+      | "STALE_REVIEW",
     message: string,
     public readonly issues: BatchIntegrityIssue[] = [],
   ) {
@@ -223,6 +228,7 @@ export async function recordOfferingBatchDeposit(
         data: {
           depositDate: parseDateOnly(nextDate),
           depositReference: nextReference,
+          reviewVersion: reviewVersionIncrement(),
         },
       });
       if (updated.count !== 1) {
@@ -351,6 +357,7 @@ export async function applyLockOfferingBatch(input: {
       status: true,
       expectedTotal: true,
       recordedTotal: true,
+      reviewVersion: true,
       offeringDate: true,
       depositDate: true,
       depositReference: true,
@@ -374,11 +381,22 @@ export async function applyLockOfferingBatch(input: {
   if (!integrity.ok) {
     throwIntegrityFailure(integrity.issues);
   }
-  if (!transitionSnapshotMatches(input.snapshot, integrity)) {
+  if (
+    !transitionSnapshotMatches(input.snapshot, {
+      ...integrity,
+      reviewVersion: batch.reviewVersion,
+    })
+  ) {
     throw new OfferingBatchDepositError(
-      "CONCURRENT_CHANGE",
-      BATCH_INTEGRITY_MESSAGES.CONCURRENT_CHANGE,
-      ["CONCURRENT_CHANGE"],
+      input.snapshot.reviewVersion === batch.reviewVersion
+        ? "CONCURRENT_CHANGE"
+        : "STALE_REVIEW",
+      input.snapshot.reviewVersion === batch.reviewVersion
+        ? BATCH_INTEGRITY_MESSAGES.CONCURRENT_CHANGE
+        : STALE_BATCH_REVIEW_MESSAGE,
+      input.snapshot.reviewVersion === batch.reviewVersion
+        ? ["CONCURRENT_CHANGE"]
+        : [],
     );
   }
 
@@ -388,8 +406,12 @@ export async function applyLockOfferingBatch(input: {
       organizationId: input.organizationId,
       status: OfferingBatchStatus.RECONCILED,
       recordedTotal: integrity.recordedTotal,
+      reviewVersion: batch.reviewVersion,
     },
-    data: { status: OfferingBatchStatus.LOCKED },
+    data: {
+      status: OfferingBatchStatus.LOCKED,
+      reviewVersion: reviewVersionIncrement(),
+    },
   });
   if (updated.count !== 1) {
     throw new OfferingBatchDepositError(

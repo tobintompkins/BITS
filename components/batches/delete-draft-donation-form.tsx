@@ -8,9 +8,11 @@ import { deleteManualBatchDonationAction } from "@/app/(staff)/batches/actions";
 export function DeleteDraftDonationForm({
   batchId,
   donationId,
+  expectedReviewVersion,
 }: {
   batchId: string;
   donationId: string;
+  expectedReviewVersion: number;
 }) {
   const router = useRouter();
   const [confirmed, setConfirmed] = useState(false);
@@ -26,6 +28,7 @@ export function DeleteDraftDonationForm({
           const result = await deleteManualBatchDonationAction(
             batchId,
             donationId,
+            expectedReviewVersion,
           );
           if (!result.ok) {
             setError(result.error);

@@ -7,7 +7,19 @@ import {
   requireBatchViewAccess,
 } from "@/lib/auth/giving-permissions";
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
+import {
+  CREATE_MANUAL_BATCH_DONATION_ACTION,
+  fingerprintManualDonationPayload,
+  parseCreateOperationToken,
+  safeCreateDonationResult,
+} from "@/lib/batches/create-idempotency";
 import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
+import {
+  parseExpectedReviewVersion,
+  reviewVersionIncrement,
+  reviewVersionMatches,
+  STALE_BATCH_REVIEW_MESSAGE,
+} from "@/lib/batches/review-version";
 import {
   normalizeEmail,
   normalizePhone,
@@ -41,7 +53,10 @@ export class ManualBatchDonationError extends Error {
       | "NOT_EDITABLE"
       | "INVALID_REQUEST"
       | "INACTIVE_DONOR"
-      | "INACTIVE_FUND",
+      | "INACTIVE_FUND"
+      | "CONFLICT"
+      | "STALE_REVIEW"
+      | "ALREADY_PROCESSED",
     message: string,
   ) {
     super(message);
@@ -65,6 +80,56 @@ function persistNote(reference: string | null, note: string | null) {
   if (reference && note) return `Reference: ${reference}\n${note}`;
   if (reference) return `Reference: ${reference}`;
   return note;
+}
+
+function requireCreateOperationToken(value: unknown) {
+  const token = parseCreateOperationToken(value);
+  if (!token) {
+    throw new ManualBatchDonationError(
+      "INVALID_REQUEST",
+      "This submission could not be verified. Refresh and try again.",
+    );
+  }
+  return token;
+}
+
+function requireExpectedReviewVersion(value: unknown) {
+  const version = parseExpectedReviewVersion(value);
+  if (version == null) {
+    throw new ManualBatchDonationError(
+      "STALE_REVIEW",
+      STALE_BATCH_REVIEW_MESSAGE,
+    );
+  }
+  return version;
+}
+
+function parseStoredCreateResult(
+  resultJson: string | null,
+  fallback: { id: string; batchId: string; totalAmount: string },
+) {
+  if (!resultJson) return fallback;
+  try {
+    const parsed = JSON.parse(resultJson) as {
+      id?: unknown;
+      batchId?: unknown;
+      totalAmount?: unknown;
+    };
+    if (
+      parsed.id === fallback.id &&
+      parsed.batchId === fallback.batchId &&
+      typeof parsed.totalAmount === "string"
+    ) {
+      return safeCreateDonationResult({
+        id: fallback.id,
+        batchId: fallback.batchId,
+        totalAmount: parsed.totalAmount,
+      });
+    }
+  } catch {
+    // Fall through to the donation row. Tokens stay out of the response.
+  }
+  return fallback;
 }
 
 async function requireOrganization() {
@@ -213,6 +278,7 @@ export async function getOfferingBatchDonations(
 export async function createManualBatchDonation(
   batchId: string,
   rawInput: unknown,
+  operationToken?: unknown,
 ) {
   const userAccount = await requireActor();
   const organization = await requireOrganization();
@@ -233,6 +299,7 @@ export async function createManualBatchDonation(
     );
   }
   const input = parsed.data;
+  const token = requireCreateOperationToken(operationToken);
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -242,6 +309,7 @@ export async function createManualBatchDonation(
         actorUserAccountId: userAccount.id,
         batchId,
         input,
+        operationToken: token,
       });
     });
   } catch (error) {
@@ -253,7 +321,7 @@ export async function createManualBatchDonation(
   }
 }
 
-async function requireDraftBatchForMutation(
+async function lockExistingOfferingBatch(
   db: Prisma.TransactionClient,
   organizationId: string,
   batchId: string,
@@ -270,11 +338,21 @@ async function requireDraftBatchForMutation(
       status: true,
       offeringDate: true,
       recordedTotal: true,
+      reviewVersion: true,
     },
   });
   if (!batch) {
     throw new ManualBatchDonationError("NOT_FOUND", "Offering batch not found.");
   }
+  return batch;
+}
+
+async function requireDraftBatchForMutation(
+  db: Prisma.TransactionClient,
+  organizationId: string,
+  batchId: string,
+) {
+  const batch = await lockExistingOfferingBatch(db, organizationId, batchId);
   if (batch.status !== OfferingBatchStatus.DRAFT) {
     throw new ManualBatchDonationError(
       "NOT_EDITABLE",
@@ -282,6 +360,18 @@ async function requireDraftBatchForMutation(
     );
   }
   return batch;
+}
+
+function requireMatchingReviewVersion(
+  current: number,
+  expected: number,
+) {
+  if (!reviewVersionMatches(current, expected)) {
+    throw new ManualBatchDonationError(
+      "STALE_REVIEW",
+      STALE_BATCH_REVIEW_MESSAGE,
+    );
+  }
 }
 
 async function requireActiveDonorAndFunds(
@@ -401,18 +491,174 @@ function donationAuditChanges(
   ];
 }
 
+async function loadCreateIdempotencyClaim(
+  db: Prisma.TransactionClient,
+  input: {
+    organizationId: string;
+    operationToken: string;
+  },
+) {
+  return db.ledgerCreateIdempotency.findUnique({
+    where: {
+      organizationId_action_operationToken: {
+        organizationId: input.organizationId,
+        action: CREATE_MANUAL_BATCH_DONATION_ACTION,
+        operationToken: input.operationToken,
+      },
+    },
+    select: {
+      actorUserAccountId: true,
+      batchId: true,
+      payloadFingerprint: true,
+      donationId: true,
+      resultJson: true,
+    },
+  });
+}
+
+async function claimCreateIdempotencyToken(input: {
+  db: Prisma.TransactionClient;
+  organizationId: string;
+  actorUserAccountId: string;
+  batchId: string;
+  operationToken: string;
+  payloadFingerprint: string;
+}) {
+  const rows = await input.db.$queryRaw<Array<{ id: string }>>`
+    INSERT INTO ledger_create_idempotency (
+      id,
+      "organizationId",
+      action,
+      "operationToken",
+      "actorUserAccountId",
+      "batchId",
+      "payloadFingerprint",
+      "createdAt"
+    )
+    VALUES (
+      gen_random_uuid(),
+      ${input.organizationId}::uuid,
+      ${CREATE_MANUAL_BATCH_DONATION_ACTION},
+      ${input.operationToken},
+      ${input.actorUserAccountId}::uuid,
+      ${input.batchId}::uuid,
+      ${input.payloadFingerprint},
+      NOW()
+    )
+    ON CONFLICT ("organizationId", action, "operationToken") DO NOTHING
+    RETURNING id
+  `;
+  return rows.length > 0;
+}
+
+async function replayCreateIdempotencyClaim(input: {
+  db: Prisma.TransactionClient;
+  organizationId: string;
+  actorUserAccountId: string;
+  batchId: string;
+  operationToken: string;
+  payloadFingerprint: string;
+}) {
+  const claim = await loadCreateIdempotencyClaim(input.db, {
+    organizationId: input.organizationId,
+    operationToken: input.operationToken,
+  });
+  if (!claim) {
+    throw new ManualBatchDonationError(
+      "CONFLICT",
+      "This request conflicts with an earlier submission.",
+    );
+  }
+  if (
+    claim.actorUserAccountId !== input.actorUserAccountId ||
+    claim.batchId !== input.batchId ||
+    claim.payloadFingerprint !== input.payloadFingerprint
+  ) {
+    throw new ManualBatchDonationError(
+      "CONFLICT",
+      "This request conflicts with an earlier submission.",
+    );
+  }
+  if (!claim.donationId) {
+    throw new ManualBatchDonationError(
+      "ALREADY_PROCESSED",
+      "This gift was already recorded and is no longer available.",
+    );
+  }
+  const donation = await input.db.donation.findFirst({
+    where: {
+      id: claim.donationId,
+      organizationId: input.organizationId,
+    },
+    select: { id: true, batchId: true, totalAmount: true },
+  });
+  if (!donation) {
+    throw new ManualBatchDonationError(
+      "ALREADY_PROCESSED",
+      "This gift was already recorded and is no longer available.",
+    );
+  }
+  return parseStoredCreateResult(claim.resultJson, {
+    id: donation.id,
+    batchId: donation.batchId ?? input.batchId,
+    totalAmount: donation.totalAmount.toString(),
+  });
+}
+
 export async function applyManualBatchDonationCreate(input: {
   db: Prisma.TransactionClient;
   organizationId: string;
   actorUserAccountId: string;
   batchId: string;
   input: ManualBatchDonationWriteInput;
+  operationToken: string;
 }) {
-  const batch = await requireDraftBatchForMutation(
+  const payloadFingerprint = fingerprintManualDonationPayload(input.input);
+  const locked = await lockExistingOfferingBatch(
     input.db,
     input.organizationId,
     input.batchId,
   );
+  const existingClaim = await loadCreateIdempotencyClaim(input.db, {
+    organizationId: input.organizationId,
+    operationToken: input.operationToken,
+  });
+  if (existingClaim) {
+    return replayCreateIdempotencyClaim({
+      db: input.db,
+      organizationId: input.organizationId,
+      actorUserAccountId: input.actorUserAccountId,
+      batchId: input.batchId,
+      operationToken: input.operationToken,
+      payloadFingerprint,
+    });
+  }
+  const inserted = await claimCreateIdempotencyToken({
+    db: input.db,
+    organizationId: input.organizationId,
+    actorUserAccountId: input.actorUserAccountId,
+    batchId: input.batchId,
+    operationToken: input.operationToken,
+    payloadFingerprint,
+  });
+  if (!inserted) {
+    return replayCreateIdempotencyClaim({
+      db: input.db,
+      organizationId: input.organizationId,
+      actorUserAccountId: input.actorUserAccountId,
+      batchId: input.batchId,
+      operationToken: input.operationToken,
+      payloadFingerprint,
+    });
+  }
+
+  if (locked.status !== OfferingBatchStatus.DRAFT) {
+    throw new ManualBatchDonationError(
+      "NOT_EDITABLE",
+      "Donations can only be changed on draft batches.",
+    );
+  }
+  const batch = locked;
   requireOfferingDateConfirmation(dateOnlyString(batch.offeringDate), input.input);
   await requireActiveDonorAndFunds(input.db, input.organizationId, input.input);
 
@@ -438,6 +684,7 @@ export async function applyManualBatchDonationCreate(input: {
     },
     data: {
       recordedTotal: { increment: input.input.totalAmount },
+      reviewVersion: reviewVersionIncrement(),
     },
   });
   if (updated.count !== 1) {
@@ -461,11 +708,25 @@ export async function applyManualBatchDonationCreate(input: {
     input.db,
   );
 
-  return {
+  const result = safeCreateDonationResult({
     id: donation.id,
     batchId: batch.id,
     totalAmount: donation.totalAmount.toString(),
-  };
+  });
+  await input.db.ledgerCreateIdempotency.update({
+    where: {
+      organizationId_action_operationToken: {
+        organizationId: input.organizationId,
+        action: CREATE_MANUAL_BATCH_DONATION_ACTION,
+        operationToken: input.operationToken,
+      },
+    },
+    data: {
+      donationId: donation.id,
+      resultJson: JSON.stringify(result),
+    },
+  });
+  return result;
 }
 
 export async function getManualBatchDonationForEdit(
@@ -541,6 +802,7 @@ export async function getManualBatchDonationForEdit(
         amount: row.amount.toString(),
       })),
     }),
+    reviewVersion: batch.reviewVersion,
   };
 }
 
@@ -548,6 +810,7 @@ export async function updateManualBatchDonation(
   batchId: string,
   donationId: string,
   rawInput: unknown,
+  expectedReviewVersion?: unknown,
 ) {
   const userAccount = await requireActor();
   const organization = await requireOrganization();
@@ -567,6 +830,7 @@ export async function updateManualBatchDonation(
       parsed.error.issues[0]?.message ?? "Check the donation form and try again.",
     );
   }
+  const reviewVersion = requireExpectedReviewVersion(expectedReviewVersion);
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -577,6 +841,7 @@ export async function updateManualBatchDonation(
         batchId,
         donationId,
         input: parsed.data,
+        expectedReviewVersion: reviewVersion,
       });
     });
   } catch (error) {
@@ -595,12 +860,14 @@ export async function applyManualBatchDonationUpdate(input: {
   batchId: string;
   donationId: string;
   input: ManualBatchDonationWriteInput;
+  expectedReviewVersion: number;
 }) {
   const batch = await requireDraftBatchForMutation(
     input.db,
     input.organizationId,
     input.batchId,
   );
+  requireMatchingReviewVersion(batch.reviewVersion, input.expectedReviewVersion);
   requireOfferingDateConfirmation(dateOnlyString(batch.offeringDate), input.input);
   await requireActiveDonorAndFunds(input.db, input.organizationId, input.input);
 
@@ -657,6 +924,7 @@ export async function applyManualBatchDonationUpdate(input: {
     },
     data: {
       recordedTotal: { increment: delta },
+      reviewVersion: reviewVersionIncrement(),
     },
   });
   if (updated.count !== 1) {
@@ -695,6 +963,7 @@ export async function applyManualBatchDonationUpdate(input: {
 export async function deleteManualBatchDonation(
   batchId: string,
   donationId: string,
+  expectedReviewVersion?: unknown,
 ) {
   const userAccount = await requireActor();
   const organization = await requireOrganization();
@@ -706,6 +975,7 @@ export async function deleteManualBatchDonation(
       "You do not have permission to add donations to offering batches.",
     );
   }
+  const reviewVersion = requireExpectedReviewVersion(expectedReviewVersion);
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -715,6 +985,7 @@ export async function deleteManualBatchDonation(
         actorUserAccountId: userAccount.id,
         batchId,
         donationId,
+        expectedReviewVersion: reviewVersion,
       });
     });
   } catch (error) {
@@ -732,12 +1003,14 @@ export async function applyManualBatchDonationDelete(input: {
   actorUserAccountId: string;
   batchId: string;
   donationId: string;
+  expectedReviewVersion: number;
 }) {
   const batch = await requireDraftBatchForMutation(
     input.db,
     input.organizationId,
     input.batchId,
   );
+  requireMatchingReviewVersion(batch.reviewVersion, input.expectedReviewVersion);
 
   const existing = await input.db.donation.findFirst({
     where: {
@@ -781,6 +1054,7 @@ export async function applyManualBatchDonationDelete(input: {
     },
     data: {
       recordedTotal: { increment: moneySubtract("0.00", previousTotal) },
+      reviewVersion: reviewVersionIncrement(),
     },
   });
   if (updated.count !== 1) {
