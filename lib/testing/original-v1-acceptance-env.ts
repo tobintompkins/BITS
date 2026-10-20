@@ -74,9 +74,26 @@ export function applyOriginalV1LocalAcceptanceEnv(
  * `e2e/.local/acceptance.env` for isolated keys only. Explicit process
  * exports always win so a working `.env` cannot retarget the suite.
  */
+const ISOLATED_PROCESS_KEYS = [
+  "DATABASE_URL",
+  "BITS_E2E_DATABASE_URL",
+  "BITS_WORKING_DATABASE_URL",
+  "BITS_ISOLATED_DATABASE",
+  "BITS_ISOLATED_RUN_ID",
+] as const;
+
 export function loadOriginalV1AcceptanceEnvFiles(cwd = process.cwd()) {
   const presetKeys = nonemptyKeys(process.env);
-  loadDotenv({ path: path.join(cwd, ".env") });
+  const isolatedProcess =
+    process.env.BITS_ISOLATED_DATABASE === "1"
+      ? Object.fromEntries(
+          ISOLATED_PROCESS_KEYS.map((key) => [key, process.env[key]]),
+        )
+      : null;
+  loadDotenv({ path: path.join(cwd, ".env"), override: false });
+  if (isolatedProcess) {
+    Object.assign(process.env, isolatedProcess);
+  }
 
   const localPath = path.join(cwd, ORIGINAL_V1_LOCAL_ENV_RELATIVE);
   if (!existsSync(localPath)) {

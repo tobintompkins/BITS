@@ -9,6 +9,7 @@ import {
   formatBatchMoney,
 } from "@/lib/batches/display";
 import { parseOfferingBatchDirectoryQuery } from "@/lib/validation/offering-batch";
+import { LedgerSchemaAlert } from "@/components/batches/ledger-schema-alert";
 import {
   OfferingBatchError,
   getOfferingBatchDirectory,
@@ -88,6 +89,14 @@ async function OfferingBatchDirectory({
     }
     if (error instanceof OfferingBatchError && error.code === "SIGNED_OUT") {
       redirect("/sign-in");
+    }
+    if (error instanceof OfferingBatchError && error.code === "SCHEMA_NOT_READY") {
+      return (
+        <>
+          <DirectoryHeader canManage={false} />
+          <LedgerSchemaAlert message={error.message} />
+        </>
+      );
     }
     return (
       <>

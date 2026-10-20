@@ -101,3 +101,9 @@ user, confirm denial. Confirm member-household screens still operate separately.
 
 Remaining original core: contribution reports/CSV, production statement storage
 and launch verification. This increment does not mark original v1 complete.
+
+## Core 12 / 12A review — October 19, 2026
+
+Isolated two-session tests now observe real PostgreSQL lock waits (`pg_backend_pid` + `pg_blocking_pids`) on production giving-household writers. Competing links, competing moves, move/end, settings versus move, DATA_ENTRY basic save versus contact clearing, opposite-direction moves, active-to-inactive target races, overlapping versus adjacent backdated links, and audit-failure rollback for link/move/end/settings all passed on `bits_e2e`. Same-millisecond settings writes stay distinguishable. See `docs/original-v1-household-concurrency.md`.
+
+Live Clerk browser acceptance, including the Playwright stale-form case, is still pending. Member `/households` is unchanged. Historical acceptance statements above describe their original verification dates. This increment does not mark original v1 complete.

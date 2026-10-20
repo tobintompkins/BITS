@@ -438,6 +438,8 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
+import { prisma } from "@/lib/db/prisma";
+
 import {
   CREATE_MANUAL_BATCH_DONATION,
   DELETE_MANUAL_BATCH_DONATION,
@@ -453,7 +455,9 @@ import {
 const ORG_ID = "00000000-0000-4000-8000-00000000a001";
 const OTHER_ORG = "00000000-0000-4000-8000-00000000a002";
 const USER_ID = "00000000-0000-4000-8000-00000000c001";
+const OTHER_USER = "00000000-0000-4000-8000-00000000c002";
 const BATCH_ID = "00000000-0000-4000-8000-00000000b001";
+const BATCH_B = "00000000-0000-4000-8000-00000000b002";
 const DONOR_ID = "00000000-0000-4000-8000-00000000d001";
 const OTHER_DONOR = "00000000-0000-4000-8000-00000000d002";
 const FUND_ID = "00000000-0000-4000-8000-00000000f001";
@@ -486,9 +490,9 @@ function validInput(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function seedDraftBatch() {
-  store.batches.set(BATCH_ID, {
-    id: BATCH_ID,
+function seedDraftBatch(id = BATCH_ID) {
+  store.batches.set(id, {
+    id,
     organizationId: ORG_ID,
     status: OfferingBatchStatus.DRAFT,
     offeringDate: new Date("2026-09-06T00:00:00.000Z"),
@@ -772,9 +776,28 @@ describe("manual batch donation entry", () => {
     store.persistShouldFail = true;
     await expect(
       createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
-    ).rejects.toBeInstanceOf(ManualBatchDonationError);
+    ).rejects.toMatchObject({
+      name: "ManualBatchDonationError",
+      code: "INVALID_REQUEST",
+    });
     expect(store.donations.size).toBe(0);
     expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("0.00");
+    expect(store.audits).toHaveLength(0);
+  });
+
+  it("fails closed with an operator schema message when review storage is missing", async () => {
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce({
+      code: "P2022",
+      meta: { column: "reviewVersion" },
+      message: "The column `reviewVersion` does not exist in the current database.",
+    });
+    await expect(
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
+    ).rejects.toMatchObject({
+      code: "SCHEMA_NOT_READY",
+      message: expect.stringMatching(/ledger:review-local-migrate/),
+    });
+    expect(store.donations.size).toBe(0);
     expect(store.audits).toHaveLength(0);
   });
 
@@ -1047,6 +1070,75 @@ describe("manual batch donation entry", () => {
     ).rejects.toMatchObject({ code: "STALE_REVIEW" });
     expect(store.donations.get(created.id)?.totalAmount.toString()).toBe("20.00");
     expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("20.00");
+  });
+
+  it("rejects a stale draft delete after another writer incremented the review version", async () => {
+    const created = await createManualBatchDonation(
+      BATCH_ID,
+      validInput(),
+      TOKEN_A,
+    );
+    const staleVersion = store.batches.get(BATCH_ID)!.reviewVersion;
+    await updateManualBatchDonation(
+      BATCH_ID,
+      created.id,
+      validInput({
+        allocations: [{ offeringTypeId: FUND_ID, amount: "20.00" }],
+        deductibleAmount: "20.00",
+      }),
+      staleVersion,
+    );
+    await expect(
+      deleteManualBatchDonation(BATCH_ID, created.id, staleVersion),
+    ).rejects.toMatchObject({ code: "STALE_REVIEW" });
+    expect(store.donations.has(created.id)).toBe(true);
+    expect(store.donations.get(created.id)?.totalAmount.toString()).toBe("20.00");
+  });
+
+  it("rejects the same create token from a different actor or batch", async () => {
+    await createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A);
+    mocks.getOrCreateUserAccount.mockResolvedValue({ id: OTHER_USER });
+    await expect(
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    mocks.getOrCreateUserAccount.mockResolvedValue({ id: USER_ID });
+    seedDraftBatch(BATCH_B);
+    await expect(
+      createManualBatchDonation(BATCH_B, validInput(), TOKEN_A),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(store.donations.size).toBe(1);
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("25.00");
+    expect(store.batches.get(BATCH_B)?.recordedTotal.toString()).toBe("0.00");
+  });
+
+  it("replays a successful create after lock without reopening the batch", async () => {
+    const created = await createManualBatchDonation(
+      BATCH_ID,
+      validInput(),
+      TOKEN_A,
+    );
+    store.batches.get(BATCH_ID)!.status = OfferingBatchStatus.LOCKED;
+    const replay = await createManualBatchDonation(
+      BATCH_ID,
+      validInput(),
+      TOKEN_A,
+    );
+    expect(replay.id).toBe(created.id);
+    expect(store.donations.size).toBe(1);
+    expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.LOCKED);
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("25.00");
+    expect(store.audits).toHaveLength(1);
+  });
+
+  it("does not replay a create token after donation-entry access is revoked", async () => {
+    await createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A);
+    mocks.getGivingAccess.mockResolvedValue(
+      getGivingCapabilitiesForRole(RoleCode.REPORT_VIEWER),
+    );
+    await expect(
+      createManualBatchDonation(BATCH_ID, validInput(), TOKEN_A),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(store.donations.size).toBe(1);
   });
 
   it("keeps a failed create token reusable after rollback", async () => {

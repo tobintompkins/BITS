@@ -135,6 +135,16 @@ describe("parseOriginalV1AcceptanceConfig", () => {
     ).toThrow(/distinct Clerk email identity/);
   });
 
+  it("prefers BITS_WORKING_DATABASE_URL after DATABASE_URL is retargeted", () => {
+    const parsed = parseOriginalV1AcceptanceConfig({
+      ...validEnv,
+      DATABASE_URL: validEnv.BITS_E2E_DATABASE_URL,
+      BITS_WORKING_DATABASE_URL: validEnv.DATABASE_URL,
+    });
+    expect(parsed.workingDatabaseUrl).toBe(validEnv.DATABASE_URL);
+    expect(parsed.e2eDatabaseUrl).toBe(validEnv.BITS_E2E_DATABASE_URL);
+  });
+
   it("builds a fingerprint from the isolated URL, not DATABASE_URL", () => {
     const parsed = parseOriginalV1AcceptanceConfig(validEnv);
     expect(parsed.expectedFingerprint).toBe(

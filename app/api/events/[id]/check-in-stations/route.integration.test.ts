@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -35,31 +33,23 @@ vi.mock("@/lib/security/rate-limit", () => ({
 
 import { GET, POST } from "@/app/api/events/[id]/check-in-stations/route";
 import { POST as CLOSE } from "@/app/api/events/[id]/check-in-stations/[stationId]/close/route";
-import { prisma } from "@/lib/db/prisma";
-import {
-  createAttendanceFoundationFixture,
-  type AttendanceFoundationFixture,
-} from "@/server/repositories/event-attendance.fixtures";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
+import { startIsolatedAttendanceFixture } from "@/lib/testing/isolated-prisma";
+import type { AttendanceFoundationFixture } from "@/server/repositories/event-attendance.fixtures";
 
-async function canReachDatabase() {
-  if (!process.env.DATABASE_URL) return false;
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return true;
-  } catch {
-    return false;
-  }
-}
+const hasIsolatedDatabase = isolatedDatabaseRunEnabled();
 
-const dbReady = await canReachDatabase();
-
-describe.runIf(dbReady)(
+describe.runIf(hasIsolatedDatabase)(
   "check-in-stations API integration",
   () => {
-    let fx: AttendanceFoundationFixture;
+    let prisma: PrismaClient;
+  let fx: AttendanceFoundationFixture;
 
     beforeAll(async () => {
-      fx = await createAttendanceFoundationFixture();
+      const started = await startIsolatedAttendanceFixture();
+    prisma = started.prisma;
+    fx = started.fx;
     });
 
     afterAll(async () => {

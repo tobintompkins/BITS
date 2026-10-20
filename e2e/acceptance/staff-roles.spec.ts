@@ -259,6 +259,43 @@ test.describe("original five staff and donor roles", () => {
     }
   });
 
+  test("a stale giving-household settings form conflicts after another staff save", async ({
+    browser,
+  }) => {
+    const treasurer = await signedInSession(browser, "treasurer");
+    const admin = await signedInSession(browser, "orgAdmin");
+    try {
+      const householdPath = `/giving-households/${treasurer.manifest.households.a.id}`;
+      await treasurer.page.goto(householdPath);
+      await expect(
+        treasurer.page.getByRole("heading", {
+          name: treasurer.manifest.households.a.label,
+        }),
+      ).toBeVisible();
+      await admin.page.goto(householdPath);
+      await expect(
+        admin.page.getByRole("heading", {
+          name: admin.manifest.households.a.label,
+        }),
+      ).toBeVisible();
+
+      await admin.page.getByLabel("City").fill("Nashville");
+      await admin.page.getByRole("button", { name: "Save giving household" }).click();
+      await expect(admin.page.getByText("Giving household saved.")).toBeVisible();
+
+      await treasurer.page.getByLabel("City").fill("Saco");
+      await treasurer.page
+        .getByRole("button", { name: "Save giving household" })
+        .click();
+      await expect(
+        treasurer.page.getByText(/updated by someone else/i),
+      ).toBeVisible();
+    } finally {
+      await closeSession(treasurer);
+      await closeSession(admin);
+    }
+  });
+
   test("non-admin roles cannot mutate Staff Access", async ({ browser }) => {
     for (const role of ["treasurer", "dataEntry", "reportViewer", "donorA1"] as const) {
       const session = await signedInSession(browser, role);

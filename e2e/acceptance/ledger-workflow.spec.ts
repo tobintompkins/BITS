@@ -58,6 +58,28 @@ test.describe("original ledger workflow", () => {
     }
   });
 
+  test("TREASURER can reconcile the entered balanced batch", async ({
+    browser,
+  }) => {
+    const session = await signedInSession(browser, "treasurer");
+    try {
+      const { page, manifest } = session;
+      await page.goto("/batches");
+      await page
+        .getByRole("link", { name: `${manifest.prefix}Ledger Sunday` })
+        .click();
+      await expect(page.getByRole("heading", { name: `${manifest.prefix}Ledger Sunday` })).toBeVisible();
+      await page.getByRole("button", { name: "Reconcile Batch" }).click();
+      await page.getByRole("button", { name: "Reconcile Batch" }).last().click();
+      await expect(
+        page.getByText("This batch is reconciled. Expected and recorded totals match."),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "Add Donation" })).toHaveCount(0);
+    } finally {
+      await closeSession(session);
+    }
+  });
+
   test("REPORT_VIEWER can view batches and cannot add gifts", async ({
     browser,
   }) => {

@@ -1,8 +1,8 @@
-import "dotenv/config";
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { prisma } from "@/lib/db/prisma";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
+import { startIsolatedAttendanceFixture } from "@/lib/testing/isolated-prisma";
 import { EVENT_CHECK_IN_STATION_STATUSES } from "@/lib/constants/event-check-in-station";
 import {
   createActiveStation,
@@ -12,24 +12,9 @@ import {
   lockStationForUpdate,
   StationFoundationError,
 } from "@/server/repositories/event-check-in-station.repository";
-import {
-  createAttendanceFoundationFixture,
-  type AttendanceFoundationFixture,
-} from "@/server/repositories/event-attendance.fixtures";
+import type { AttendanceFoundationFixture } from "@/server/repositories/event-attendance.fixtures";
 
-const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
-
-async function canReachDatabase() {
-  if (!hasDatabaseUrl) return false;
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const dbReady = await canReachDatabase();
+const hasIsolatedDatabase = isolatedDatabaseRunEnabled();
 
 describe("Blueprint 7.3I station foundation API surface", () => {
   it("exposes only create/read/list/lock helpers (no hard-delete or unscoped find)", () => {
@@ -54,11 +39,14 @@ describe("Blueprint 7.3I station foundation API surface", () => {
   });
 });
 
-describe.runIf(dbReady)("Blueprint 7.3I station foundation (database)", () => {
+describe.runIf(hasIsolatedDatabase)("Blueprint 7.3I station foundation (database)", () => {
+  let prisma: PrismaClient;
   let fx: AttendanceFoundationFixture;
 
   beforeAll(async () => {
-    fx = await createAttendanceFoundationFixture();
+    const started = await startIsolatedAttendanceFixture();
+    prisma = started.prisma;
+    fx = started.fx;
   });
 
   afterAll(async () => {

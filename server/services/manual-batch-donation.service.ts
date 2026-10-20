@@ -14,6 +14,7 @@ import {
   safeCreateDonationResult,
 } from "@/lib/batches/create-idempotency";
 import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
+import { ledgerReviewSchemaFailureMessage } from "@/lib/batches/ledger-review-schema-error";
 import {
   parseExpectedReviewVersion,
   reviewVersionIncrement,
@@ -56,7 +57,8 @@ export class ManualBatchDonationError extends Error {
       | "INACTIVE_FUND"
       | "CONFLICT"
       | "STALE_REVIEW"
-      | "ALREADY_PROCESSED",
+      | "ALREADY_PROCESSED"
+      | "SCHEMA_NOT_READY",
     message: string,
   ) {
     super(message);
@@ -67,6 +69,15 @@ export class ManualBatchDonationError extends Error {
 export const CREATE_MANUAL_BATCH_DONATION = "CREATE_MANUAL_BATCH_DONATION";
 export const UPDATE_MANUAL_BATCH_DONATION = "UPDATE_MANUAL_BATCH_DONATION";
 export const DELETE_MANUAL_BATCH_DONATION = "DELETE_MANUAL_BATCH_DONATION";
+
+function throwMappedDonationWriteError(error: unknown, fallback: string): never {
+  if (error instanceof ManualBatchDonationError) throw error;
+  const schema = ledgerReviewSchemaFailureMessage(error);
+  if (schema) {
+    throw new ManualBatchDonationError("SCHEMA_NOT_READY", schema);
+  }
+  throw new ManualBatchDonationError("INVALID_REQUEST", fallback);
+}
 
 function parseDateOnly(value: string) {
   return new Date(`${value}T00:00:00.000Z`);
@@ -236,7 +247,12 @@ export async function getOfferingBatchDonations(
     );
   }
 
-  const batch = await findOfferingBatchById(organization.id, batchId);
+  let batch;
+  try {
+    batch = await findOfferingBatchById(organization.id, batchId);
+  } catch (error) {
+    throwMappedDonationWriteError(error, "Donations could not be loaded.");
+  }
   if (!batch) {
     throw new ManualBatchDonationError("NOT_FOUND", "Offering batch not found.");
   }
@@ -313,9 +329,8 @@ export async function createManualBatchDonation(
       });
     });
   } catch (error) {
-    if (error instanceof ManualBatchDonationError) throw error;
-    throw new ManualBatchDonationError(
-      "INVALID_REQUEST",
+    throwMappedDonationWriteError(
+      error,
       "This donation could not be recorded.",
     );
   }
@@ -744,7 +759,12 @@ export async function getManualBatchDonationForEdit(
     );
   }
 
-  const batch = await findOfferingBatchById(organization.id, batchId);
+  let batch;
+  try {
+    batch = await findOfferingBatchById(organization.id, batchId);
+  } catch (error) {
+    throwMappedDonationWriteError(error, "This donation could not be loaded.");
+  }
   if (!batch) {
     throw new ManualBatchDonationError("NOT_FOUND", "Offering batch not found.");
   }
@@ -845,9 +865,8 @@ export async function updateManualBatchDonation(
       });
     });
   } catch (error) {
-    if (error instanceof ManualBatchDonationError) throw error;
-    throw new ManualBatchDonationError(
-      "INVALID_REQUEST",
+    throwMappedDonationWriteError(
+      error,
       "This donation could not be updated.",
     );
   }
@@ -989,9 +1008,8 @@ export async function deleteManualBatchDonation(
       });
     });
   } catch (error) {
-    if (error instanceof ManualBatchDonationError) throw error;
-    throw new ManualBatchDonationError(
-      "INVALID_REQUEST",
+    throwMappedDonationWriteError(
+      error,
       "This donation could not be deleted.",
     );
   }

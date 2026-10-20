@@ -4,6 +4,7 @@ import {
   LEDGER_REVIEW_MIGRATION,
   classifyLedgerReviewLocalMigratePlan,
   classifyLedgerReviewSchema,
+  classifyLedgerReviewWorkingShape,
   ledgerReviewSchemaReadinessMessage,
 } from "./ledger-review-schema-readiness";
 
@@ -54,7 +55,23 @@ describe("ledger review local migrate plan", () => {
         prerequisiteMigration: PREREQ,
         targetMigration: LEDGER_REVIEW_MIGRATION,
       }),
-    ).toEqual({ ok: true, pending: [LEDGER_REVIEW_MIGRATION] });
+    ).toEqual({
+      ok: true,
+      action: "deploy",
+      pending: [LEDGER_REVIEW_MIGRATION],
+    });
+  });
+
+  it("reports already-ready when history includes the review migration and nothing else is pending", () => {
+    expect(
+      classifyLedgerReviewLocalMigratePlan({
+        appliedNames: [PREREQ, LEDGER_REVIEW_MIGRATION],
+        checkedInNames: [PREREQ, LEDGER_REVIEW_MIGRATION],
+        unresolvedCount: 0,
+        prerequisiteMigration: PREREQ,
+        targetMigration: LEDGER_REVIEW_MIGRATION,
+      }),
+    ).toEqual({ ok: true, action: "already_ready" });
   });
 
   it("refuses extra pending checked-in migrations", () => {
@@ -67,5 +84,28 @@ describe("ledger review local migrate plan", () => {
     });
     expect(plan.ok).toBe(false);
     if (!plan.ok) expect(plan.reason).toMatch(/pending migrations are not exactly/i);
+  });
+});
+
+describe("ledger review working shape", () => {
+  it("requires the defaulted version column, table, and unique token index", () => {
+    expect(
+      classifyLedgerReviewWorkingShape({
+        versionColumnExists: true,
+        versionIsNullable: false,
+        versionHasDefault: true,
+        tableExists: true,
+        uniqueIndexExists: true,
+      }),
+    ).toEqual({ ok: true });
+    expect(
+      classifyLedgerReviewWorkingShape({
+        versionColumnExists: true,
+        versionIsNullable: false,
+        versionHasDefault: true,
+        tableExists: true,
+        uniqueIndexExists: false,
+      }).ok,
+    ).toBe(false);
   });
 });

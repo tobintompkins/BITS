@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -35,23 +33,25 @@ vi.mock("@/lib/security/rate-limit", () => ({
 }));
 
 import { POST } from "@/app/api/events/[id]/registrations/[registrationId]/check-ins/route";
-import { prisma } from "@/lib/db/prisma";
-import {
-  createAttendanceFoundationFixture,
-  type AttendanceFoundationFixture,
-} from "@/server/repositories/event-attendance.fixtures";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
+import { startIsolatedAttendanceFixture } from "@/lib/testing/isolated-prisma";
+import type { AttendanceFoundationFixture } from "@/server/repositories/event-attendance.fixtures";
 import { createActiveStation } from "@/server/repositories/event-check-in-station.repository";
 
-const hasDatabase = Boolean(process.env.DATABASE_URL);
+const hasIsolatedDatabase = isolatedDatabaseRunEnabled();
 
-describe.runIf(hasDatabase)(
+describe.runIf(hasIsolatedDatabase)(
   "POST /api/events/[id]/registrations/[registrationId]/check-ins integration",
   () => {
-    let fx: AttendanceFoundationFixture;
+    let prisma: PrismaClient;
+  let fx: AttendanceFoundationFixture;
     let thirdAttendeeId: string;
 
     beforeAll(async () => {
-      fx = await createAttendanceFoundationFixture();
+      const started = await startIsolatedAttendanceFixture();
+    prisma = started.prisma;
+    fx = started.fx;
       thirdAttendeeId = randomUUID();
       await prisma.eventAttendee.create({
         data: {
@@ -77,6 +77,7 @@ describe.runIf(hasDatabase)(
     });
 
     afterAll(async () => {
+      if (!fx) return;
       await prisma.eventCheckInIdempotency.deleteMany({
         where: { eventId: fx.eventId },
       });

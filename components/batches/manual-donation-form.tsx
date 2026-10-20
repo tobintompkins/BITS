@@ -17,6 +17,10 @@ import {
   sumMoneyAmounts,
 } from "@/lib/money/decimal";
 import {
+  clearManualDonationOperationToken,
+  readOrCreateManualDonationOperationToken,
+} from "@/lib/batches/create-operation-token";
+import {
   emptyManualBatchDonationFormValues,
   manualBatchDonationFormSchema,
   type ManualBatchDonationFormValues,
@@ -65,11 +69,6 @@ export function ManualDonationForm({
   expectedReviewVersion,
 }: ManualDonationFormProps) {
   const router = useRouter();
-  const [operationToken] = useState(() =>
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : "",
-  );
   const [toast, setToast] = useState<{
     message: string;
     variant: "success" | "error";
@@ -147,9 +146,10 @@ export function ManualDonationForm({
         : await createManualBatchDonationAction(
             batchId,
             values,
-            operationToken,
+            readOrCreateManualDonationOperationToken(batchId),
           );
       if (result.status === "success") {
+        if (!donationId) clearManualDonationOperationToken(batchId);
         router.push(`/batches/${batchId}?donation=created`);
         router.refresh();
         return;

@@ -67,6 +67,29 @@ describe("manual gift create idempotency helpers", () => {
     );
   });
 
+  it("does not change the fingerprint when only the offering-date override checkbox changes", () => {
+    expect(
+      fingerprintManualDonationPayload({
+        ...payload(),
+        confirmOfferingDateOverride: true,
+      }),
+    ).toBe(fingerprintManualDonationPayload(payload()));
+  });
+
+  it("canonicalizes money scale so 10 and 10.00 bind the same request", () => {
+    expect(
+      fingerprintManualDonationPayload({
+        ...payload(),
+        deductibleAmount: "30",
+        totalAmount: "30",
+        allocations: [
+          { offeringTypeId: fundB, amount: "20" },
+          { offeringTypeId: fundA, amount: "10" },
+        ],
+      }),
+    ).toBe(fingerprintManualDonationPayload(payload()));
+  });
+
   it("accepts only UUID operation tokens", () => {
     expect(
       parseCreateOperationToken("11111111-1111-4111-8111-111111111111"),

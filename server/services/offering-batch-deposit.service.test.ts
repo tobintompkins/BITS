@@ -347,6 +347,7 @@ describe("offering batch deposit tracking and locking", () => {
         OfferingBatchStatus.RECONCILED,
       );
       expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("25.00");
+      expect(store.batches.get(BATCH_ID)?.reviewVersion).toBe(2);
       expect(store.audits).toHaveLength(1);
       expect(store.audits[0]).toMatchObject({
         action: RECORD_BATCH_DEPOSIT,

@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -21,37 +19,29 @@ vi.mock("@/lib/security/rate-limit", () => ({
   assertActionAllowed: mocks.assertActionAllowed,
 }));
 
-import { prisma } from "@/lib/db/prisma";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
+import { startIsolatedAttendanceFixture } from "@/lib/testing/isolated-prisma";
 import { CheckInError } from "@/lib/errors/check-in-errors";
-import {
-  createAttendanceFoundationFixture,
-  type AttendanceFoundationFixture,
-} from "@/server/repositories/event-attendance.fixtures";
+import type { AttendanceFoundationFixture } from "@/server/repositories/event-attendance.fixtures";
 import {
   closeCheckInStationLifecycle,
   listCheckInStationsLifecycle,
   openCheckInStationLifecycle,
 } from "@/server/services/check-in-station-lifecycle.service";
 
-async function canReachDatabase() {
-  if (!process.env.DATABASE_URL) return false;
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return true;
-  } catch {
-    return false;
-  }
-}
+const hasIsolatedDatabase = isolatedDatabaseRunEnabled();
 
-const dbReady = await canReachDatabase();
-
-describe.runIf(dbReady)("Blueprint 7.3J station lifecycle service (database)", () => {
+describe.runIf(hasIsolatedDatabase)("Blueprint 7.3J station lifecycle service (database)", () => {
+  let prisma: PrismaClient;
   let fx: AttendanceFoundationFixture;
   const actor = { userAccountId: "" as string, email: "manager@example.com" };
   const now = new Date("2030-01-15T15:30:00.000Z");
 
   beforeAll(async () => {
-    fx = await createAttendanceFoundationFixture();
+    const started = await startIsolatedAttendanceFixture();
+    prisma = started.prisma;
+    fx = started.fx;
     actor.userAccountId = fx.createdByUserId;
   });
 

@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,18 +20,17 @@ vi.mock("@/lib/security/rate-limit", () => ({
   assertActionAllowed: mocks.assertActionAllowed,
 }));
 
-import { prisma } from "@/lib/db/prisma";
 import { CheckInError } from "@/lib/errors/check-in-errors";
-import {
-  createAttendanceFoundationFixture,
-  type AttendanceFoundationFixture,
-} from "@/server/repositories/event-attendance.fixtures";
+import { isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
+import { startIsolatedAttendanceFixture } from "@/lib/testing/isolated-prisma";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import type { AttendanceFoundationFixture } from "@/server/repositories/event-attendance.fixtures";
 import {
   assertStaffCheckInWindow,
   staffCheckInRegisteredAttendee,
 } from "@/server/services/staff-check-in.service";
 
-const hasDatabase = Boolean(process.env.DATABASE_URL);
+const hasIsolatedDatabase = isolatedDatabaseRunEnabled();
 
 describe("assertStaffCheckInWindow boundaries", () => {
   const opens = new Date("2030-01-15T15:00:00.000Z");
@@ -71,12 +68,15 @@ describe("assertStaffCheckInWindow boundaries", () => {
   });
 });
 
-describe.runIf(hasDatabase)("Blueprint 7.3C staff check-in service (database)", () => {
+describe.runIf(hasIsolatedDatabase)("Blueprint 7.3C staff check-in service (database)", () => {
+  let prisma: PrismaClient;
   let fx: AttendanceFoundationFixture;
   const actor = { userAccountId: "" as string, email: "staff@example.com" };
 
   beforeAll(async () => {
-    fx = await createAttendanceFoundationFixture();
+    const started = await startIsolatedAttendanceFixture();
+    prisma = started.prisma;
+    fx = started.fx;
     actor.userAccountId = fx.createdByUserId;
 
     await prisma.eventCheckInSettings.update({
@@ -100,6 +100,7 @@ describe.runIf(hasDatabase)("Blueprint 7.3C staff check-in service (database)", 
   });
 
   afterAll(async () => {
+    if (!fx) return;
     await prisma.eventCheckInIdempotency.deleteMany({
       where: { eventId: fx.eventId },
     });

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { BatchStatusProgress } from "@/components/batches/batch-status-progress";
 import { BatchTransitionDialog } from "@/components/batches/batch-transition-dialog";
+import { LedgerSchemaAlert } from "@/components/batches/ledger-schema-alert";
 import { OfferingBatchDepositForm } from "@/components/batches/offering-batch-deposit-form";
 import {
   batchStatusClassName,
@@ -77,6 +78,9 @@ export default async function OfferingBatchDetailPage({
     if (error instanceof OfferingBatchError && error.code === "NOT_FOUND") {
       notFound();
     }
+    if (error instanceof OfferingBatchError && error.code === "SCHEMA_NOT_READY") {
+      return <LedgerSchemaAlert message={error.message} />;
+    }
     throw error;
   }
 
@@ -86,6 +90,12 @@ export default async function OfferingBatchDetailPage({
   } catch (error) {
     if (error instanceof OfferingBatchTransitionError && error.code === "NOT_FOUND") {
       notFound();
+    }
+    if (
+      error instanceof OfferingBatchTransitionError &&
+      error.code === "SCHEMA_NOT_READY"
+    ) {
+      return <LedgerSchemaAlert message={error.message} />;
     }
     throw error;
   }
@@ -381,6 +391,12 @@ async function BatchDonationList({
   } catch (error) {
     if (error instanceof ManualBatchDonationError && error.code === "NOT_FOUND") {
       notFound();
+    }
+    if (
+      error instanceof ManualBatchDonationError &&
+      error.code === "SCHEMA_NOT_READY"
+    ) {
+      return <LedgerSchemaAlert message={error.message} />;
     }
     return (
       <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">

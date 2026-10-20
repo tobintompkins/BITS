@@ -1,12 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
-import { RoleCode } from "@/app/generated/prisma/client";
+import { Prisma, RoleCode } from "@/app/generated/prisma/client";
 import {
   canAssignGivingHouseholdFinancialContacts,
   canBackdateGivingHouseholdMemberships,
   canManageGivingHouseholds,
   canViewGivingHouseholds,
 } from "@/lib/auth/giving-household-permissions";
-import { prisma } from "@/lib/db/prisma";
 import {
   addUtcDays,
   calendarDateInTimeZone,
@@ -23,6 +22,13 @@ import {
 } from "@/lib/validation/giving-household";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
 import {
+  consumeGivingHouseholdAuditFailure,
+  givingHouseholdNow,
+  givingHouseholdPrisma,
+  notifyGivingHouseholdLocksAcquired,
+  notifyGivingHouseholdTransactionStarted,
+} from "@/server/services/giving-household-runtime";
+import {
   findGivingHouseholdInOrganization,
   listDonorGivingHouseholdMemberships,
   listGivingHouseholdMoveTargetsForOrganization,
@@ -35,6 +41,29 @@ import {
 
 export class GivingHouseholdError extends Error {}
 
+function db() {
+  return givingHouseholdPrisma();
+}
+
+async function withHouseholdTransaction<T>(
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+) {
+  return db().$transaction(async (tx) => {
+    await notifyGivingHouseholdTransactionStarted(tx);
+    return fn(tx);
+  }, { maxWait: 10_000, timeout: 20_000 });
+}
+
+async function writeHouseholdAudit(
+  input: Parameters<typeof createAuditEvent>[0],
+  tx: Parameters<typeof createAuditEvent>[1],
+) {
+  if (consumeGivingHouseholdAuditFailure()) {
+    throw new Error("Injected giving-household audit failure");
+  }
+  await createAuditEvent(input, tx);
+}
+
 function isUniqueConstraintError(error: unknown) {
   return (error as { code?: string }).code === "P2002";
 }
@@ -46,13 +75,13 @@ export async function requireGivingHouseholdAccess(
 ) {
   const { userId, orgId } = await auth();
   if (!userId) throw new GivingHouseholdError("Sign in to access giving households.");
-  const actor = await prisma.userAccount.findUnique({
+  const actor = await db().userAccount.findUnique({
     where: { clerkUserId: userId },
   });
   if (!actor?.active) {
     throw new GivingHouseholdError("An active staff account is required.");
   }
-  const memberships = await prisma.organizationMembership.findMany({
+  const memberships = await db().organizationMembership.findMany({
     where: {
       userAccountId: actor.id,
       active: true,
@@ -152,7 +181,7 @@ function requireDate(value: string, label: string) {
 
 function nextHouseholdVersion(updatedAt?: Date | null) {
   const previous = updatedAt?.getTime() ?? 0;
-  return new Date(Math.max(Date.now(), previous + 1));
+  return new Date(Math.max(givingHouseholdNow(), previous + 1));
 }
 
 function requireUuid(value: string | undefined, label: string) {
@@ -192,7 +221,7 @@ async function eligibleHouseholdDonors(
   organizationId: string,
   householdId: string,
 ) {
-  const open = await prisma.householdMembership.findMany({
+  const open = await db().householdMembership.findMany({
     where: { organizationId, householdId, endDate: null },
     include: {
       donor: {
@@ -263,7 +292,7 @@ export async function getGivingHousehold(id: string) {
 
 export async function getDonorGivingHouseholdHistory(donorId: string) {
   const access = await requireGivingHouseholdAccess();
-  const donor = await prisma.donor.findFirst({
+  const donor = await db().donor.findFirst({
     where: { id: donorId, organizationId: access.organization.id },
     select: { id: true },
   });
@@ -291,7 +320,7 @@ export async function saveGivingHousehold(
   const data = parsed.data;
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await withHouseholdTransaction(async (tx) => {
       if (!id) {
         const household = await tx.household.create({
           data: {
@@ -309,7 +338,7 @@ export async function saveGivingHousehold(
             preferredStatementRecipientId: null,
           },
         });
-        await createAuditEvent(
+        await writeHouseholdAudit(
           {
             organizationId: access.organization.id,
             actorUserAccountId: access.actor.id,
@@ -419,6 +448,7 @@ export async function saveGivingHousehold(
           "You do not have permission to change the primary donor or preferred statement recipient.",
         );
       }
+      await notifyGivingHouseholdLocksAcquired(tx);
 
       const updated = await tx.household.updateMany({
         where: {
@@ -434,7 +464,7 @@ export async function saveGivingHousehold(
         );
       }
 
-      await createAuditEvent(
+      await writeHouseholdAudit(
         {
           organizationId: access.organization.id,
           actorUserAccountId: access.actor.id,
@@ -522,7 +552,7 @@ export async function linkGivingHouseholdDonor(
   );
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await withHouseholdTransaction(async (tx) => {
       const households = await lockHouseholdsInSortedOrder(
         tx,
         access.organization.id,
@@ -541,6 +571,7 @@ export async function linkGivingHouseholdDonor(
       if (donors.missingId) {
         throw new GivingHouseholdError("Donor not found in this church.");
       }
+      await notifyGivingHouseholdLocksAcquired(tx);
 
       const [household, donor] = await Promise.all([
         tx.household.findFirst({
@@ -594,7 +625,7 @@ export async function linkGivingHouseholdDonor(
         },
       });
 
-      await createAuditEvent(
+      await writeHouseholdAudit(
         {
           organizationId: access.organization.id,
           actorUserAccountId: access.actor.id,
@@ -659,7 +690,7 @@ export async function moveGivingHouseholdDonor(
   }
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await withHouseholdTransaction(async (tx) => {
       const selected = await tx.householdMembership.findFirst({
         where: {
           id: currentMembershipId,
@@ -698,6 +729,7 @@ export async function moveGivingHouseholdDonor(
       if (donors.missingId) {
         throw new GivingHouseholdError("Donor not found in this church.");
       }
+      await notifyGivingHouseholdLocksAcquired(tx);
 
       const [fromHousehold, toHousehold, current] = await Promise.all([
         tx.household.findFirst({
@@ -823,7 +855,7 @@ export async function moveGivingHouseholdDonor(
         });
       }
 
-      await createAuditEvent(
+      await writeHouseholdAudit(
         {
           organizationId: access.organization.id,
           actorUserAccountId: access.actor.id,
@@ -880,7 +912,7 @@ export async function endGivingHouseholdMembership(
   );
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await withHouseholdTransaction(async (tx) => {
       const current = await tx.householdMembership.findFirst({
         where: {
           id: membershipId,
@@ -910,6 +942,7 @@ export async function endGivingHouseholdMembership(
       if (donors.missingId) {
         throw new GivingHouseholdError("Donor not found in this church.");
       }
+      await notifyGivingHouseholdLocksAcquired(tx);
       const fresh = await tx.householdMembership.findFirst({
         where: { id: current.id, organizationId: access.organization.id },
       });
@@ -977,7 +1010,7 @@ export async function endGivingHouseholdMembership(
         });
       }
 
-      await createAuditEvent(
+      await writeHouseholdAudit(
         {
           organizationId: access.organization.id,
           actorUserAccountId: access.actor.id,

@@ -1,11 +1,13 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "@/app/generated/prisma/client";
+import { acquirePrismaClient } from "@/lib/db/prisma-acquire";
 
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClientInstance;
+  prismaTargetKey?: string;
 };
 
 /**
@@ -41,15 +43,14 @@ const REQUIRED_DELEGATES = [
   "childPickupCheckoutVerification",
 ] as const;
 
-function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    throw new Error("DATABASE_URL is required to use Prisma.");
-  }
-
+function createPrismaClient(connectionString: string) {
   return new PrismaClient({
-    adapter: new PrismaPg({ connectionString }),
+    adapter: new PrismaPg({
+      connectionString,
+      ...(process.env.VITEST && process.env.BITS_ISOLATED_DATABASE === "1"
+        ? { max: 3 }
+        : {}),
+    }),
   });
 }
 
@@ -74,17 +75,21 @@ function isCurrentPrismaClient(client: PrismaClientInstance | undefined) {
 }
 
 function getPrismaClient() {
-  if (isCurrentPrismaClient(globalForPrisma.prisma)) {
-    return globalForPrisma.prisma!;
-  }
-
-  const client = createPrismaClient();
-  globalForPrisma.prisma = client;
-  return client;
+  return acquirePrismaClient({
+    env: process.env,
+    cache: globalForPrisma,
+    isCurrent: isCurrentPrismaClient,
+    create: createPrismaClient,
+  });
 }
 
-export const prisma = getPrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+export const prisma = new Proxy({} as PrismaClientInstance, {
+  get(_target, prop, receiver) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, prop, receiver);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+  has(_target, prop) {
+    return prop in getPrismaClient();
+  },
+});

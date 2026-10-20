@@ -8,12 +8,8 @@ import {
   PrismaClient,
 } from "@/app/generated/prisma/client";
 import { moneyEquals } from "@/lib/money/decimal";
+import { isolatedConnectionString, isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
 import { loadOriginalV1AcceptanceEnvFiles } from "@/lib/testing/original-v1-acceptance-env";
-import {
-  isolatedDatabaseNameIsDedicated,
-  parsePostgresTargetIdentity,
-  postgresTargetsAreEquivalent,
-} from "@/lib/testing/original-v1-database-url";
 import {
   assertLedgerSchemaReady,
   inspectLedgerSchema,
@@ -28,6 +24,7 @@ import type { ManualBatchDonationWriteInput } from "@/lib/validation/manual-batc
 import {
   ManualBatchDonationError,
   applyManualBatchDonationCreate,
+  applyManualBatchDonationDelete,
   applyManualBatchDonationUpdate,
 } from "@/server/services/manual-batch-donation.service";
 import {
@@ -46,25 +43,13 @@ vi.mock("@/lib/db/prisma", () => ({
 
 loadOriginalV1AcceptanceEnvFiles();
 
-const isolatedUrl = process.env.BITS_E2E_DATABASE_URL?.trim() ?? "";
-const workingUrl = process.env.DATABASE_URL?.trim() ?? "";
-const isolatedIdentity = isolatedUrl
-  ? parsePostgresTargetIdentity(isolatedUrl)
-  : null;
-const isolatedIsDedicated = Boolean(
-  isolatedIdentity && isolatedDatabaseNameIsDedicated(isolatedIdentity.database),
-);
-const isolatedIsWorkingDb =
-  isolatedUrl && workingUrl
-    ? postgresTargetsAreEquivalent(isolatedUrl, workingUrl)
-    : false;
-const canUseIsolatedDb = isolatedIsDedicated && !isolatedIsWorkingDb;
+const canUseIsolatedDb = isolatedDatabaseRunEnabled();
 
 const runId = `core11-${randomUUID().slice(0, 8)}`;
 
 function createClient() {
   return new PrismaClient({
-    adapter: new PrismaPg({ connectionString: isolatedUrl }),
+    adapter: new PrismaPg({ connectionString: isolatedConnectionString(), max: 2 }),
   });
 }
 
@@ -573,6 +558,182 @@ describe.skipIf(!canUseIsolatedDb)(
       });
       expect(next.status).toBe(OfferingBatchStatus.DRAFT);
       expect(moneyEquals(next.recordedTotal.toString(), "30.00")).toBe(true);
+    });
+
+    it("creates only one gift for concurrent same-token requests", async () => {
+      const { org, actor, donor, fundA, batch, setup } = await seedLedger();
+      const token = randomUUID();
+      const payload = giftInput(donor.id, [
+        { offeringTypeId: fundA.id, amount: "10.00" },
+      ]);
+      const clientA = createClient();
+      const clientB = createClient();
+      clients.push(clientA, clientB);
+      const results = await Promise.allSettled([
+        clientA.$transaction((tx) =>
+          applyManualBatchDonationCreate({
+            db: tx,
+            organizationId: org.id,
+            actorUserAccountId: actor.id,
+            batchId: batch.id,
+            input: payload,
+            operationToken: token,
+          }),
+        ),
+        clientB.$transaction((tx) =>
+          applyManualBatchDonationCreate({
+            db: tx,
+            organizationId: org.id,
+            actorUserAccountId: actor.id,
+            batchId: batch.id,
+            input: payload,
+            operationToken: token,
+          }),
+        ),
+      ]);
+      const succeeded = results.filter(
+        (row): row is PromiseFulfilledResult<{ id: string; batchId: string; totalAmount: string }> =>
+          row.status === "fulfilled",
+      );
+      expect(succeeded.length).toBeGreaterThanOrEqual(1);
+      expect(new Set(succeeded.map((row) => row.value.id)).size).toBe(1);
+      expect(await setup.donation.count({ where: { batchId: batch.id } })).toBe(1);
+      expect(await setup.donationAllocation.count({ where: { organizationId: org.id } })).toBe(1);
+      expect(await setup.auditEvent.count({ where: { organizationId: org.id } })).toBe(1);
+      const next = await setup.offeringBatch.findFirstOrThrow({
+        where: { id: batch.id },
+      });
+      expect(moneyEquals(next.recordedTotal.toString(), "10.00")).toBe(true);
+    });
+
+    it("replays a create after complete-entry without reopening the batch", async () => {
+      const { org, actor, donor, fundA, batch, setup } = await seedLedger();
+      const token = randomUUID();
+      const payload = giftInput(donor.id, [
+        { offeringTypeId: fundA.id, amount: "30.00" },
+      ]);
+      const created = await setup.$transaction((tx) =>
+        applyManualBatchDonationCreate({
+          db: tx,
+          organizationId: org.id,
+          actorUserAccountId: actor.id,
+          batchId: batch.id,
+          input: payload,
+          operationToken: token,
+        }),
+      );
+      const afterCreate = await setup.offeringBatch.findFirstOrThrow({
+        where: { id: batch.id },
+      });
+      await setup.$transaction((tx) =>
+        applyOfferingBatchTransition({
+          db: tx,
+          organizationId: org.id,
+          actorUserAccountId: actor.id,
+          batchId: batch.id,
+          fromStatus: OfferingBatchStatus.DRAFT,
+          toStatus: OfferingBatchStatus.ENTERED,
+          requireBalancedExpected: false,
+          action: COMPLETE_OFFERING_BATCH_ENTRY,
+          snapshot: {
+            confirmed: true,
+            recordedTotal: "30.00",
+            expectedTotal: "30.00",
+            donationCount: 1,
+            reviewVersion: afterCreate.reviewVersion,
+          },
+        }),
+      );
+      const replay = await setup.$transaction((tx) =>
+        applyManualBatchDonationCreate({
+          db: tx,
+          organizationId: org.id,
+          actorUserAccountId: actor.id,
+          batchId: batch.id,
+          input: payload,
+          operationToken: token,
+        }),
+      );
+      expect(replay.id).toBe(created.id);
+      const next = await setup.offeringBatch.findFirstOrThrow({
+        where: { id: batch.id },
+      });
+      expect(next.status).toBe(OfferingBatchStatus.ENTERED);
+      expect(moneyEquals(next.recordedTotal.toString(), "30.00")).toBe(true);
+      expect(await setup.donation.count({ where: { batchId: batch.id } })).toBe(1);
+    });
+
+    it("rejects complete-entry after a same-total delete-and-replace", async () => {
+      const { org, actor, donor, fundA, fundB, batch, setup } = await seedLedger();
+      const first = await setup.$transaction((tx) =>
+        applyManualBatchDonationCreate({
+          db: tx,
+          organizationId: org.id,
+          actorUserAccountId: actor.id,
+          batchId: batch.id,
+          input: giftInput(donor.id, [
+            { offeringTypeId: fundA.id, amount: "30.00" },
+          ]),
+          operationToken: randomUUID(),
+        }),
+      );
+      const opened = await setup.offeringBatch.findFirstOrThrow({
+        where: { id: batch.id },
+      });
+      await setup.$transaction((tx) =>
+        applyManualBatchDonationDelete({
+          db: tx,
+          organizationId: org.id,
+          actorUserAccountId: actor.id,
+          batchId: batch.id,
+          donationId: first.id,
+          expectedReviewVersion: opened.reviewVersion,
+        }),
+      );
+      const afterDelete = await setup.offeringBatch.findFirstOrThrow({
+        where: { id: batch.id },
+      });
+      await setup.$transaction((tx) =>
+        applyManualBatchDonationCreate({
+          db: tx,
+          organizationId: org.id,
+          actorUserAccountId: actor.id,
+          batchId: batch.id,
+          input: giftInput(donor.id, [
+            { offeringTypeId: fundB.id, amount: "30.00" },
+          ]),
+          operationToken: randomUUID(),
+        }),
+      );
+      await expect(
+        setup.$transaction((tx) =>
+          applyOfferingBatchTransition({
+            db: tx,
+            organizationId: org.id,
+            actorUserAccountId: actor.id,
+            batchId: batch.id,
+            fromStatus: OfferingBatchStatus.DRAFT,
+            toStatus: OfferingBatchStatus.ENTERED,
+            requireBalancedExpected: false,
+            action: COMPLETE_OFFERING_BATCH_ENTRY,
+            snapshot: {
+              confirmed: true,
+              recordedTotal: "30.00",
+              expectedTotal: "30.00",
+              donationCount: 1,
+              reviewVersion: opened.reviewVersion,
+            },
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OfferingBatchTransitionError);
+      const next = await setup.offeringBatch.findFirstOrThrow({
+        where: { id: batch.id },
+      });
+      expect(next.status).toBe(OfferingBatchStatus.DRAFT);
+      expect(next.reviewVersion).not.toBe(opened.reviewVersion);
+      expect(moneyEquals(next.recordedTotal.toString(), "30.00")).toBe(true);
+      expect(await setup.donation.count({ where: { batchId: batch.id } })).toBe(1);
+      expect(afterDelete.reviewVersion).toBeGreaterThan(opened.reviewVersion);
     });
   },
 );

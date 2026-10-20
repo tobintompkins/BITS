@@ -528,4 +528,16 @@ describe("offering batch entry completion and reconciliation", () => {
     expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.DRAFT);
     expect(store.audits).toHaveLength(0);
   });
+
+  it("rejects complete-entry after a same-total delete-and-replace", async () => {
+    const opened = snapshot();
+    store.batches.get(BATCH_ID)!.reviewVersion = 4;
+    await expect(
+      completeOfferingBatchEntry(BATCH_ID, opened),
+    ).rejects.toMatchObject({ code: "STALE_REVIEW" });
+    expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.DRAFT);
+    expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("25.00");
+    expect(store.donations).toHaveLength(1);
+    expect(store.audits).toHaveLength(0);
+  });
 });

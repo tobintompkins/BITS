@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:unit": "vitest run",
+    "test:isolated": "npx tsx scripts/run-isolated-tests.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:acceptance": "playwright test -c playwright.acceptance.config.ts",

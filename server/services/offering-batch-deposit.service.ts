@@ -15,6 +15,7 @@ import {
   type BatchIntegrityIssue,
 } from "@/lib/batches/integrity";
 import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
+import { ledgerReviewSchemaFailureMessage } from "@/lib/batches/ledger-review-schema-error";
 import {
   reviewVersionIncrement,
   STALE_BATCH_REVIEW_MESSAGE,
@@ -37,7 +38,8 @@ export class OfferingBatchDepositError extends Error {
       | "NOT_FOUND"
       | "NOT_CONFIRMED"
       | "INVALID_REQUEST"
-      | "STALE_REVIEW",
+      | "STALE_REVIEW"
+      | "SCHEMA_NOT_READY",
     message: string,
     public readonly issues: BatchIntegrityIssue[] = [],
   ) {
@@ -48,6 +50,15 @@ export class OfferingBatchDepositError extends Error {
 
 export const RECORD_BATCH_DEPOSIT = "RECORD_BATCH_DEPOSIT";
 export const UPDATE_BATCH_DEPOSIT = "UPDATE_BATCH_DEPOSIT";
+
+function throwMappedDepositError(error: unknown, fallback: string): never {
+  if (error instanceof OfferingBatchDepositError) throw error;
+  const schema = ledgerReviewSchemaFailureMessage(error);
+  if (schema) {
+    throw new OfferingBatchDepositError("SCHEMA_NOT_READY", schema);
+  }
+  throw new OfferingBatchDepositError("INVALID_REQUEST", fallback);
+}
 export const LOCK_OFFERING_BATCH = "LOCK_OFFERING_BATCH";
 
 type ReconciledBatchRow = {
@@ -284,11 +295,7 @@ export async function recordOfferingBatchDeposit(
       };
     });
   } catch (error) {
-    if (error instanceof OfferingBatchDepositError) throw error;
-    throw new OfferingBatchDepositError(
-      "INVALID_REQUEST",
-      "This deposit could not be saved.",
-    );
+    throwMappedDepositError(error, "This deposit could not be saved.");
   }
 }
 
@@ -323,11 +330,7 @@ export async function lockOfferingBatch(batchId: string, rawInput: unknown) {
       });
     });
   } catch (error) {
-    if (error instanceof OfferingBatchDepositError) throw error;
-    throw new OfferingBatchDepositError(
-      "INVALID_REQUEST",
-      "This batch could not be locked.",
-    );
+    throwMappedDepositError(error, "This batch could not be locked.");
   }
 }
 

@@ -14,6 +14,7 @@ import {
   type BatchIntegrityIssue,
 } from "@/lib/batches/integrity";
 import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
+import { ledgerReviewSchemaFailureMessage } from "@/lib/batches/ledger-review-schema-error";
 import {
   reviewVersionIncrement,
   STALE_BATCH_REVIEW_MESSAGE,
@@ -35,7 +36,8 @@ export class OfferingBatchTransitionError extends Error {
       | "NOT_FOUND"
       | "NOT_CONFIRMED"
       | "INVALID_REQUEST"
-      | "STALE_REVIEW",
+      | "STALE_REVIEW"
+      | "SCHEMA_NOT_READY",
     message: string,
     public readonly issues: BatchIntegrityIssue[] = [],
   ) {
@@ -46,6 +48,18 @@ export class OfferingBatchTransitionError extends Error {
 
 export const COMPLETE_OFFERING_BATCH_ENTRY = "COMPLETE_OFFERING_BATCH_ENTRY";
 export const RECONCILE_OFFERING_BATCH = "RECONCILE_OFFERING_BATCH";
+
+function throwMappedTransitionError(error: unknown, fallback?: string): never {
+  if (error instanceof OfferingBatchTransitionError) throw error;
+  const schema = ledgerReviewSchemaFailureMessage(error);
+  if (schema) {
+    throw new OfferingBatchTransitionError("SCHEMA_NOT_READY", schema);
+  }
+  if (fallback) {
+    throw new OfferingBatchTransitionError("INVALID_REQUEST", fallback);
+  }
+  throw error;
+}
 
 async function requireOrganization() {
   const organization = await findPrimaryOrganization();
@@ -125,19 +139,24 @@ export async function getOfferingBatchReview(batchId: string) {
     );
   }
 
-  const batch = await prisma.offeringBatch.findFirst({
-    where: { id: batchId, organizationId: organization.id },
-    select: {
-      id: true,
-      status: true,
-      expectedTotal: true,
-      recordedTotal: true,
-      reviewVersion: true,
-      offeringDate: true,
-      depositDate: true,
-      depositReference: true,
-    },
-  });
+  let batch;
+  try {
+    batch = await prisma.offeringBatch.findFirst({
+      where: { id: batchId, organizationId: organization.id },
+      select: {
+        id: true,
+        status: true,
+        expectedTotal: true,
+        recordedTotal: true,
+        reviewVersion: true,
+        offeringDate: true,
+        depositDate: true,
+        depositReference: true,
+      },
+    });
+  } catch (error) {
+    throwMappedTransitionError(error);
+  }
   if (!batch) {
     throw new OfferingBatchTransitionError(
       "NOT_FOUND",
@@ -255,9 +274,8 @@ async function transitionOfferingBatch(input: {
       });
     });
   } catch (error) {
-    if (error instanceof OfferingBatchTransitionError) throw error;
-    throw new OfferingBatchTransitionError(
-      "INVALID_REQUEST",
+    throwMappedTransitionError(
+      error,
       "This batch status could not be changed.",
     );
   }

@@ -1,9 +1,9 @@
-import "dotenv/config";
-
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { prisma } from "@/lib/db/prisma";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
+import { startIsolatedAttendanceFixture } from "@/lib/testing/isolated-prisma";
 import {
   EVENT_ATTENDANCE_ACTIONS,
   EVENT_ATTENDANCE_SOURCES,
@@ -17,12 +17,9 @@ import {
   findAttendanceByEventAttendee,
   listAttendanceActions,
 } from "@/server/repositories/event-attendance.repository";
-import {
-  createAttendanceFoundationFixture,
-  type AttendanceFoundationFixture,
-} from "@/server/repositories/event-attendance.fixtures";
+import type { AttendanceFoundationFixture } from "@/server/repositories/event-attendance.fixtures";
 
-const hasDatabase = Boolean(process.env.DATABASE_URL);
+const hasIsolatedDatabase = isolatedDatabaseRunEnabled();
 
 describe("Blueprint 7.3B attendance foundation API surface", () => {
   it("exposes only create/read/append/list helpers (no action update/delete)", () => {
@@ -56,14 +53,18 @@ describe("Blueprint 7.3B attendance foundation API surface", () => {
   });
 });
 
-describe.runIf(hasDatabase)("Blueprint 7.3B attendance foundation (database)", () => {
+describe.runIf(hasIsolatedDatabase)("Blueprint 7.3B attendance foundation (database)", () => {
+  let prisma: PrismaClient;
   let fx: AttendanceFoundationFixture;
 
   beforeAll(async () => {
-    fx = await createAttendanceFoundationFixture();
+    const started = await startIsolatedAttendanceFixture();
+    prisma = started.prisma;
+    fx = started.fx;
   });
 
   afterAll(async () => {
+    if (!fx) return;
     await fx.cleanup();
     await prisma.$disconnect();
   });

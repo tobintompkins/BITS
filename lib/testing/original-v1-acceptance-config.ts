@@ -1,3 +1,4 @@
+import { readWorkingDatabaseUrl } from "@/lib/testing/isolated-database";
 import {
   isolatedDatabaseNameIsDedicated,
   parsePostgresTargetIdentity,
@@ -95,7 +96,7 @@ export function parseOriginalV1AcceptanceConfig(
   const appDatabaseUrl = read(env, "BITS_E2E_APP_DATABASE_URL");
   if (!appDatabaseUrl) missing.push("BITS_E2E_APP_DATABASE_URL");
 
-  const workingDatabaseUrl = read(env, "DATABASE_URL");
+  const workingDatabaseUrl = readWorkingDatabaseUrl(env);
   if (!workingDatabaseUrl) missing.push("DATABASE_URL");
 
   const clerkSecretKey = read(env, "CLERK_SECRET_KEY");

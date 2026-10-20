@@ -427,6 +427,18 @@ describe("offering batch foundation", () => {
     });
   });
 
+  it("fails closed with an operator schema message when reviewVersion cannot be read", async () => {
+    mocks.findOfferingBatches.mockRejectedValue({
+      code: "P2022",
+      meta: { column: "reviewVersion" },
+      message: "The column `reviewVersion` does not exist in the current database.",
+    });
+    await expect(getOfferingBatchDirectory(directoryQuery)).rejects.toMatchObject({
+      code: "SCHEMA_NOT_READY",
+      message: expect.stringMatching(/ledger:review-local-migrate/),
+    });
+  });
+
   it("cannot view or edit a cross-organization batch", async () => {
     seedBatch({ organizationId: OTHER_ORG });
     await expect(getOfferingBatchDetail(BATCH_ID)).rejects.toMatchObject({
@@ -468,6 +480,7 @@ describe("offering batch foundation", () => {
     expect(updated?.notes).toBe("updated confidential note");
     expect(updated?.status).toBe(OfferingBatchStatus.DRAFT);
     expect(updated?.recordedTotal.toString()).toBe("0.00");
+    expect(updated?.reviewVersion).toBe(2);
     expect(store.audits).toHaveLength(1);
     expect(store.audits[0]).toMatchObject({
       action: UPDATE_OFFERING_BATCH,

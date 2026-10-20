@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -36,17 +34,16 @@ vi.mock("@/lib/security/rate-limit", () => ({
 import { POST as checkInPost } from "@/app/api/events/[id]/check-ins/route";
 import { POST as checkOutPost } from "@/app/api/events/[id]/check-outs/route";
 import { POST as reEnterPost } from "@/app/api/events/[id]/re-entries/route";
-import { prisma } from "@/lib/db/prisma";
-import {
-  createAttendanceFoundationFixture,
-  type AttendanceFoundationFixture,
-} from "@/server/repositories/event-attendance.fixtures";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
+import { startIsolatedAttendanceFixture } from "@/lib/testing/isolated-prisma";
+import type { AttendanceFoundationFixture } from "@/server/repositories/event-attendance.fixtures";
 import {
   closeStationIfActive,
   createActiveStation,
 } from "@/server/repositories/event-check-in-station.repository";
 
-const hasDatabase = Boolean(process.env.DATABASE_URL);
+const hasIsolatedDatabase = isolatedDatabaseRunEnabled();
 
 function apiRequest(
   path: string,
@@ -65,13 +62,16 @@ function apiRequest(
   });
 }
 
-describe.runIf(hasDatabase)(
+describe.runIf(hasIsolatedDatabase)(
   "Blueprint 7.3X check-out / re-entry API integration",
   () => {
-    let fx: AttendanceFoundationFixture;
+    let prisma: PrismaClient;
+  let fx: AttendanceFoundationFixture;
 
     beforeAll(async () => {
-      fx = await createAttendanceFoundationFixture();
+      const started = await startIsolatedAttendanceFixture();
+    prisma = started.prisma;
+    fx = started.fx;
       await prisma.eventRegistration.update({
         where: { id: fx.registrationId },
         data: { status: "CONFIRMED" },

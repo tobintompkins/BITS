@@ -8,6 +8,7 @@ import {
   requireBatchViewAccess,
 } from "@/lib/auth/giving-permissions";
 import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
+import { ledgerReviewSchemaFailureMessage } from "@/lib/batches/ledger-review-schema-error";
 import { reviewVersionIncrement } from "@/lib/batches/review-version";
 import { moneyDifference } from "@/lib/money/decimal";
 import {
@@ -33,7 +34,8 @@ export class OfferingBatchError extends Error {
       | "FORBIDDEN"
       | "NOT_FOUND"
       | "NOT_EDITABLE"
-      | "INVALID_REQUEST",
+      | "INVALID_REQUEST"
+      | "SCHEMA_NOT_READY",
     message: string,
   ) {
     super(message);
@@ -43,6 +45,18 @@ export class OfferingBatchError extends Error {
 
 export const CREATE_OFFERING_BATCH = "CREATE_OFFERING_BATCH";
 export const UPDATE_OFFERING_BATCH = "UPDATE_OFFERING_BATCH";
+
+function throwMappedOfferingBatchError(error: unknown, fallback?: string): never {
+  if (error instanceof OfferingBatchError) throw error;
+  const schema = ledgerReviewSchemaFailureMessage(error);
+  if (schema) {
+    throw new OfferingBatchError("SCHEMA_NOT_READY", schema);
+  }
+  if (fallback) {
+    throw new OfferingBatchError("INVALID_REQUEST", fallback);
+  }
+  throw error;
+}
 
 function parseDateOnly(value: string) {
   return new Date(`${value}T00:00:00.000Z`);
@@ -131,20 +145,31 @@ export async function getOfferingBatchDirectory(query: OfferingBatchDirectoryQue
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 
-  const [total, rows, draftCount, enteredCount, reconciledCount, lockedCount, monthTotal] =
-    await Promise.all([
-      countOfferingBatches(where),
-      findOfferingBatches(where, {
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-        orderBy,
-      }),
-      countOfferingBatchesByStatus(organization.id, OfferingBatchStatus.DRAFT),
-      countOfferingBatchesByStatus(organization.id, OfferingBatchStatus.ENTERED),
-      countOfferingBatchesByStatus(organization.id, OfferingBatchStatus.RECONCILED),
-      countOfferingBatchesByStatus(organization.id, OfferingBatchStatus.LOCKED),
-      sumRecordedTotalForOfferingDateRange(organization.id, monthStart, nextMonth),
-    ]);
+  let total;
+  let rows;
+  let draftCount;
+  let enteredCount;
+  let reconciledCount;
+  let lockedCount;
+  let monthTotal;
+  try {
+    [total, rows, draftCount, enteredCount, reconciledCount, lockedCount, monthTotal] =
+      await Promise.all([
+        countOfferingBatches(where),
+        findOfferingBatches(where, {
+          skip: (query.page - 1) * query.pageSize,
+          take: query.pageSize,
+          orderBy,
+        }),
+        countOfferingBatchesByStatus(organization.id, OfferingBatchStatus.DRAFT),
+        countOfferingBatchesByStatus(organization.id, OfferingBatchStatus.ENTERED),
+        countOfferingBatchesByStatus(organization.id, OfferingBatchStatus.RECONCILED),
+        countOfferingBatchesByStatus(organization.id, OfferingBatchStatus.LOCKED),
+        sumRecordedTotalForOfferingDateRange(organization.id, monthStart, nextMonth),
+      ]);
+  } catch (error) {
+    throwMappedOfferingBatchError(error);
+  }
 
   return {
     organizationName: organization.displayName ?? organization.name,
@@ -181,7 +206,12 @@ export async function getOfferingBatchDetail(batchId: string) {
     );
   }
 
-  const batch = await findOfferingBatchById(organization.id, batchId);
+  let batch;
+  try {
+    batch = await findOfferingBatchById(organization.id, batchId);
+  } catch (error) {
+    throwMappedOfferingBatchError(error);
+  }
   if (!batch) {
     throw new OfferingBatchError("NOT_FOUND", "Offering batch not found.");
   }
@@ -231,7 +261,8 @@ export async function createOfferingBatch(rawInput: unknown) {
 
   const input = validatedWriteInput(rawInput);
 
-  return prisma.$transaction(async (tx) => {
+  try {
+    return await prisma.$transaction(async (tx) => {
     const batch = await tx.offeringBatch.create({
       data: {
         organizationId: organization.id,
@@ -276,12 +307,18 @@ export async function createOfferingBatch(rawInput: unknown) {
       tx,
     );
 
-    return {
-      id: batch.id,
-      status: batch.status,
-      recordedTotal: batch.recordedTotal.toString(),
-    };
-  });
+      return {
+        id: batch.id,
+        status: batch.status,
+        recordedTotal: batch.recordedTotal.toString(),
+      };
+    });
+  } catch (error) {
+    throwMappedOfferingBatchError(
+      error,
+      "This offering batch could not be created.",
+    );
+  }
 }
 
 export async function updateDraftOfferingBatch(
@@ -384,9 +421,8 @@ export async function updateDraftOfferingBatch(
       return { id: next.id, status: next.status };
     });
   } catch (error) {
-    if (error instanceof OfferingBatchError) throw error;
-    throw new OfferingBatchError(
-      "INVALID_REQUEST",
+    throwMappedOfferingBatchError(
+      error,
       "This offering batch could not be updated.",
     );
   }

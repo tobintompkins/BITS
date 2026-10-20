@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,11 +20,10 @@ vi.mock("@/lib/security/rate-limit", () => ({
   assertActionAllowed: mocks.assertActionAllowed,
 }));
 
-import { prisma } from "@/lib/db/prisma";
-import {
-  createAttendanceFoundationFixture,
-  type AttendanceFoundationFixture,
-} from "@/server/repositories/event-attendance.fixtures";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
+import { startIsolatedAttendanceFixture } from "@/lib/testing/isolated-prisma";
+import type { AttendanceFoundationFixture } from "@/server/repositories/event-attendance.fixtures";
 import {
   closeStationIfActive,
   createActiveStation,
@@ -37,27 +34,20 @@ import {
 } from "@/server/services/staff-check-in.service";
 import { closeCheckInStationLifecycle } from "@/server/services/check-in-station-lifecycle.service";
 
-async function canReachDatabase() {
-  if (!process.env.DATABASE_URL) return false;
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return true;
-  } catch {
-    return false;
-  }
-}
+const hasIsolatedDatabase = isolatedDatabaseRunEnabled();
 
-const dbReady = await canReachDatabase();
-
-describe.runIf(dbReady)(
+describe.runIf(hasIsolatedDatabase)(
   "Blueprint 7.3M station attribution in staff check-in (database)",
   () => {
-    let fx: AttendanceFoundationFixture;
+    let prisma: PrismaClient;
+  let fx: AttendanceFoundationFixture;
     const actor = { userAccountId: "" as string, email: "staff@example.com" };
     const now = new Date("2030-01-15T15:30:00.000Z");
 
     beforeAll(async () => {
-      fx = await createAttendanceFoundationFixture();
+      const started = await startIsolatedAttendanceFixture();
+    prisma = started.prisma;
+    fx = started.fx;
       actor.userAccountId = fx.createdByUserId;
 
       await prisma.eventCheckInSettings.update({

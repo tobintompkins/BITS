@@ -4,12 +4,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient, RoleCode } from "@/app/generated/prisma/client";
+import { isolatedConnectionString, isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
 import { loadOriginalV1AcceptanceEnvFiles } from "@/lib/testing/original-v1-acceptance-env";
-import {
-  isolatedDatabaseNameIsDedicated,
-  parsePostgresTargetIdentity,
-  postgresTargetsAreEquivalent,
-} from "@/lib/testing/original-v1-database-url";
 import {
   assertStaffMembershipVersionSchemaReady,
   inspectStaffMembershipVersionSchema,
@@ -26,25 +22,13 @@ vi.mock("@/lib/db/prisma", () => ({
 
 loadOriginalV1AcceptanceEnvFiles();
 
-const isolatedUrl = process.env.BITS_E2E_DATABASE_URL?.trim() ?? "";
-const workingUrl = process.env.DATABASE_URL?.trim() ?? "";
-const isolatedIdentity = isolatedUrl
-  ? parsePostgresTargetIdentity(isolatedUrl)
-  : null;
-const isolatedIsDedicated = Boolean(
-  isolatedIdentity && isolatedDatabaseNameIsDedicated(isolatedIdentity.database),
-);
-const isolatedIsWorkingDb =
-  isolatedUrl && workingUrl
-    ? postgresTargetsAreEquivalent(isolatedUrl, workingUrl)
-    : false;
-const canUseIsolatedDb = isolatedIsDedicated && !isolatedIsWorkingDb;
+const canUseIsolatedDb = isolatedDatabaseRunEnabled();
 
 const runId = `core09a-${randomUUID().slice(0, 8)}`;
 
 function createClient() {
   return new PrismaClient({
-    adapter: new PrismaPg({ connectionString: isolatedUrl }),
+    adapter: new PrismaPg({ connectionString: isolatedConnectionString(), max: 2 }),
   });
 }
 

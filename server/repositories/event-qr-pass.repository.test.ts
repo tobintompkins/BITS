@@ -1,19 +1,16 @@
-import "dotenv/config";
-
 import { createHash, randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { prisma } from "@/lib/db/prisma";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
+import { startIsolatedAttendanceFixture } from "@/lib/testing/isolated-prisma";
 import {
   EVENT_QR_PASS_PURPOSES,
   EVENT_QR_PASS_STATUSES,
 } from "@/lib/constants/event-qr-pass";
 import { hashQrFallbackCode, hashQrPassToken } from "@/lib/events/qr-pass-token";
-import {
-  createAttendanceFoundationFixture,
-  type AttendanceFoundationFixture,
-} from "@/server/repositories/event-attendance.fixtures";
+import type { AttendanceFoundationFixture } from "@/server/repositories/event-attendance.fixtures";
 import {
   eventQrPassFoundationApi,
   findActiveQrPassByHashAndPurpose,
@@ -24,19 +21,7 @@ import {
   toSafeQrPassDto,
 } from "@/server/repositories/event-qr-pass.repository";
 
-const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
-
-async function canReachDatabase() {
-  if (!hasDatabaseUrl) return false;
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const dbReady = await canReachDatabase();
+const hasIsolatedDatabase = isolatedDatabaseRunEnabled();
 
 function hash(label: string) {
   return createHash("sha256").update(label).digest("hex");
@@ -98,11 +83,14 @@ describe("Blueprint 7.3P QR pass foundation API surface", () => {
   });
 });
 
-describe.runIf(dbReady)("Blueprint 7.3P QR pass foundation (database)", () => {
+describe.runIf(hasIsolatedDatabase)("Blueprint 7.3P QR pass foundation (database)", () => {
+  let prisma: PrismaClient;
   let fx: AttendanceFoundationFixture;
 
   beforeAll(async () => {
-    fx = await createAttendanceFoundationFixture();
+    const started = await startIsolatedAttendanceFixture();
+    prisma = started.prisma;
+    fx = started.fx;
   });
 
   afterAll(async () => {

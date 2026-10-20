@@ -34,7 +34,8 @@ export function classifyLedgerReviewSchema(input: {
 }
 
 export type LedgerReviewLocalMigratePlan =
-  | { ok: true; pending: [typeof LEDGER_REVIEW_MIGRATION] }
+  | { ok: true; action: "deploy"; pending: [typeof LEDGER_REVIEW_MIGRATION] }
+  | { ok: true; action: "already_ready" }
   | { ok: false; reason: string };
 
 export function classifyLedgerReviewLocalMigratePlan(input: {
@@ -57,13 +58,41 @@ export function classifyLedgerReviewLocalMigratePlan(input: {
   const pending = input.checkedInNames
     .filter((name) => !applied.has(name))
     .sort();
+  if (pending.length === 0 && applied.has(input.targetMigration)) {
+    return { ok: true, action: "already_ready" };
+  }
   if (pending.length !== 1 || pending[0] !== input.targetMigration) {
     return {
       ok: false,
       reason: `Refusing to migrate: pending migrations are not exactly ${input.targetMigration}.`,
     };
   }
-  return { ok: true, pending: [LEDGER_REVIEW_MIGRATION] };
+  return { ok: true, action: "deploy", pending: [LEDGER_REVIEW_MIGRATION] };
+}
+
+export type LedgerReviewWorkingShape = {
+  versionColumnExists: boolean;
+  versionIsNullable: boolean;
+  versionHasDefault: boolean;
+  tableExists: boolean;
+  uniqueIndexExists: boolean;
+};
+
+export function classifyLedgerReviewWorkingShape(shape: LedgerReviewWorkingShape) {
+  if (
+    shape.versionColumnExists &&
+    !shape.versionIsNullable &&
+    shape.versionHasDefault &&
+    shape.tableExists &&
+    shape.uniqueIndexExists
+  ) {
+    return { ok: true as const };
+  }
+  return {
+    ok: false as const,
+    reason:
+      "Ledger review schema shape does not match the checked-in migration. Do not ALTER TABLE by hand.",
+  };
 }
 
 export function ledgerReviewSchemaReadinessMessage(

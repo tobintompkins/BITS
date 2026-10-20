@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,11 +20,10 @@ vi.mock("@/lib/security/rate-limit", () => ({
   assertActionAllowed: mocks.assertActionAllowed,
 }));
 
-import { prisma } from "@/lib/db/prisma";
-import {
-  createAttendanceFoundationFixture,
-  type AttendanceFoundationFixture,
-} from "@/server/repositories/event-attendance.fixtures";
+import type { PrismaClient } from "@/app/generated/prisma/client";
+import { isolatedDatabaseRunEnabled } from "@/lib/testing/isolated-database";
+import { startIsolatedAttendanceFixture } from "@/lib/testing/isolated-prisma";
+import type { AttendanceFoundationFixture } from "@/server/repositories/event-attendance.fixtures";
 import {
   closeStationIfActive,
   createActiveStation,
@@ -37,19 +34,22 @@ import {
   staffReenterRegisteredAttendee,
 } from "@/server/services/staff-check-out.service";
 
-const hasDatabase = Boolean(process.env.DATABASE_URL);
+const hasIsolatedDatabase = isolatedDatabaseRunEnabled();
 
-describe.runIf(hasDatabase)(
+describe.runIf(hasIsolatedDatabase)(
   "Blueprint 7.3W staff check-out / re-entry service (database)",
   () => {
-    let fx: AttendanceFoundationFixture;
+    let prisma: PrismaClient;
+  let fx: AttendanceFoundationFixture;
     const actor = { userAccountId: "" as string, email: "staff@example.com" };
     const checkInAt = new Date("2030-01-15T15:00:00.000Z");
     const checkOutAt = new Date("2030-01-15T16:00:00.000Z");
     const reentryAt = new Date("2030-01-15T16:30:00.000Z");
 
     beforeAll(async () => {
-      fx = await createAttendanceFoundationFixture();
+      const started = await startIsolatedAttendanceFixture();
+    prisma = started.prisma;
+    fx = started.fx;
       actor.userAccountId = fx.createdByUserId;
 
       await prisma.eventCheckInSettings.update({

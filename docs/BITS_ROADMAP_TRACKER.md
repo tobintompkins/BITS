@@ -1,9 +1,9 @@
 # BITS Roadmap Tracker
 
-**Last updated:** October 14, 2026
+**Last updated:** October 19, 2026
 
-**Current handoff:** Original Core 11A binds complete/reconcile/lock and draft gift edit/delete to a monotonic batch `reviewVersion`, and adds durable manual-gift CREATE idempotency on the existing ledger. Isolated `bits_e2e` has the additive review/idempotency migration. Working-app `bits` still needs `npm run ledger:review-local-migrate` before `npm run dev` can write batches. Live Clerk browser acceptance, invitation send/accept, storage/restore, household concurrency, and launch gates stay open. Do not treat this as original v1 completion.
-**Status basis:** Source and Git on October 14, 2026; HEAD `1fef2d0` plus uncommitted Core 02–11A and earlier local work. Core 11A readiness check: 224 files / 1,662 tests passed, including configured isolated ledger concurrency. Lint, typecheck, `git diff --check`, Prisma validate, and production build passed. See `docs/original-v1-ledger-acceptance.md`.
+**Current handoff:** Original Core 12A verifies giving-household concurrency on isolated `bits_e2e` through production writers, with observed lock waits and the remaining race/rollback cases. Live Clerk browser acceptance, invitation send/accept, storage/restore, and launch gates stay open. Do not treat this as original v1 completion.
+**Status basis:** Source and Git on October 19, 2026; HEAD `1fef2d0` plus uncommitted Core 02–12A and earlier local work. See `docs/original-v1-household-concurrency.md` and `docs/test-database-isolation.md`.
 
 ## How to read this tracker
 
@@ -28,9 +28,9 @@ Primary source: **BITS — Bring In The Sheaves, Product and Technical Design Sp
 | Phase 0 — architecture, database, Clerk, policies, audit, testing, Railway test deployment | Foundation present; deployment unverified | App/service/repository structure and Prisma schema exist. Current two-organization tests and Railway configuration were not exercised. |
 | Phase 1A — organization and original staff roles (`FR-ORG-*`, `FR-AUTH-*`) | Partial / live acceptance blocked | Organization settings, membership schema, role codes and permission helpers exist. Core 07/07A add a fail-closed authenticated role/tenant harness and stop login-time admin auto-provisioning (`docs/original-v1-role-tenant-acceptance.md`). Core 09 adds authorized role/status edits for existing original-role staff memberships (`docs/original-v1-staff-membership-administration.md`). Core 10 adds mocked staff invitations and explicit acceptance (`docs/original-v1-staff-invitations.md`). Live two-church Clerk execution is not evidenced. |
 | Phase 1A — donors independent of accounts (`FR-DONOR-001–003`) | Core maintenance implemented; acceptance pending | `/donors`, `/donors/new` and `/donors/[id]` now provide paginated search, active/inactive filters, accountless creation, contact/address/preferences/notes editing and deactivation. Donor detail now shows giving-household history. Full workflow acceptance remains. See `docs/donor-management-core.md`. |
-| Phase 1A — donor households/history (`FR-HH-001–004`) | Core maintenance implemented; acceptance pending | `/giving-households` directory, create/edit, link/move/end, and donor-detail history. 03A adds atomic `updatedAt` settings writes, household-then-donor sorted locks, searchable 25-row donor/household pickers, and server-derived donor/household revalidation. Partial unique index `household_memberships_one_open_per_donor` remains. Member-household screens at `/households` remain a separate system. Authenticated browser acceptance and live two-session lock tests remain. See `docs/donor-household-history.md`. |
+| Phase 1A — donor households/history (`FR-HH-001–004`) | Core maintenance implemented; isolated concurrency verified; live browser pending | `/giving-households` directory, create/edit, link/move/end, and donor-detail history. 03A adds atomic `updatedAt` settings writes, household-then-donor sorted locks, searchable 25-row donor/household pickers, and server-derived donor/household revalidation. Core 12/12A verify those writers under observed two-session lock contention on isolated `bits_e2e`. Partial unique index `household_memberships_one_open_per_donor` remains. Member-household screens at `/households` remain a separate system. Authenticated browser acceptance remains. See `docs/donor-household-history.md` and `docs/original-v1-household-concurrency.md`. |
 | Phase 1A — offering-type administration (`FR-TYPE-001–003`) | Core maintenance implemented; acceptance pending | `/offering-types`, `/offering-types/new` and `/offering-types/[id]` now provide paginated name/code search, active/inactive/all filters, create/edit, tax/online flags, immutable nonempty codes, and deactivate/reactivate that preserves allocations. Stripe checkout honors active/online flags for matching allowlisted funds without rewriting existing types on settlement. Authenticated browser acceptance remains. See `docs/offering-type-administration.md`. |
-| Phase 1B — batches, gift/allocation entry, reconcile/lock (`FR-BATCH-*`, `FR-DON-*`) | Core implemented; live acceptance outstanding | Core 11/11A review the existing ledger: snapshot-bound complete/reconcile/lock, monotonic `reviewVersion`, draft-only audited gift correction, and durable create idempotency. CARD/ACH stay Stripe-reserved. Isolated `bits_e2e` concurrency is implemented. Live Clerk browser acceptance remains blocked. Working `bits` review migration is pending. See `docs/original-v1-ledger-acceptance.md`. |
+| Phase 1B — batches, gift/allocation entry, reconcile/lock (`FR-BATCH-*`, `FR-DON-*`) | Core implemented; live acceptance outstanding | Core 11/11A/11B review the existing ledger: snapshot-bound complete/reconcile/lock, monotonic `reviewVersion`, draft-only audited gift correction, durable create idempotency, and operator-facing schema-not-ready handling. CARD/ACH stay Stripe-reserved. Core 11C keeps ledger concurrency on isolated `bits_e2e` via `npm run test:isolated` and stops unit tests from using working `bits`. Local loopback `bits` has the review migration. Live Clerk browser acceptance remains blocked. See `docs/original-v1-ledger-acceptance.md` and `docs/test-database-isolation.md`. |
 | Phase 1C — giving reports and CSV (`FR-REPORT-001–002`, section 14) | Catalog views/exports implemented; acceptance pending | `/reports` provides donation-detail, donor, giving-household and offering-type views plus matching audited CSV. `/reports/batch-reconciliation` adds the batch worksheet, CSV and print view. `/reports/statement-access` adds the restricted access-event report and CSV. Attendance reports and church-data export remain separate. Authenticated treasurer/report-viewer acceptance remains. See `docs/contribution-reports.md` and `docs/report-catalog-exports.md`. |
 | Phase 1C — statements and donor portal (`FR-STMT-*`) | Substantial implementation; storage adapter present, not production-verified | Individual/household generation, publication, registry, void/reissue, gifts and authorized PDF access services exist. Local legacy PDF keys remain valid. New writes can use a private S3-compatible backend (`s3v1:` references) when configured. Core 08 adds a fail-closed synthetic probe/restore against a designated test target. Mocked adapter/probe tests passed; no live bucket, migration, or production restore has been verified. See `docs/private-statement-storage.md`, `docs/statement-storage-recovery.md`, and `docs/original-v1-storage-verification.md`. |
 | Audit (`FR-AUDIT-001–004`) | Helpers/workflows present; complete coverage unverified | Verify all original entities and protected export/view/download operations, safe metadata and append-only behavior. |
@@ -129,15 +129,71 @@ The detailed phase lists below preserve requested scope; they are not all comple
 | Invitations / first-admin bootstrap | Not implemented |
 | Live Clerk two-tenant acceptance | Unchanged blocker on identities |
 
-### Core 11A ledger retry and review (October 14, 2026)
+### Core 12A household concurrency verification (October 19, 2026)
+
+| Check | Result |
+|---|---|
+| Confirmed repairs | Async-local test seams; in-transaction backend PIDs plus `pg_blocking_pids` before release; scoped clock for same-ms `updatedAt`; catalog-shaped open-membership index inspection; audit rollback for link/move/end/settings |
+| Isolated household suite | 13 passed on `bits_e2e` with observed lock waits. No skipped household tests |
+| Unit `npm test` | 220 files / 1,570 passed, 62 skipped database describes in mixed files |
+| Isolated `npm run test:isolated` | 19 files / 176 passed against `bits_e2e`; 0 skipped |
+| Working fingerprints | Unchanged: 336 audits, 24 events, 0 attendance actions, 2 memberships, 4 donations totaling 187.00, 0 batches, 0 households, 0 household memberships. Prior hashes unchanged; household hashes are empty-md5 `d41d8cd98f00b204e9800998ecf8427e` |
+| Working residue | Eight earlier check-in audits left in place. Not deleted |
+| Lint, typecheck after build, `git diff --check`, Prisma validate, production build | Passed. Prisma retains the pre-existing SetNull warning. Typecheck was run after the production build |
+| Playwright stale-form case | Present in `staff-roles.spec.ts`; not executed with live Clerk identities |
+| Original v1 | Still incomplete. Isolated household concurrency criteria are satisfied; live Clerk/invitations/storage/deployment remain |
+
+### Core 11D test connection guard (October 19, 2026)
+
+| Check | Result |
+|---|---|
+| Confirmed repairs | Child runtime requires flag + explicit `BITS_WORKING_DATABASE_URL` + live `DATABASE_URL` equal to isolated `bits_e2e` and unequal to working. Shared acquire guard runs before create and before cached reuse. Isolated config fails instead of skip-passing |
+| Guard tests (fake URLs) | Reproduction, missing working URL, late retarget, flag removal, cached working client, destination change, credential-only working dest, aliases/overrides: rejected before constructor |
+| Unit `npm test` | 218 files / 1,560 passed, 62 skipped database describes in mixed files |
+| Isolated `npm run test:isolated` | 18 files / 163 passed against `bits_e2e`; 0 skipped |
+| Working fingerprints | Unchanged counts and content hashes: 336 audits, 24 events, 0 attendance actions, 2 memberships, 4 donations totaling 187.00, 0 batches. `audit_fp=0273d9542ea9ed36203f7745d03eb18b` `event_fp=02707b64498da9553ed5537d8b247e78` `membership_fp=2ac1c16d89d392d286f38ef92452461c` `donation_fp=58bdf9184a35c1bd7ff79b0b84833021` `batch_fp=d41d8cd98f00b204e9800998ecf8427e` |
+| Working residue | Eight earlier check-in audits left in place. Not deleted |
+| Lint, typecheck, `git diff --check`, Prisma validate, production build | Passed |
+| Live gift edits / invitations / storage / charges | Not executed |
+| Original v1 | Still incomplete. Isolated household concurrency is verified; live Clerk/invitations/storage/deployment remain |
+
+### Core 11C test database isolation (October 19, 2026)
+
+| Check | Result |
+|---|---|
+| Confirmed repairs | Fail-closed isolated preflight; Prisma blocked in Vitest without `BITS_ISOLATED_DATABASE=1`; run-owned attendance fixtures; unit/isolated Vitest split; `BITS_WORKING_DATABASE_URL` preserved for Core 07 comparisons |
+| Commands | `npm test` is unit-only. `npm run test:isolated` is the real-SQL command and fails when `bits_e2e` is missing or equivalent to working `bits` |
+| Working-app `bits` | Not migrated, not reset, not used for fixtures. Eight recent check-in audits left in place pending explicit review |
+| Isolated `bits_e2e` | Schema presence checked; 18 files / 163 tests passed (event/check-in plus membership/invitation/ledger concurrency) |
+| Unit `npm test` | 217 files / 1,543 passed, 62 skipped database describes in mixed files |
+| Working fingerprints | Unchanged across isolated run: 336 audits, 24 events, 0 attendance actions, 2 memberships, 4 donations totaling 187.00, 0 batches |
+| Working residue | 336 audits includes the eight earlier check-in audits. Inventory only; not deleted |
+| Lint, typecheck, `git diff --check`, Prisma validate, production build | Passed |
+| Live gift edits / invitations / storage / charges | Not executed |
+| Original v1 | Still incomplete |
+
+### Core 11B ledger review and local migration (October 19, 2026)
+
+| Check | Result |
+|---|---|
+| Confirmed repairs | Missing `reviewVersion` / `ledger_create_idempotency` no longer looks like a form error; operator copy is fail-closed and runtime never applies DDL. Create tokens survive reload via session storage. Local migrate reports already-ready instead of refusing a completed database |
+| Isolated `bits_e2e` | Already ready; not reapplied |
+| Working-app `bits` | Loopback `bits` received `20261014200000_add_ledger_review_and_idempotency` after backup. Pre-existing counts unchanged: 0 batches, 4 donations, 5 allocations, 2 memberships, 328 audits. Claim table empty |
+| Local backup | `e2e/.local/backups/bits-core11b-before-ledger-review.dump` (gitignored, mode 600). `pg_restore -l` inventory verified; this is not a restore rehearsal |
+| Full `npx vitest run` | 226 files / 1,681 tests passed, including isolated concurrent same-token create, replay after complete-entry, and same-total delete-and-replace |
+| Unsigned batch routes | Temporary production server returned 307 to sign-in for `/batches`, `/batches/new`, and `/batches/corrections`; that process was stopped. Not signed-in acceptance |
+| Live gift edits / invitations / storage / charges | Not executed |
+| Original v1 | Still incomplete |
+
+### Core 11A ledger retry and review (October 19, 2026)
 
 | Check | Result |
 |---|---|
 | Confirmed repairs | Complete/Reconcile/Lock and draft gift edit/delete bind `reviewVersion`; same-total donor/allocation/date changes invalidate review. Manual CREATE uses a durable `(organizationId, action, operationToken)` claim |
 | Isolated `bits_e2e` | `20261014200000_add_ledger_review_and_idempotency` applied with `npm run ledger:review-schema-setup` |
 | Working-app `bits` | Not migrated automatically. Run `npm run ledger:review-local-migrate` on loopback `bits` when ready |
-| Full `npx vitest run` | 224 files / 1,662 tests passed, including isolated `bits_e2e` increment, add-versus-complete, competing reconcile, same-token replay/conflict, and same-total stale complete |
-| Playwright ledger journeys | Existing Core 07 spec still covers create + complete; live run still blocked on Clerk identities |
+| Full `npx vitest run` | 224 files / 1,670 tests passed, including isolated concurrent same-token create, replay after complete-entry, same-total delete-and-replace, increment, add-versus-complete, and competing reconcile |
+| Playwright ledger journeys | Core 07 spec covers create, complete, and treasurer reconcile; live run still blocked on Clerk identities |
 | Live gift edits / invitations / storage / charges | Not executed |
 | Original v1 | Still incomplete |
 
@@ -207,8 +263,9 @@ Live two-church Clerk acceptance remains blocked on two organization IDs and sev
 2. Designate `BITS_STATEMENT_S3_TEST_*` and run `statements:storage-probe -- --apply` plus `statements:storage-restore -- --apply`. Record emulator vs live-provider results separately.
 3. Preserve patches 80–81 and Core 02–11A work. Do not treat Core 11A as original v1 completion.
 4. Apply `npm run ledger:review-local-migrate` to loopback working `bits` before using `npm run dev` for batch writes. Do not apply production automatically.
-5. Remaining original v1 gaps: live Clerk two-tenant acceptance, authorized live invitation send/accept against isolated `bits_e2e`, live object-store/restore, two-session household locking, and deployment readiness.
-5. Keep later church-management expansion and Phase 2 payments visible as separate workstreams. Reaching expanded Phase 6 does not establish completion of original v1.
+5. Remaining original v1 gaps: live Clerk two-tenant acceptance, authorized live invitation send/accept against isolated `bits_e2e`, live object-store/restore, and deployment readiness. Isolated giving-household concurrency is verified; live signed-in household forms are not.
+6. Do not expand later church-management roadmap work from this green isolated suite. Live Clerk, invitations, storage recovery and launch remain the original v1 gates.
+7. Keep later church-management expansion and Phase 2 payments visible as separate workstreams. Reaching expanded Phase 6 does not establish completion of original v1.
 
 ## Earlier work
 
