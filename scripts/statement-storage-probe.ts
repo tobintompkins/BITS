@@ -1,7 +1,10 @@
+import { loadStatementStorageTestEnvFiles } from "../lib/storage/statement-storage-test-env";
 import {
   preflightStatementPdfProbe,
   runStatementPdfStorageProbe,
 } from "../lib/storage/statement-pdf-probe";
+
+loadStatementStorageTestEnvFiles();
 
 async function main() {
   const apply = process.argv.includes("--apply");

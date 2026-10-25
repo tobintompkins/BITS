@@ -78,6 +78,12 @@ describe("statement PDF write configuration", () => {
       backend: "s3",
       bucket: "bits-statements-test",
     });
+    const substring = resolveStatementPdfTestTarget({
+      BITS_STATEMENT_S3_TEST_TARGET: "1",
+      BITS_STATEMENT_S3_TEST_BUCKET: "contest-statements",
+      BITS_STATEMENT_S3_TEST_REGION: "us-east-1",
+    });
+    expect(substring.ok).toBe(false);
   });
 
   it("reports readiness without exposing secrets", () => {

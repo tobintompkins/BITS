@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
+const appRoot = import.meta.dirname;
+
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: appRoot,
+  turbopack: {
+    root: appRoot,
+  },
   images: {
     remotePatterns: [
       {

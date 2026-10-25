@@ -1,15 +1,21 @@
 import { Readable } from "node:stream";
 import { createHash } from "node:crypto";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import {
   buildStatementPdfProbeKeys,
   checkUnsignedObjectPrivacy,
+  classifyStatementPdfExecutionKind,
+  persistFailedCleanupManifest,
   preflightStatementPdfProbe,
   redactStatementPdfProbeText,
   runStatementPdfRestoreRehearsal,
   runStatementPdfStorageProbe,
+  statementPdfProbeManifestRelative,
 } from "./statement-pdf-probe";
 import type { StatementS3Sender } from "./statement-pdf-s3";
 
@@ -107,6 +113,7 @@ describe("statement PDF probe and restore rehearsal", () => {
       "passed",
     );
     expect(report.ok).toBe(true);
+    expect(report.executionKind).toBe("mock");
   });
 
   it("fails when an unsigned request returns object bytes", async () => {
@@ -132,6 +139,11 @@ describe("statement PDF probe and restore rehearsal", () => {
     expect(report.checks.find((check) => check.id === "recovery-copy")?.status).toBe(
       "passed",
     );
+    expect(report.checks.find((check) => check.id === "restore")?.detail).toMatch(
+      /byte length/,
+    );
+    expect(report.cleanedUp).toBe(true);
+    expect(report.executionKind).toBe("mock");
   });
 
   it("fails restore when the recovery copy is missing", async () => {
@@ -155,5 +167,164 @@ describe("statement PDF probe and restore rehearsal", () => {
       ),
     ).not.toContain("abc123");
     expect(createHash("sha256").update("x").digest("hex")).toHaveLength(64);
+  });
+
+  it("treats hanging unsigned fetches as inconclusive and never loads a large body", async () => {
+    const hanging = await checkUnsignedObjectPrivacy({
+      url: "https://bits-statements-test.s3.us-east-1.amazonaws.com/probe.pdf",
+      timeoutMs: 20,
+      fetchImpl: (_url, init) =>
+        new Promise((_, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            const error = new Error("aborted");
+            error.name = "AbortError";
+            reject(error);
+          });
+        }),
+    });
+    expect(hanging.status).toBe("inconclusive");
+    expect(hanging.detail).toMatch(/timed out/i);
+
+    let cancelled = false;
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(8));
+        controller.enqueue(new Uint8Array(1024 * 1024));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const large = await checkUnsignedObjectPrivacy({
+      url: "https://bits-statements-test.s3.us-east-1.amazonaws.com/probe.pdf",
+      fetchImpl: async () => new Response(stream, { status: 200 }),
+    });
+    expect(large.status).toBe("failed");
+    expect(cancelled).toBe(true);
+  });
+
+  it("does not treat redirects, 404s, or credentialed URLs as privacy proof", async () => {
+    const redirected = await checkUnsignedObjectPrivacy({
+      url: "https://bits-statements-test.s3.us-east-1.amazonaws.com/probe.pdf",
+      fetchImpl: async () =>
+        new Response(null, {
+          status: 302,
+          headers: { Location: "https://evil.example/probe.pdf" },
+        }),
+    });
+    expect(redirected.status).toBe("inconclusive");
+
+    const missing = await checkUnsignedObjectPrivacy({
+      url: "https://bits-statements-test.s3.us-east-1.amazonaws.com/probe.pdf",
+      fetchImpl: async () => new Response(null, { status: 404 }),
+    });
+    expect(missing.status).toBe("inconclusive");
+
+    let sent = false;
+    const credentialed = await checkUnsignedObjectPrivacy({
+      url: "https://user:secret@bits-statements-test.s3.us-east-1.amazonaws.com/probe.pdf",
+      fetchImpl: async () => {
+        sent = true;
+        return new Response(null, { status: 403 });
+      },
+    });
+    expect(credentialed.status).toBe("inconclusive");
+    expect(sent).toBe(false);
+
+    const mismatched = await checkUnsignedObjectPrivacy({
+      url: "https://other-bucket.s3.us-east-1.amazonaws.com/probe.pdf",
+      expectedUrl:
+        "https://bits-statements-test.s3.us-east-1.amazonaws.com/probe.pdf",
+      fetchImpl: async () => new Response(null, { status: 403 }),
+    });
+    expect(mismatched.status).toBe("inconclusive");
+  });
+
+  it("keeps failed-cleanup manifests run-owned and does not overwrite another run", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "bits-probe-manifest-"));
+    const first = await persistFailedCleanupManifest(
+      {
+        runId: "run-a",
+        keys: ["org/run-a/source.pdf"],
+        cleanupStatus: "unknown",
+      },
+      root,
+    );
+    const second = await persistFailedCleanupManifest(
+      {
+        runId: "run-b",
+        keys: ["org/run-b/source.pdf"],
+        cleanupStatus: "present",
+      },
+      root,
+    );
+    const overwrite = await persistFailedCleanupManifest(
+      {
+        runId: "run-a",
+        keys: ["org/run-a/other.pdf"],
+        cleanupStatus: "present",
+      },
+      root,
+    );
+    expect(first.wrote).toBe(true);
+    expect(second.wrote).toBe(true);
+    expect(overwrite.wrote).toBe(false);
+    expect(first.filePath).toBe(path.join(root, statementPdfProbeManifestRelative("run-a")));
+    const retained = JSON.parse(await readFile(first.filePath, "utf8")) as {
+      keys: string[];
+    };
+    expect(retained.keys).toEqual(["org/run-a/source.pdf"]);
+    const other = JSON.parse(await readFile(second.filePath, "utf8")) as {
+      runId: string;
+    };
+    expect(other.runId).toBe("run-b");
+  });
+
+  it("retains failed restore cleanup evidence instead of overwriting another run", async () => {
+    const { send } = memorySender();
+    const refuseDelete: StatementS3Sender = async (command) => {
+      if (commandName(command) === "DeleteObjectCommand") {
+        return {};
+      }
+      return send(command);
+    };
+    const root = await mkdtemp(path.join(tmpdir(), "bits-restore-manifest-"));
+    const report = await runStatementPdfRestoreRehearsal({
+      apply: true,
+      env: TEST_ENV,
+      send: refuseDelete,
+      runId: RUN_ID,
+      manifestRoot: root,
+    });
+    expect(report.cleanedUp).toBe(false);
+    expect(report.cleanupStatus).toBe("present");
+    const manifestPath = path.join(root, statementPdfProbeManifestRelative(RUN_ID));
+    const retained = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      runId: string;
+      keys: string[];
+    };
+    expect(retained.runId).toBe(RUN_ID);
+    expect(retained.keys.length).toBeGreaterThan(0);
+  });
+
+  it("classifies mock, emulator, and live-provider execution separately", () => {
+    expect(
+      classifyStatementPdfExecutionKind({ configured: false }),
+    ).toBe("none");
+    expect(
+      classifyStatementPdfExecutionKind({
+        configured: true,
+        injectedSender: true,
+      }),
+    ).toBe("mock");
+    expect(
+      classifyStatementPdfExecutionKind({
+        configured: true,
+        endpoint: "http://127.0.0.1:9000",
+      }),
+    ).toBe("emulator");
+    expect(
+      classifyStatementPdfExecutionKind({ configured: true }),
+    ).toBe("live-provider");
   });
 });

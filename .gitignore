@@ -55,5 +55,8 @@ next-env.d.ts
 # private member document storage (local adapter)
 /storage/
 
+# isolated runtime copies (never commit)
+/.tmp/
+
 # clerk configuration (can include secrets)
 /.clerk/

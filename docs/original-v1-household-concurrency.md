@@ -6,7 +6,7 @@ Authentication in these tests is mocked at the service boundary. That is not liv
 
 ## Coordination
 
-`runWithObservedLockContention` uses two Prisma clients plus a third observer. Writer A records `pg_backend_pid()` inside its transaction, acquires household-then-donor `FOR UPDATE` locks, and holds. Writer B then starts and records its in-transaction PID. The observer waits until `pg_blocking_pids(B)` contains A before A is released. A 40 ms sleep or a promise-start signal is not used. If those locks were removed, the wait times out and the test fails. Barriers and audit-failure flags live in an async-local test context so a later control write cannot consume them. Transaction timeout is 20 seconds. Every waiter is bounded and both operations are reaped in `finally`.
+`runWithObservedLockContention` uses two Prisma clients plus a third observer. Writer A records `pg_backend_pid()` inside its transaction, acquires household-then-donor `FOR UPDATE` locks, and holds. Writer B then starts and records its in-transaction PID. The observer waits until `pg_blocking_pids(B)` contains A before A is released. A 40 ms sleep or a promise-start signal is not used. If those locks were removed, the wait times out and the test fails. Barriers and audit-failure flags live in an async-local test context so a later control write cannot consume them. Transaction timeout is 20 seconds. Every launch and wait sits inside an outer cleanup that cancels timers, releases barriers, and reaps started operations, including first-writer authorization/setup failure and a missing after-locks hook. Those failure-path regressions are not counted as successful SQL contention.
 
 These tests serialize participating writers only. They do not claim global deadlock freedom or lifecycle/role-revocation serialization.
 
@@ -48,4 +48,4 @@ Eight earlier working check-in audits remain. They were not deleted.
 
 ## Still open
 
-Live Clerk two-church browser acceptance, including the Playwright stale-form case; invitation send/accept; live storage/restore; administrative CARD/ACH; formal locked-ledger adjustments; deployment readiness. Original v1 is not complete.
+Live Clerk two-church browser acceptance, including the Playwright stale-form case, remains blocked on owner-local identities (`docs/original-v1-live-acceptance-setup.md`). Invitation send/accept, live storage/restore, administrative CARD/ACH, formal locked-ledger adjustments, and deployment readiness stay open. Concurrent role-revocation serialization is not claimed. Original v1 is not complete.

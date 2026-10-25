@@ -16,8 +16,12 @@ import {
   type StatementS3Sender,
 } from "@/lib/storage/statement-pdf-s3";
 
+export const STATEMENT_PDF_PROBE_MANIFEST_DIR_RELATIVE =
+  "e2e/.local/statement-probe-manifests";
 export const STATEMENT_PDF_PROBE_MANIFEST_RELATIVE =
   "e2e/.local/statement-probe-manifest.json";
+export const UNSIGNED_PRIVACY_TIMEOUT_MS = 5_000;
+export const UNSIGNED_PRIVACY_MAX_BYTES = 64 * 1024;
 
 export type StatementPdfProbeCheckStatus =
   | "passed"
@@ -37,6 +41,7 @@ export type StatementPdfProbeReport = {
   synthetic: true;
   usedRealStatement: false;
   targetKind: "unconfigured" | "designated-test";
+  executionKind: "none" | "mock" | "emulator" | "live-provider";
   runId: string | null;
   checks: StatementPdfProbeCheck[];
   cleanedUp: boolean | null;
@@ -115,49 +120,171 @@ function add(
   checks.push({ id, status, detail: redactStatementPdfProbeText(detail) });
 }
 
-async function persistFailedCleanupManifest(input: {
-  runId: string;
-  keys: string[];
-  cleanupStatus: string;
-}) {
-  const filePath = path.join(process.cwd(), STATEMENT_PDF_PROBE_MANIFEST_RELATIVE);
+export function statementPdfProbeManifestRelative(runId: string) {
+  return path.join(STATEMENT_PDF_PROBE_MANIFEST_DIR_RELATIVE, `run-${runId}.json`);
+}
+
+export function classifyStatementPdfExecutionKind(input: {
+  configured: boolean;
+  injectedSender?: boolean;
+  endpoint?: string;
+}): StatementPdfProbeReport["executionKind"] {
+  if (!input.configured) return "none";
+  if (input.injectedSender) return "mock";
+  if (!input.endpoint) return "live-provider";
+  try {
+    const host = new URL(input.endpoint).hostname;
+    if (host === "127.0.0.1" || host === "localhost" || host === "::1") {
+      return "emulator";
+    }
+  } catch {
+    return "none";
+  }
+  return "live-provider";
+}
+
+export async function persistFailedCleanupManifest(
+  input: {
+    runId: string;
+    keys: string[];
+    cleanupStatus: string;
+  },
+  rootDir = process.cwd(),
+) {
+  const relative = statementPdfProbeManifestRelative(input.runId);
+  const filePath = path.join(rootDir, relative);
   await mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
-  await writeFile(
-    filePath,
-    `${JSON.stringify(
-      {
-        runId: input.runId,
-        organizationId: STATEMENT_PDF_PROBE_ORGANIZATION_ID,
-        keys: input.keys,
-        cleanupStatus: input.cleanupStatus,
-      },
-      null,
-      2,
-    )}\n`,
-    { encoding: "utf8", mode: 0o600 },
-  );
+  const payload = `${JSON.stringify(
+    {
+      runId: input.runId,
+      organizationId: STATEMENT_PDF_PROBE_ORGANIZATION_ID,
+      keys: input.keys,
+      cleanupStatus: input.cleanupStatus,
+    },
+    null,
+    2,
+  )}\n`;
+  try {
+    await writeFile(filePath, payload, {
+      encoding: "utf8",
+      mode: 0o600,
+      flag: "wx",
+    });
+    return { wrote: true, filePath };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      return { wrote: false, filePath };
+    }
+    throw error;
+  }
+}
+
+function normalizeObjectUrl(value: string) {
+  const parsed = new URL(value);
+  parsed.username = "";
+  parsed.password = "";
+  parsed.hash = "";
+  parsed.search = "";
+  return parsed.toString().replace(/\/+$/, "");
+}
+
+async function unsignedResponseHasObjectBytes(
+  response: Response,
+  signal: AbortSignal,
+) {
+  if (!response.body) {
+    return false;
+  }
+  const reader = response.body.getReader();
+  let total = 0;
+  try {
+    while (total < UNSIGNED_PRIVACY_MAX_BYTES) {
+      if (signal.aborted) return total > 0;
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value?.byteLength ?? 0;
+      if (total > 0) return true;
+    }
+    return total > 0;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
 }
 
 export async function checkUnsignedObjectPrivacy(input: {
   url: string;
+  expectedUrl?: string;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }): Promise<StatementPdfProbeCheck> {
+  const timeoutMs = input.timeoutMs ?? UNSIGNED_PRIVACY_TIMEOUT_MS;
+  try {
+    const requested = new URL(input.url);
+    if (requested.username || requested.password) {
+      return {
+        id: "privacy",
+        status: "inconclusive",
+        detail: "Unsigned request URL contained credentials and was not sent.",
+      };
+    }
+    if (
+      input.expectedUrl &&
+      normalizeObjectUrl(input.url) !== normalizeObjectUrl(input.expectedUrl)
+    ) {
+      return {
+        id: "privacy",
+        status: "inconclusive",
+        detail: "Requested URL did not match the intended object URL.",
+      };
+    }
+  } catch {
+    return {
+      id: "privacy",
+      status: "inconclusive",
+      detail: "Unsigned request URL was not a valid object URL.",
+    };
+  }
+
   const fetchImpl = input.fetchImpl ?? fetch;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetchImpl(input.url, {
       redirect: "manual",
       headers: {},
+      signal: controller.signal,
     });
     if (response.status === 401 || response.status === 403) {
+      await response.body?.cancel().catch(() => undefined);
       return {
         id: "privacy",
         status: "passed",
-        detail: "Unsigned request was denied. This is a single-object check, not a bucket-policy certification.",
+        detail:
+          "Unsigned request was denied. This is a single-object check, not a bucket-policy certification.",
+      };
+    }
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      await response.body?.cancel().catch(() => undefined);
+      return {
+        id: "privacy",
+        status: "inconclusive",
+        detail: `Unsigned request redirected (${response.status}). Redirects are not privacy proof.`,
+      };
+    }
+    if (response.status === 404) {
+      await response.body?.cancel().catch(() => undefined);
+      return {
+        id: "privacy",
+        status: "inconclusive",
+        detail: "Unsigned request returned 404. Missing objects are not privacy proof.",
       };
     }
     if (response.status >= 200 && response.status < 300) {
-      const bytes = Buffer.from(await response.arrayBuffer());
-      if (bytes.byteLength > 0) {
+      const hasBytes = await unsignedResponseHasObjectBytes(
+        response,
+        controller.signal,
+      );
+      if (hasBytes) {
         return {
           id: "privacy",
           status: "failed",
@@ -165,18 +292,26 @@ export async function checkUnsignedObjectPrivacy(input: {
         };
       }
     }
+    await response.body?.cancel().catch(() => undefined);
     return {
       id: "privacy",
       status: "inconclusive",
       detail: `Unsigned request status ${response.status} is not privacy proof.`,
     };
-  } catch {
+  } catch (error) {
+    const aborted =
+      controller.signal.aborted ||
+      (error instanceof Error && error.name === "AbortError");
     return {
       id: "privacy",
       status: "inconclusive",
-      detail:
-        "Unsigned request did not reach the object. Connection or DNS failure is inconclusive.",
+      detail: aborted
+        ? "Unsigned request timed out. Timeouts are not privacy proof."
+        : "Unsigned request did not reach the object. Connection or DNS failure is inconclusive.",
     };
+  } finally {
+    clearTimeout(timer);
+    if (!controller.signal.aborted) controller.abort();
   }
 }
 
@@ -201,6 +336,10 @@ export function preflightStatementPdfProbe(
     synthetic: true,
     usedRealStatement: false,
     targetKind: target.ok ? "designated-test" : "unconfigured",
+    executionKind: classifyStatementPdfExecutionKind({
+      configured: target.ok,
+      endpoint: target.ok && target.backend === "s3" ? target.endpoint : undefined,
+    }),
     runId: null,
     checks,
     cleanedUp: null,
@@ -218,6 +357,7 @@ export async function runStatementPdfStorageProbe(input: {
   send?: StatementS3Sender;
   fetchImpl?: typeof fetch;
   runId?: string;
+  manifestRoot?: string;
 }): Promise<StatementPdfProbeReport> {
   const preflight = preflightStatementPdfProbe(input.env);
   if (!input.apply) {
@@ -315,9 +455,11 @@ export async function runStatementPdfStorageProbe(input: {
         add(checks, "checksum-mismatch", "failed", "A wrong checksum was accepted.");
       }
 
+      const objectUrl = unsignedStatementObjectUrl(target, keys.source);
       checks.push(
         await checkUnsignedObjectPrivacy({
-          url: unsignedStatementObjectUrl(target, keys.source),
+          url: objectUrl,
+          expectedUrl: objectUrl,
           fetchImpl: input.fetchImpl,
         }),
       );
@@ -351,11 +493,14 @@ export async function runStatementPdfStorageProbe(input: {
       add(checks, "cleanup", "inconclusive", cleanup.reason);
     }
     if (!cleanup.cleanedUp) {
-      await persistFailedCleanupManifest({
-        runId,
-        keys: owned,
-        cleanupStatus: cleanup.status,
-      }).catch(() => undefined);
+      await persistFailedCleanupManifest(
+        {
+          runId,
+          keys: owned,
+          cleanupStatus: cleanup.status,
+        },
+        input.manifestRoot ?? process.cwd(),
+      ).catch(() => undefined);
     }
     const failed = checks.some(
       (check) => check.status === "failed" || check.status === "blocked",
@@ -366,6 +511,11 @@ export async function runStatementPdfStorageProbe(input: {
       synthetic: true,
       usedRealStatement: false,
       targetKind: "designated-test",
+      executionKind: classifyStatementPdfExecutionKind({
+        configured: true,
+        injectedSender: Boolean(input.send),
+        endpoint: target.endpoint,
+      }),
       runId,
       checks,
       cleanedUp: cleanup.cleanedUp,
@@ -383,6 +533,7 @@ export async function runStatementPdfRestoreRehearsal(input: {
   env?: Record<string, string | undefined>;
   send?: StatementS3Sender;
   runId?: string;
+  manifestRoot?: string;
 }): Promise<StatementPdfProbeReport> {
   const preflight = preflightStatementPdfProbe(input.env);
   if (!input.apply) {
@@ -399,6 +550,11 @@ export async function runStatementPdfRestoreRehearsal(input: {
   const originalHash = sha256(original);
   const checks = [...preflight.checks];
   const owned = [keys.source, keys.recovery, keys.restored];
+  const executionKind = classifyStatementPdfExecutionKind({
+    configured: true,
+    injectedSender: Boolean(input.send),
+    endpoint: target.endpoint,
+  });
 
   try {
     const source = await writeRemoteStatementPdf(
@@ -408,7 +564,15 @@ export async function runStatementPdfRestoreRehearsal(input: {
     );
     if (!source.ok) {
       add(checks, "source-create", "failed", `Source create failed: ${source.reason}.`);
-      return finishRestore(checks, runId, "skipped");
+      return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
     }
     add(checks, "source-create", "passed", "Synthetic source object was created.");
 
@@ -419,7 +583,15 @@ export async function runStatementPdfRestoreRehearsal(input: {
     );
     if (!recovery.ok) {
       add(checks, "recovery-copy", "failed", `Recovery copy failed: ${recovery.reason}.`);
-      return finishRestore(checks, runId, "skipped");
+      return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
     }
 
     const recoveryRead = await inspectRemoteStatementPdf(
@@ -427,20 +599,32 @@ export async function runStatementPdfRestoreRehearsal(input: {
       keys.recovery,
       input.send,
     );
-    if (recoveryRead.status !== "present" || recoveryRead.checksum !== originalHash) {
+    if (
+      recoveryRead.status !== "present" ||
+      recoveryRead.checksum !== originalHash ||
+      recoveryRead.byteLength !== original.byteLength
+    ) {
       add(
         checks,
         "recovery-copy",
         "failed",
-        "Recovery copy was not independently readable with the expected checksum. Source was not deleted.",
+        "Recovery copy was not independently readable with the expected SHA-256 and byte length. Source was not deleted.",
       );
-      return finishRestore(checks, runId, "skipped");
+      return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
     }
     add(
       checks,
       "recovery-copy",
       "passed",
-      "Recovery copy was independently readable before any source deletion.",
+      `Recovery copy was independently readable before any source deletion (${recoveryRead.byteLength} bytes).`,
     );
 
     const sourceGone = await deleteAndVerifyRemoteStatementPdf(
@@ -450,7 +634,15 @@ export async function runStatementPdfRestoreRehearsal(input: {
     );
     if (!sourceGone.cleanedUp) {
       add(checks, "simulated-loss", "failed", sourceGone.reason);
-      return finishRestore(checks, runId, sourceGone.status);
+      return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
     }
     add(checks, "simulated-loss", "passed", "Synthetic source key is absent after verified delete.");
 
@@ -461,11 +653,32 @@ export async function runStatementPdfRestoreRehearsal(input: {
     );
     if (backup.status !== "present") {
       add(checks, "restore", "failed", "Recovery copy was missing when restore was attempted.");
-      return finishRestore(checks, runId, "skipped");
+      return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
     }
-    if (backup.checksum !== originalHash) {
-      add(checks, "restore", "failed", "Recovery copy checksum changed before restore.");
-      return finishRestore(checks, runId, "skipped");
+    if (backup.checksum !== originalHash || backup.byteLength !== original.byteLength) {
+      add(
+        checks,
+        "restore",
+        "failed",
+        "Recovery copy SHA-256 or byte length changed before restore.",
+      );
+      return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
     }
 
     const openedBackup = await openRemoteStatementPdf(
@@ -475,13 +688,41 @@ export async function runStatementPdfRestoreRehearsal(input: {
     );
     if (!openedBackup.ok) {
       add(checks, "restore", "failed", "Could not read recovery copy for restore.");
-      return finishRestore(checks, runId, "skipped");
+      return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
     }
     const chunks: Buffer[] = [];
     for await (const chunk of openedBackup.stream) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
     const fromBackup = Buffer.concat(chunks);
+    if (
+      fromBackup.byteLength !== original.byteLength ||
+      sha256(fromBackup) !== originalHash
+    ) {
+      add(
+        checks,
+        "restore",
+        "failed",
+        "Fetched backup bytes did not match the recovery-copy SHA-256 or byte length.",
+      );
+      return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
+    }
 
     const restored = await writeRemoteStatementPdf(
       target,
@@ -490,50 +731,120 @@ export async function runStatementPdfRestoreRehearsal(input: {
     );
     if (!restored.ok) {
       add(checks, "restore", "failed", `Restore create failed: ${restored.reason}.`);
-      return finishRestore(checks, runId, "skipped");
+      return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
     }
     const verify = await inspectRemoteStatementPdf(
       target,
       keys.restored,
       input.send,
     );
-    if (verify.status === "present" && verify.checksum === originalHash) {
+    if (
+      verify.status === "present" &&
+      verify.checksum === originalHash &&
+      verify.byteLength === original.byteLength
+    ) {
       add(
         checks,
         "restore",
         "passed",
-        "Restored object matched the recovery-copy checksum on a fresh read. Same-bucket copy is not an independent durable backup.",
+        `Restored object matched the recovery-copy SHA-256 and byte length (${verify.byteLength} bytes) on a fresh read. Same-bucket copy is not an independent durable backup.`,
       );
     } else {
       add(checks, "restore", "failed", "Restored object did not match the recovery copy.");
     }
-    return finishRestore(checks, runId, "skipped");
-  } finally {
-    for (const key of owned) {
-      if (!isRunOwnedKey(key, runId)) continue;
-      await deleteAndVerifyRemoteStatementPdf(target, key, input.send);
-    }
+    return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
+  } catch (error) {
+    add(
+      checks,
+      "restore",
+      "failed",
+      error instanceof Error ? error.message : "Restore rehearsal failed.",
+    );
+    return await finishRestore(
+        checks,
+        runId,
+        executionKind,
+        target,
+        owned,
+        input.send,
+        input.manifestRoot,
+      );
   }
 }
 
-function finishRestore(
+async function finishRestore(
   checks: StatementPdfProbeCheck[],
   runId: string,
-  cleanupStatus: StatementPdfProbeReport["cleanupStatus"],
-): StatementPdfProbeReport {
+  executionKind: StatementPdfProbeReport["executionKind"],
+  target: StatementPdfS3Config,
+  owned: string[],
+  send?: StatementS3Sender,
+  manifestRoot?: string,
+): Promise<StatementPdfProbeReport> {
+  let cleanupStatus: StatementPdfProbeReport["cleanupStatus"] = "absent";
+  const leftover: string[] = [];
+  for (const key of owned) {
+    if (!isRunOwnedKey(key, runId)) continue;
+    const result = await deleteAndVerifyRemoteStatementPdf(target, key, send);
+    if (!result.cleanedUp) {
+      leftover.push(key);
+      if (result.status === "present") cleanupStatus = "present";
+      else if (cleanupStatus !== "present") cleanupStatus = "unknown";
+    }
+  }
+  if (leftover.length === 0) {
+    add(
+      checks,
+      "cleanup",
+      "passed",
+      "Owned restore keys are absent. Version history was not inspected.",
+    );
+  } else {
+    add(
+      checks,
+      "cleanup",
+      cleanupStatus === "present" ? "failed" : "inconclusive",
+      "Owned restore cleanup was not verified. Failed-cleanup evidence was retained.",
+    );
+    await persistFailedCleanupManifest(
+      {
+        runId,
+        keys: leftover,
+        cleanupStatus,
+      },
+      manifestRoot ?? process.cwd(),
+    ).catch(() => undefined);
+  }
   const failed = checks.some(
     (check) => check.status === "failed" || check.status === "blocked",
   );
   return {
-    ok: !failed && checks.some((check) => check.status === "passed"),
+    ok: !failed && leftover.length === 0 && checks.some((check) => check.status === "passed"),
     mode: "restore",
     synthetic: true,
     usedRealStatement: false,
     targetKind: "designated-test",
+    executionKind,
     runId,
     checks,
-    cleanedUp: cleanupStatus === "absent" ? true : cleanupStatus === "skipped" ? null : false,
-    cleanupStatus,
+    cleanedUp: leftover.length === 0,
+    cleanupStatus: leftover.length === 0 ? "absent" : cleanupStatus,
     notes: [
       "Synthetic restore rehearsal only. Not a durable independent backup or database-plus-PDF disaster recovery.",
       "A copy in the same bucket or failure domain is not an offsite backup.",

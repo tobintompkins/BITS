@@ -45,6 +45,11 @@ Required names only:
 - `BITS_STATEMENT_S3_TEST_REGION` or `BITS_STATEMENT_S3_REGION`
 - optional test endpoint / prefix / path-style / insecure-HTTP flags
 
+Scripts load those TEST names from the process environment, then from
+gitignored `e2e/.local/storage-test.env` if present. Process values win.
+The overlay cannot change database URLs or Clerk keys. Do not put
+application or Clerk secrets in that file.
+
 ```bash
 npm run statements:storage-probe
 ```
@@ -58,10 +63,13 @@ npm run statements:storage-probe -- --apply
 ```
 
 This writes a reserved non-donor key, proves conditional create, rejects
-overwrite, verifies SHA-256 (never ETag), checks one unsigned object URL,
-and verifies the exact key is absent after delete. AccessDenied or timeout
-is unknown, not absence. Cleanup failure writes a redacted manifest under
-`e2e/.local/`.
+overwrite, verifies SHA-256 (never ETag), checks one unsigned object URL
+with a deadline and bounded body, and verifies the exact key is absent
+after delete. 401/403 is denial evidence. Redirects, DNS failures,
+timeouts, and 404 are inconclusive. AccessDenied or timeout after delete
+is unknown, not absence. Cleanup failure writes a run-owned exclusive
+manifest under `e2e/.local/statement-probe-manifests/`. Do not delete a
+failed manifest until the leftover key is confirmed absent.
 
 ## 4. Synthetic restore rehearsal
 
@@ -70,8 +78,10 @@ npm run statements:storage-restore -- --apply
 ```
 
 This creates a recovery copy, verifies it independently, removes only the
-synthetic source, restores from the backup object (not memory), and checks
-the restored checksum. It is not a durable offsite backup.
+synthetic source, restores from the separately fetched backup object (not
+retained source bytes), and checks SHA-256 plus byte length on a fresh
+read. Owned keys are cleaned up afterward; unknown cleanup retains the
+run manifest. It is not a durable offsite backup.
 
 ## 5. Reviewed restore of a real statement PDF
 
@@ -93,7 +103,9 @@ Legacy local files stay in place. Migration remains dry-run only.
 
 ## 6. Afterward
 
-Record the command, date, target kind (emulator vs live provider), and each
-check status. Missing identities or an undesignated bucket are blockers, not
-passes. Original version 1 remains incomplete until live Clerk acceptance,
-broader financial/staff workflows, concurrency, and deployment checks exist.
+Record the command, date, execution kind (`mock`, `emulator`, or
+`live-provider`), and each check status. A fake SDK sender is mocked
+evidence, not emulator execution. Missing identities or an undesignated
+bucket are blockers, not passes. Original version 1 remains incomplete
+until live Clerk acceptance, a designated emulator or live-provider
+restore, broader financial/staff workflows, and deployment checks exist.

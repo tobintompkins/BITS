@@ -137,9 +137,24 @@ two roles on the same destination cannot bypass the working-database guard.
   pass. Isolated-database setup may already be present locally.
 - Staff invitation, role-change, and complete staff-management UI remain a
   separate original-core gap.
-- Live object-store probe/restore, broader ledger acceptance, two-session
-  household locking, and deployment readiness are unchanged.
+- Isolated giving-household concurrency is verified on `bits_e2e` (Core 12A).
+  Live signed-in household forms, including the stale-settings Playwright
+  case, have not run.
+- Live object-store probe/restore and deployment readiness are unchanged.
 - Original version 1 is not complete.
+
+## Core 13 (October 23, 2026)
+
+The lock-contention helper now registers waiter rejection handling
+immediately and cleans up timers, barriers, and started operations on every
+path, including first-writer authorization/setup failure and a missing
+after-locks hook. That is harness robustness, not a production denial.
+
+Live preflight failed closed: `bits_e2e` exists on loopback; the two Clerk
+organization IDs and seven identity emails are still absent; the dedicated
+acceptance server was not started. Owner setup is
+`docs/original-v1-live-acceptance-setup.md`. No live browser case ran.
+Concurrent role-revocation serialization remains out of scope.
 
 ## Verification (October 14, 2026)
 

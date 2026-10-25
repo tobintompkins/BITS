@@ -157,7 +157,11 @@ export const STATEMENT_PDF_PROBE_ORGANIZATION_ID =
 function dedicatedTestBucketName(name: string) {
   const bucket = name.trim().toLowerCase();
   return (
-    bucket.includes("test") ||
+    /(^|[_-])test([_-]|$)/.test(bucket) ||
+    bucket.startsWith("test-") ||
+    bucket.startsWith("test_") ||
+    bucket.endsWith("-test") ||
+    bucket.endsWith("_test") ||
     /(^|[_-])e2e([_-]|$)/.test(bucket) ||
     bucket.endsWith("e2e")
   );

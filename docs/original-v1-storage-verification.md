@@ -1,6 +1,7 @@
-# Original v1 — Statement storage verification (Core 08)
+# Original v1 — Statement storage verification (Core 08 / Core 14)
 
-October 14, 2026. This records the Core 08 increment against the current
+October 14, 2026 (Core 08) and October 23, 2026 (Core 14). This records
+the statement-storage probe and restore increment against the current
 working tree. It is not disaster-recovery certification and does not mark
 original version 1 complete.
 
@@ -21,6 +22,54 @@ original version 1 complete.
 
 See `docs/private-statement-storage.md` and
 `docs/statement-storage-recovery.md`.
+
+## Core 14 repairs (October 23, 2026)
+
+- `checkUnsignedObjectPrivacy` inspects the requested object URL, aborts
+  on a deadline, reads a bounded cancellable body, and never treats
+  redirects, DNS failures, timeouts, or 404 as privacy proof. 401/403 is
+  denial evidence. Successful unsigned bytes fail the check. Credentialed
+  URLs are not sent.
+- Failed-cleanup manifests are run-owned under
+  `e2e/.local/statement-probe-manifests/run-{runId}.json` with exclusive
+  create. Another run is not overwritten.
+- Restore rehearses from a separately fetched backup object, compares
+  SHA-256 and byte length, then reports verified owned-key cleanup.
+  Unknown cleanup retains the run manifest.
+- Scripts load gitignored `e2e/.local/storage-test.env` for
+  `BITS_STATEMENT_S3_TEST_*` only. That overlay cannot change
+  `DATABASE_URL`, `DIRECT_URL`, isolated/working database URLs, or Clerk
+  keys. Process values win.
+- A bucket name that merely contains the letters `test` (for example
+  `contest-statements`) is not a dedicated TEST target. `BITS_STATEMENT_S3_TEST_TARGET=1`
+  is still required.
+
+## Verification (October 23, 2026)
+
+Worktree: HEAD `1fef2d0` plus uncommitted Core 02–14 and earlier local
+work. No commit was created for this increment. No app credentials,
+database records, bucket objects, IAM, or the original specification were
+changed for a live write.
+
+| Check | Result |
+|---|---|
+| Focused storage adapter/config/env/probe tests | 4 files / 29 passed |
+| `npm test` | 222 files / 1,579 passed, 62 skipped |
+| Isolated SQL | Not required |
+| `npm run lint` | Passed |
+| `git diff --check` | Passed |
+| `npm run prisma:validate` | Passed (existing SetNull warning) |
+| `npm run build` | Passed (existing middleware-to-proxy and member-document NFT warnings) |
+| `npx tsc --noEmit` after build | Passed |
+| Read-only `npm run statements:storage-probe` | Blocked: no designated `BITS_STATEMENT_S3_TEST_*` target. `executionKind=none`. No secrets printed |
+| `statements:storage-probe -- --apply` | Not run. Emulator absent; live TEST bucket unset |
+| `statements:storage-restore -- --apply` | Not run. Same TEST-target blocker |
+| Fake SDK sender | Mocked evidence only |
+| Clerk live acceptance | Deferred by owner; not restarted |
+
+Distinguish mocked adapter/probe results (passed) from emulator and
+live-provider results (not executed). A same-bucket copy would not be an
+independent durable backup even if a TEST target were later designated.
 
 ## Verification (October 14, 2026)
 
@@ -49,9 +98,11 @@ durable backup even if a TEST target were later designated.
 
 ## Outstanding blockers
 
-- Designate `BITS_STATEMENT_S3_TEST_*` and run probe plus restore
-  `--apply`. Record emulator vs live-provider results separately.
-- Live Clerk two-tenant acceptance remains blocked on identities.
-- Broader ledger acceptance, staff-management completeness, two-session
-  household locking, and deployment readiness remain.
+- Designate `BITS_STATEMENT_S3_TEST_*` (shell or gitignored
+  `e2e/.local/storage-test.env`) and run probe plus restore `--apply`.
+  Record emulator vs live-provider results separately. Do not install
+  unknown images or use the application bucket.
+- Live Clerk two-tenant acceptance remains deferred by the owner.
+- Broader ledger acceptance, staff-management completeness, live
+  household forms, and deployment readiness remain.
 - Original version 1 is not complete.

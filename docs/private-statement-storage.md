@@ -103,6 +103,7 @@ deployed.
 - `scripts/statement-storage-probe.ts`
 - `scripts/statement-storage-restore.ts`
 - `lib/storage/statement-pdf-probe.ts`
+- `lib/storage/statement-storage-test-env.ts`
 - `docs/statement-storage-recovery.md`
 - `@aws-sdk/client-s3` (official S3-compatible SDK)
 
@@ -112,11 +113,13 @@ No schema migration. No existing `.env` credentials were changed.
 
 Core 08 (October 14, 2026) adds verified probe cleanup, incremental
 bounded S3 reads, PUT/DELETE timeouts, a designated test-target guard,
-and a synthetic restore rehearsal. After this increment: 207 files /
-1,546 tests passed; lint, typecheck, and production build passed.
-Read-only probe is blocked until `BITS_STATEMENT_S3_TEST_*` is
-designated. Mocked adapter and probe tests are not live provider proof.
-See `docs/original-v1-storage-verification.md`.
+and a synthetic restore rehearsal. Core 14 (October 23, 2026) bounds
+unsigned privacy, keeps cleanup manifests run-owned, reports restore
+byte lengths, and adds a TEST-only env overlay. After Core 14: 222
+files / 1,579 tests passed; lint, typecheck after build, and production
+build passed. Read-only probe is blocked until `BITS_STATEMENT_S3_TEST_*`
+is designated. Mocked adapter and probe tests are not emulator or live
+provider proof. See `docs/original-v1-storage-verification.md`.
 
 Not verified here: a live private bucket or S3-compatible test service,
 signed-in staff/donor download against remote objects, production restore,

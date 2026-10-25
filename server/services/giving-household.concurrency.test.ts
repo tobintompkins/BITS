@@ -10,6 +10,7 @@ import {
   RoleCode,
 } from "@/app/generated/prisma/client";
 import { attributeGiftToHousehold } from "@/lib/reports/household-attribution";
+import { runWithObservedLockContention } from "@/lib/testing/giving-household-lock-contention";
 import {
   isolatedConnectionString,
   isolatedDatabaseRunEnabled,
@@ -26,7 +27,6 @@ import { emptyGivingHousehold } from "@/lib/validation/giving-household";
 import {
   runWithGivingHouseholdPrisma,
   runWithGivingHouseholdSeams,
-  type GivingHouseholdTx,
 } from "@/server/services/giving-household-runtime";
 import {
   endGivingHouseholdMembership,
@@ -52,7 +52,6 @@ const NOW = new Date("2026-10-19T20:00:00.000Z");
 const MOVE_DAY = "2026-10-19";
 const CLOSE_DAY = "2026-10-18";
 const FROZEN_MS = Date.parse("2026-10-19T20:00:00.123Z");
-const LOCK_WAIT_MS = 5_000;
 
 function createClient() {
   return new PrismaClient({
@@ -183,125 +182,6 @@ describe.skipIf(!canUseIsolatedDb)(
     ) {
       return runWithGivingHouseholdPrisma(client, () =>
         actorStore.run({ userId: actor.clerkUserId, orgId: actor.clerkOrgId }, fn),
-      );
-    }
-
-    async function backendPid(tx: GivingHouseholdTx) {
-      const rows = await tx.$queryRaw<Array<{ pid: number | bigint }>>`
-        SELECT pg_backend_pid() AS pid
-      `;
-      return Number(rows[0]?.pid);
-    }
-
-    async function waitUntilBlocked(
-      observer: PrismaClient,
-      waitingPid: number,
-      blockingPid: number,
-    ) {
-      const deadline = Date.now() + LOCK_WAIT_MS;
-      while (Date.now() < deadline) {
-        const rows = await observer.$queryRaw<Array<{ blocked: boolean }>>`
-          SELECT ${blockingPid}::int = ANY (pg_blocking_pids(${waitingPid}::int)) AS blocked
-        `;
-        if (rows[0]?.blocked) return;
-        await new Promise((resolve) => setTimeout(resolve, 15));
-      }
-      throw new Error(
-        `Timed out waiting for backend ${waitingPid} to be blocked by ${blockingPid}. This fails if household/donor FOR UPDATE locks are removed.`,
-      );
-    }
-
-    async function runWithObservedLockContention<T, U>(
-      observer: PrismaClient,
-      first: () => Promise<T>,
-      second: () => Promise<U>,
-    ) {
-      let releaseFirst!: () => void;
-      const firstMayFinish = new Promise<void>((resolve) => {
-        releaseFirst = resolve;
-      });
-      let firstEnteredCritical = false;
-      const cancelWaiters: Array<() => void> = [];
-      let firstLockResolve!: () => void;
-      const firstLocked = new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(
-          () => reject(new Error("first writer never acquired locks")),
-          LOCK_WAIT_MS,
-        );
-        cancelWaiters.push(() => clearTimeout(timer));
-        firstLockResolve = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-      });
-      let firstPid = 0;
-      let secondPid = 0;
-      let sawFirstStart = false;
-      let secondPidResolve!: (pid: number) => void;
-      const secondPidReady = new Promise<number>((resolve, reject) => {
-        const timer = setTimeout(
-          () => reject(new Error("second writer never entered a transaction")),
-          LOCK_WAIT_MS,
-        );
-        cancelWaiters.push(() => clearTimeout(timer));
-        secondPidResolve = (pid: number) => {
-          clearTimeout(timer);
-          resolve(pid);
-        };
-      });
-
-      return runWithGivingHouseholdSeams(
-        {
-          onTransactionStart: async (tx) => {
-            const pid = await backendPid(tx);
-            if (!sawFirstStart) {
-              sawFirstStart = true;
-              firstPid = pid;
-              return;
-            }
-            if (!secondPid) {
-              secondPid = pid;
-              secondPidResolve(pid);
-            }
-          },
-          afterLocks: async () => {
-            if (firstEnteredCritical) return;
-            firstEnteredCritical = true;
-            firstLockResolve();
-            await firstMayFinish;
-          },
-        },
-        async () => {
-          const firstP = first();
-          await Promise.race([
-            firstLocked,
-            firstP.then(
-              () => {
-                throw new Error("first writer finished before after-locks hook");
-              },
-              (error: unknown) => {
-                throw error;
-              },
-            ),
-          ]);
-          const secondP = second();
-          let observeError: unknown;
-          try {
-            await waitUntilBlocked(observer, await secondPidReady, firstPid);
-          } catch (error) {
-            observeError = error;
-          } finally {
-            releaseFirst();
-          }
-          try {
-            const results = await Promise.allSettled([firstP, secondP]);
-            if (observeError) throw observeError;
-            return results;
-          } finally {
-            for (const cancel of cancelWaiters) cancel();
-            releaseFirst();
-          }
-        },
       );
     }
 

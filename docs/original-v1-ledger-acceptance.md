@@ -165,7 +165,9 @@ not deleted.
 - Live statement storage/restore
 - Two-session household locking
 - Formal locked-batch adjustment ledger (explicitly deferred by FR-BATCH-006)
-- Administrative CARD/ACH recording without Stripe processing
+- Administrative CARD/ACH recording without Stripe processing (Core 15:
+  owner policy decision, not a confirmed v1 defect — see
+  `docs/original-v1-payment-method-assessment.md`)
 - Deployment readiness
 
 ## Verification (October 14, 2026)
