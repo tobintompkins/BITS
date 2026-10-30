@@ -78,7 +78,7 @@ export default async function CorrectionsPage({
 
       {result ? (
         <p
-          role="status"
+          role={result.startsWith("error:") ? "alert" : "status"}
           className={`rounded-xl border p-4 text-sm ${
             result.startsWith("error:")
               ? "border-rose-200 bg-rose-50 text-rose-900"

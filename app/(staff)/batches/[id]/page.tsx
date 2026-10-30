@@ -401,7 +401,7 @@ async function BatchDonationList({
     return (
       <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
         <h2 className="text-xl font-semibold text-rose-900">Donations</h2>
-        <p className="mt-2 text-sm text-rose-800">
+        <p role="alert" className="mt-2 text-sm text-rose-800">
           Donations could not be loaded. Try again.
         </p>
       </section>
@@ -442,9 +442,12 @@ async function BatchDonationList({
                   key={donation.id}
                   className="border-b border-[var(--bits-border)] last:border-0"
                 >
-                  <td className="px-3 py-3 font-medium text-[var(--bits-navy)]">
+                  <th
+                    scope="row"
+                    className="px-3 py-3 font-medium text-[var(--bits-navy)]"
+                  >
                     {donation.donorName}
-                  </td>
+                  </th>
                   <td className="px-3 py-3">
                     {formatBatchDate(donation.offeringDate)}
                   </td>
@@ -481,6 +484,7 @@ async function BatchDonationList({
                       {donation.source === "manual" ? (
                         <Link
                           href={`/batches/${batchId}/donations/${donation.id}/edit`}
+                          aria-label={`Edit donation from ${donation.donorName}`}
                           className="text-sm font-semibold text-[var(--bits-navy)] underline"
                         >
                           Edit

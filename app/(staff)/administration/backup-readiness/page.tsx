@@ -128,7 +128,7 @@ export default async function BackupReadinessPage({
 
       {query.success || query.error ? (
         <p
-          role="status"
+          role={query.error ? "alert" : "status"}
           className={`rounded-xl border px-4 py-3 text-sm ${
             query.error
               ? "border-rose-300 bg-rose-50 text-rose-800"

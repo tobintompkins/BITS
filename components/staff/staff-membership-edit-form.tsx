@@ -57,7 +57,7 @@ export function StaffMembershipEditForm({
         Current: {row.roleName} · {row.membershipStatusLabel}
       </p>
       <label className="block text-sm font-medium text-[var(--bits-navy)]">
-        Intended role
+        Intended role for {row.displayName}
         <select
           name="roleCode"
           value={roleCode}
@@ -73,7 +73,7 @@ export function StaffMembershipEditForm({
         </select>
       </label>
       <label className="block text-sm font-medium text-[var(--bits-navy)]">
-        Intended status
+        Intended status for {row.displayName}
         <select
           name="active"
           value={active}
@@ -102,7 +102,7 @@ export function StaffMembershipEditForm({
         <span>{confirmCopy}</span>
       </label>
       <button type="submit" className={buttonClass} disabled={pending}>
-        {pending ? "Saving…" : "Save membership"}
+        {pending ? "Saving…" : `Save membership for ${row.displayName}`}
       </button>
       {state.message ? (
         <p

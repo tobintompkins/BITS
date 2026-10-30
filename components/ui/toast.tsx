@@ -16,7 +16,7 @@ export function Toast({
 
   return (
     <div
-      role="status"
+      role={variant === "error" ? "alert" : "status"}
       className={`fixed right-4 top-4 z-50 max-w-sm rounded-lg border px-4 py-3 text-sm font-medium shadow-lg ${styles}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -24,7 +24,8 @@ export function Toast({
         <button
           type="button"
           onClick={onDismiss}
-          className="opacity-70 hover:opacity-100"
+          aria-label="Dismiss notification"
+          className="opacity-70 hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
         >
           ×
         </button>

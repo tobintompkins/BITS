@@ -54,7 +54,7 @@ export function GivingHouseholdSearchPicker({
           disabled={pending}
           className="rounded border px-3 py-1 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
         >
-          {pending ? "Searching…" : "Search"}
+          {pending ? "Searching…" : `Search ${label.toLowerCase()}`}
         </button>
       </form>
       <label className="text-sm font-medium text-[var(--bits-navy)]">
@@ -85,7 +85,7 @@ export function GivingHouseholdSearchPicker({
             ? `Showing ${state.rows.length} of ${state.total}`
             : "No matching records on this page.")}
       </p>
-      <div className="flex gap-2">
+      <nav aria-label={`${label} pages`} className="flex gap-2">
         {hasPrevious ? (
           <form action={action}>
             <input type="hidden" name="q" value={state.q} />
@@ -95,7 +95,7 @@ export function GivingHouseholdSearchPicker({
               disabled={pending}
               className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
             >
-              Previous
+              Previous {label.toLowerCase()} page
             </button>
           </form>
         ) : null}
@@ -108,11 +108,11 @@ export function GivingHouseholdSearchPicker({
               disabled={pending}
               className="underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
             >
-              Next
+              Next {label.toLowerCase()} page
             </button>
           </form>
         ) : null}
-      </div>
+      </nav>
     </div>
   );
 }

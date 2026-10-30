@@ -269,9 +269,12 @@ async function OfferingBatchDirectory({
                     key={batch.id}
                     className="border-b border-[var(--bits-border)] last:border-0"
                   >
-                    <td className="px-3 py-3 font-medium text-[var(--bits-navy)]">
+                    <th
+                      scope="row"
+                      className="px-3 py-3 font-medium text-[var(--bits-navy)]"
+                    >
                       {batch.name}
-                    </td>
+                    </th>
                     <td className="px-3 py-3">{formatBatchDate(batch.offeringDate)}</td>
                     <td className="px-3 py-3">
                       {batch.serviceDescription ?? "—"}
@@ -299,6 +302,7 @@ async function OfferingBatchDirectory({
                       <div className="flex flex-wrap gap-2">
                         <Link
                           href={`/batches/${batch.id}`}
+                          aria-label={`View ${batch.name}`}
                           className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
                         >
                           View
@@ -306,6 +310,7 @@ async function OfferingBatchDirectory({
                         {batch.canEdit ? (
                           <Link
                             href={`/batches/${batch.id}/edit`}
+                            aria-label={`Edit ${batch.name}`}
                             className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
                           >
                             Edit

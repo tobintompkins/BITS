@@ -58,6 +58,7 @@ export function ContributionReportFiltersForm({
             <Link
               key={view}
               href={`/reports?${params}`}
+              aria-current={filters.view === view ? "page" : undefined}
               className={`underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)] ${
                 filters.view === view ? "font-semibold text-[var(--bits-navy)]" : ""
               }`}

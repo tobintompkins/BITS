@@ -53,9 +53,19 @@ type ManualDonationFormProps = {
 const inputClassName =
   "mt-1 w-full rounded-xl border border-[var(--bits-border)] bg-white px-3 py-2 text-sm text-[var(--bits-navy)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)] disabled:cursor-not-allowed disabled:bg-[var(--bits-bg)]";
 
-function FieldError({ message }: { message?: string }) {
+function FieldError({
+  id,
+  message,
+}: {
+  id?: string;
+  message?: string;
+}) {
   if (!message) return null;
-  return <p className="mt-1 text-sm text-rose-700">{message}</p>;
+  return (
+    <p id={id} role="alert" className="mt-1 text-sm text-rose-700">
+      {message}
+    </p>
+  );
 }
 
 export function ManualDonationForm({
@@ -203,26 +213,46 @@ export function ManualDonationForm({
         {anonymous ? null : (
           <div className="mt-4 space-y-3">
             <div className="flex flex-wrap gap-2">
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Name, email, or phone"
-                className={`${inputClassName} mt-0 max-w-md`}
-              />
+              <label className="block max-w-md flex-1 text-sm">
+                <span className="font-medium text-[var(--bits-navy)]">
+                  Search donors
+                </span>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Name, email, or phone"
+                  aria-invalid={searchError ? true : undefined}
+                  aria-describedby={searchError ? "donor-search-error" : undefined}
+                  className={`${inputClassName} mt-1`}
+                />
+              </label>
               <button
                 type="button"
                 onClick={runSearch}
                 disabled={searching || isPending}
-                className="rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+                className="self-end rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
               >
                 {searching ? "Searching…" : "Search donors"}
               </button>
             </div>
             {searchError ? (
-              <p className="text-sm text-rose-700">{searchError}</p>
+              <p
+                id="donor-search-error"
+                role="alert"
+                className="text-sm text-rose-700"
+              >
+                {searchError}
+              </p>
             ) : null}
             {donors.length ? (
-              <fieldset className="space-y-2">
+              <fieldset
+                className="space-y-2"
+                aria-describedby={
+                  form.formState.errors.donorId?.message
+                    ? "donor-field-error"
+                    : undefined
+                }
+              >
                 <legend className="sr-only">Select donor</legend>
                 {donors.map((donor) => (
                   <label
@@ -251,7 +281,10 @@ export function ManualDonationForm({
             ) : null}
           </div>
         )}
-        <FieldError message={form.formState.errors.donorId?.message} />
+        <FieldError
+          id="donor-field-error"
+          message={form.formState.errors.donorId?.message}
+        />
       </section>
 
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
@@ -271,7 +304,10 @@ export function ManualDonationForm({
             />
             <FieldError message={form.formState.errors.offeringDate?.message} />
             {dateDiffers ? (
-              <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <div
+                role="status"
+                className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+              >
                 <p>
                   This offering date differs from {batchName}&apos;s batch date.
                   Confirm before saving.
@@ -454,7 +490,9 @@ export function ManualDonationForm({
               className="grid gap-3 rounded-xl border border-[var(--bits-border)] p-3 md:grid-cols-[1fr_10rem_auto]"
             >
               <label className="block text-sm">
-                <span className="font-medium text-[var(--bits-navy)]">Giving fund</span>
+                <span className="font-medium text-[var(--bits-navy)]">
+                  Giving fund {index + 1}
+                </span>
                 <select
                   {...form.register(`allocations.${index}.offeringTypeId`)}
                   disabled={isPending}
@@ -469,7 +507,9 @@ export function ManualDonationForm({
                 </select>
               </label>
               <label className="block text-sm">
-                <span className="font-medium text-[var(--bits-navy)]">Amount</span>
+                <span className="font-medium text-[var(--bits-navy)]">
+                  Amount {index + 1}
+                </span>
                 <input
                   {...form.register(`allocations.${index}.amount`, {
                     onChange: (event) => {
@@ -494,6 +534,7 @@ export function ManualDonationForm({
                       current.filter((_, rowIndex) => rowIndex !== index),
                     );
                   }}
+                  aria-label={`Remove allocation ${index + 1}`}
                   className="self-end rounded-xl border border-[var(--bits-border)] px-3 py-2 text-sm font-semibold text-[var(--bits-navy)]"
                 >
                   Remove

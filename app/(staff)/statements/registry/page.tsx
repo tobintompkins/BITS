@@ -279,6 +279,7 @@ export default async function StatementRegistryPage({
                   <p className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
                     <Link
                       href={reviewHref(row)}
+                      aria-label={`Open review for ${row.statementIdentifier}`}
                       className="font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
                     >
                       Open review
@@ -288,6 +289,7 @@ export default async function StatementRegistryPage({
                         ...filters,
                         page: registry.page,
                       })}
+                      aria-label={`View timeline for ${row.statementIdentifier}`}
                       className="font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
                     >
                       View timeline
@@ -368,6 +370,7 @@ export default async function StatementRegistryPage({
                         <div className="flex flex-col gap-1">
                           <Link
                             href={reviewHref(row)}
+                            aria-label={`Open review for ${row.statementIdentifier}`}
                             className="font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
                           >
                             Open review
@@ -377,6 +380,7 @@ export default async function StatementRegistryPage({
                               ...filters,
                               page: registry.page,
                             })}
+                            aria-label={`View timeline for ${row.statementIdentifier}`}
                             className="font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
                           >
                             View timeline

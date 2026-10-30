@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export type NavItem = {
   href: string;
@@ -106,11 +106,15 @@ function Navigation({
 export function AppShellNav({ groups }: AppShellNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const drawerId = useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!mobileOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileOpen(false);
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+        toggleRef.current?.focus();
+      }
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
@@ -119,6 +123,7 @@ export function AppShellNav({ groups }: AppShellNavProps) {
   return (
     <>
       <button
+        ref={toggleRef}
         type="button"
         aria-expanded={mobileOpen}
         aria-controls={drawerId}

@@ -70,6 +70,7 @@ export function DisplayOptions() {
     const closeOnPointer = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
+        buttonRef.current?.focus();
       }
     };
 

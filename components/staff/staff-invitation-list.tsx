@@ -52,10 +52,10 @@ function InvitationRevokeForm({ row }: { row: StaffInvitationDirectoryRow }) {
       <input type="hidden" name="expectedVersion" value={String(row.version)} />
       <label className="flex items-start gap-2 text-sm text-[var(--bits-navy)]">
         <input type="checkbox" name="confirm" value="on" className="mt-1" />
-        <span>Revoke this invitation immediately.</span>
+        <span>Revoke the invitation for {row.email} immediately.</span>
       </label>
       <button type="submit" className={buttonClass} disabled={pending}>
-        {pending ? "Revoking…" : "Revoke invitation"}
+        {pending ? "Revoking…" : `Revoke invitation for ${row.email}`}
       </button>
       {state.message ? (
         <p role="alert" className="text-sm text-rose-800">

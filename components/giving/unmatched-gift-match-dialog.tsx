@@ -97,7 +97,7 @@ export function UnmatchedGiftMatchDialog({ gift }: { gift: Gift }) {
         onClick={openDialog}
         className="rounded-md bg-[var(--bits-navy)] px-3 py-1.5 text-xs font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
       >
-        Review &amp; match
+        Review &amp; match {gift.offeringDateLabel} {gift.totalAmountLabel}
       </button>
       {message ? (
         <p role="status" className="mt-2 text-xs text-emerald-800">

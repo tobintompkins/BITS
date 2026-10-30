@@ -269,15 +269,7 @@ export function StaffIdleTimeout({
           </p>
         ) : null}
       </div>
-      <div className="flex flex-col-reverse gap-3 px-5 py-4 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onClick={() => void performSignOut()}
-          disabled={signingOut}
-          className="min-h-11 rounded-xl border border-white/80 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {signingOut ? "Signing out..." : "Sign Out Now"}
-        </button>
+      <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:justify-end">
         <button
           ref={staySignedInButtonRef}
           type="button"
@@ -286,6 +278,14 @@ export function StaffIdleTimeout({
           className="min-h-11 rounded-xl bg-[var(--bits-gold)] px-4 py-2.5 text-sm font-semibold text-[var(--bits-navy)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           Stay Signed In
+        </button>
+        <button
+          type="button"
+          onClick={() => void performSignOut()}
+          disabled={signingOut}
+          className="min-h-11 rounded-xl border border-white/80 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {signingOut ? "Signing out..." : "Sign Out Now"}
         </button>
       </div>
     </dialog>

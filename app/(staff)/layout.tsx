@@ -260,15 +260,21 @@ export default async function StaffLayout({
 
   return (
     <div className="min-h-full bg-[var(--bits-page)]">
+      <a
+        href="#staff-main-content"
+        className="absolute left-4 top-4 z-50 -translate-y-[200%] rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[var(--bits-navy)] shadow-lg focus:translate-y-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+      >
+        Skip to main content
+      </a>
       <header className="staff-app-header border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white shadow-sm">
         <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 py-4 sm:gap-4 sm:px-6 lg:px-8">
           <div className="min-w-0">
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-[var(--bits-gold)]">
               BITS · Leadership Portal
             </p>
-            <h1 className="text-lg font-semibold text-white">
+            <p className="text-lg font-semibold text-white">
               Bring In The Sheaves
-            </h1>
+            </p>
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
@@ -297,7 +303,9 @@ export default async function StaffLayout({
           </div>
         </aside>
 
-        <main className="min-w-0">{children}</main>
+        <main id="staff-main-content" className="min-w-0">
+          {children}
+        </main>
       </div>
       <StaffIdleTimeout
         timeoutMinutes={staffIdleTimeout.timeoutMinutes}
