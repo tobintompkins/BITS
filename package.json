@@ -23,6 +23,7 @@
     "test:runtime-smoke": "npx tsx scripts/original-v1-runtime-smoke.ts",
     "typecheck": "tsc --noEmit",
     "db:seed": "npx tsx prisma/seed.ts",
+    "fixtures:original-v1": "npx tsx prisma/seed.ts --original-v1-fixtures",
     "db:migrate": "prisma migrate deploy",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
@@ -36,7 +37,8 @@
     "staff:invitation-local-migrate": "npx tsx scripts/staff-invitation-local-migrate.ts",
     "staff:first-admin-bootstrap": "npx tsx scripts/staff-first-admin-bootstrap.ts",
     "ledger:review-schema-setup": "npx tsx scripts/ledger-review-schema-setup.ts",
-    "ledger:review-local-migrate": "npx tsx scripts/ledger-review-local-migrate.ts"
+    "ledger:review-local-migrate": "npx tsx scripts/ledger-review-local-migrate.ts",
+    "recovery:local-database": "npx tsx scripts/original-v1-local-database-recovery.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",

@@ -25,6 +25,20 @@ export default async function MemberPortalPage() {
   const portal = await getMemberPortalDashboard();
   if (portal.status === "SIGNED_OUT") redirect("/sign-in");
 
+  if (portal.status === "UNAVAILABLE") {
+    return (
+      <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-6 shadow-sm">
+        <h1 className="text-2xl font-semibold text-[var(--bits-navy)]">
+          Member Portal
+        </h1>
+        <p className="mt-3 text-[var(--bits-muted)]">
+          Church records are temporarily unavailable. Please try again in a
+          moment.
+        </p>
+      </section>
+    );
+  }
+
   if (portal.status === "NO_ORGANIZATION") {
     return (
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-6 shadow-sm">

@@ -4,6 +4,8 @@ import { getCareDashboardWidgets } from "@/app/(staff)/care/actions";
 import { getEventDashboardWidgets } from "@/app/(staff)/events/actions";
 import { getEngagementDashboardWidgets } from "@/app/(staff)/member-engagement/actions";
 import { getLifecycleDashboardWidgets } from "@/app/(staff)/member-lifecycle/actions";
+import { getGivingAccess } from "@/lib/auth/giving-permissions";
+import { staffChurchDisplayName } from "@/lib/staff/staff-role-label";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
 type DashboardWidget = {
@@ -43,6 +45,10 @@ const focusClass =
 
 export default async function DashboardPage() {
   const organization = await findPrimaryOrganization();
+  const churchName = staffChurchDisplayName(organization);
+  const givingAccess = organization
+    ? await getGivingAccess(organization.id)
+    : null;
   const emptyWidgets = { widgets: [] as Array<DashboardWidget | null> };
   const care = organization
     ? await getCareDashboardWidgets().catch(() => emptyWidgets)
@@ -75,10 +81,25 @@ export default async function DashboardPage() {
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
           Leadership Home
         </h1>
+        {churchName ? (
+          <p className="mt-1 text-sm font-medium text-white/90">{churchName}</p>
+        ) : (
+          <p role="status" className="mt-1 text-sm text-[var(--bits-gold)]">
+            No church selected. Stop. Do not save.
+          </p>
+        )}
         <p className="mt-1 max-w-2xl text-sm leading-6 text-white/80">
           Your ministry overview for people, care, events, attendance, and
           giving.
         </p>
+        {givingAccess?.canViewBatches ? (
+          <Link
+            href="/batches"
+            className="mt-4 inline-flex rounded-xl border border-white/40 px-4 py-2 text-sm font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+          >
+            Offering Batches
+          </Link>
+        ) : null}
       </header>
 
       <section aria-labelledby="attention-heading">
@@ -187,35 +208,38 @@ export default async function DashboardPage() {
               Open <span aria-hidden="true">→</span>
             </p>
           </Link>
-          <Link
-            href="/donors"
-            className={`flex h-full flex-col rounded-2xl border border-[var(--bits-border)] bg-white p-4 shadow-sm ${focusClass}`}
-          >
-            <h3 className="text-base font-semibold text-[var(--bits-navy)]">
-              Donors
-            </h3>
-            <p className="mt-1 flex-1 text-sm leading-6 text-[var(--bits-muted)]">
-              Manage donor records and later connect giving history.
-            </p>
-            <p className="mt-3 text-xs font-semibold text-[var(--bits-navy)]">
-              Open <span aria-hidden="true">→</span>
-            </p>
-          </Link>
-          <Link
-            href="/batches"
-            className={`flex h-full flex-col rounded-2xl border border-[var(--bits-border)] bg-white p-4 shadow-sm ${focusClass}`}
-          >
-            <h3 className="text-base font-semibold text-[var(--bits-navy)]">
-              Batches
-            </h3>
-            <p className="mt-1 flex-1 text-sm leading-6 text-[var(--bits-muted)]">
-              Enter and review offering batches before financial workflows are
-              implemented.
-            </p>
-            <p className="mt-3 text-xs font-semibold text-[var(--bits-navy)]">
-              Open <span aria-hidden="true">→</span>
-            </p>
-          </Link>
+          {givingAccess?.canViewGiving ? (
+            <Link
+              href="/donors"
+              className={`flex h-full flex-col rounded-2xl border border-[var(--bits-border)] bg-white p-4 shadow-sm ${focusClass}`}
+            >
+              <h3 className="text-base font-semibold text-[var(--bits-navy)]">
+                Donors
+              </h3>
+              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--bits-muted)]">
+                Manage donor records and later connect giving history.
+              </p>
+              <p className="mt-3 text-xs font-semibold text-[var(--bits-navy)]">
+                Open <span aria-hidden="true">→</span>
+              </p>
+            </Link>
+          ) : null}
+          {givingAccess?.canViewBatches ? (
+            <Link
+              href="/batches"
+              className={`flex h-full flex-col rounded-2xl border border-[var(--bits-border)] bg-white p-4 shadow-sm ${focusClass}`}
+            >
+              <h3 className="text-base font-semibold text-[var(--bits-navy)]">
+                Batches
+              </h3>
+              <p className="mt-1 flex-1 text-sm leading-6 text-[var(--bits-muted)]">
+                Enter and review offering batches.
+              </p>
+              <p className="mt-3 text-xs font-semibold text-[var(--bits-navy)]">
+                Open <span aria-hidden="true">→</span>
+              </p>
+            </Link>
+          ) : null}
         </div>
       </section>
 

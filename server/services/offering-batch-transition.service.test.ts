@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OfferingBatchStatus, RoleCode } from "@/app/generated/prisma/client";
 import { getGivingCapabilitiesForRole } from "@/lib/auth/giving-permissions";
+import { BATCH_INTEGRITY_MESSAGES } from "@/lib/batches/integrity";
+import { batchNextStep } from "@/lib/batches/next-step";
 
 type BatchRow = {
   id: string;
@@ -10,6 +12,9 @@ type BatchRow = {
   expectedTotal: { toString(): string } | null;
   recordedTotal: { toString(): string };
   reviewVersion: number;
+  offeringDate: Date;
+  depositDate: Date | null;
+  depositReference: string | null;
 };
 
 type DonationRow = {
@@ -222,6 +227,7 @@ import {
   OfferingBatchTransitionError,
   RECONCILE_OFFERING_BATCH,
   completeOfferingBatchEntry,
+  getOfferingBatchReview,
   reconcileOfferingBatch,
 } from "./offering-batch-transition.service";
 
@@ -263,6 +269,10 @@ function seedBatch(
           : money(overrides.expected),
     recordedTotal: money(overrides.recorded ?? "25.00"),
     reviewVersion: overrides.reviewVersion ?? 1,
+    offeringDate: overrides.offeringDate ?? new Date("2026-09-06T00:00:00.000Z"),
+    depositDate: overrides.depositDate === undefined ? null : overrides.depositDate,
+    depositReference:
+      overrides.depositReference === undefined ? null : overrides.depositReference,
   });
 }
 
@@ -539,5 +549,232 @@ describe("offering batch entry completion and reconciliation", () => {
     expect(store.batches.get(BATCH_ID)?.recordedTotal.toString()).toBe("25.00");
     expect(store.donations).toHaveLength(1);
     expect(store.audits).toHaveLength(0);
+  });
+});
+
+const guidanceRoles = [
+  RoleCode.ORG_ADMIN,
+  RoleCode.TREASURER,
+  RoleCode.DATA_ENTRY,
+  RoleCode.REPORT_VIEWER,
+] as const;
+
+async function reviewedGuidance(role: RoleCode) {
+  mocks.getGivingAccess.mockResolvedValue(getGivingCapabilitiesForRole(role));
+  const review = await getOfferingBatchReview(BATCH_ID);
+  const access = getGivingCapabilitiesForRole(role);
+  const batch = store.batches.get(BATCH_ID)!;
+  return {
+    review,
+    step: batchNextStep({
+      canAddDonations:
+        access.canAddBatchDonations && batch.status === OfferingBatchStatus.DRAFT,
+      showCompleteEntry: review.showCompleteEntry,
+      canCompleteEntry: review.canCompleteEntry,
+      showReconcile: review.showReconcile,
+      canReconcile: review.canReconcile,
+      showDepositForm: review.showDepositForm,
+      canRecordDeposit: review.canRecordDeposit,
+      showLock: review.showLock,
+      canLock: review.canLock,
+      depositRecorded: Boolean(batch.depositDate && batch.depositReference?.trim()),
+      isLocked: review.isLocked,
+      issues: review.issues,
+    }),
+  };
+}
+
+describe("offering batch review guidance", () => {
+  beforeEach(() => {
+    store.batches.clear();
+    store.donations = [];
+    store.audits = [];
+    store.persistShouldFail = false;
+    store.pendingRecordedTotal = null;
+    store.txChain = Promise.resolve();
+    vi.clearAllMocks();
+    mocks.findPrimaryOrganization.mockResolvedValue({ id: ORG_ID, name: "First UPC" });
+    mocks.getOrCreateUserAccount.mockResolvedValue({ id: USER_ID });
+    mocks.getGivingAccess.mockResolvedValue(
+      getGivingCapabilitiesForRole(RoleCode.ORG_ADMIN),
+    );
+  });
+
+  it("keeps Enter gifts ahead of a blocked complete on an empty draft", async () => {
+    seedBatch({ expected: null, recorded: "0.00" });
+    for (const role of [RoleCode.ORG_ADMIN, RoleCode.TREASURER, RoleCode.DATA_ENTRY]) {
+      const { review, step } = await reviewedGuidance(role);
+      expect(review.canCompleteEntry).toBe(false);
+      expect(review.issues).toContain("NO_DONATIONS");
+      expect(step).toMatchObject({ action: "add", label: "Enter gifts", tone: "action" });
+    }
+    const viewer = await reviewedGuidance(RoleCode.REPORT_VIEWER);
+    expect(viewer.step.tone).toBe("readonly");
+    expect(viewer.step.explanation).toMatch(/your role/i);
+    expect(viewer.step.explanation).not.toContain(BATCH_INTEGRITY_MESSAGES.NO_DONATIONS);
+  });
+
+  it("lets an authorized role reconcile a balanced entered batch", async () => {
+    seedBatch({ status: OfferingBatchStatus.ENTERED });
+    seedBalancedDonation();
+    for (const role of [RoleCode.ORG_ADMIN, RoleCode.TREASURER]) {
+      const { review, step } = await reviewedGuidance(role);
+      expect(review.canReconcile).toBe(true);
+      expect(step).toMatchObject({ action: "reconcile", label: "Reconcile", tone: "action" });
+    }
+    for (const role of [RoleCode.DATA_ENTRY, RoleCode.REPORT_VIEWER]) {
+      const { review, step } = await reviewedGuidance(role);
+      expect(review.canReconcile).toBe(false);
+      expect(step.tone).toBe("readonly");
+      expect(step.action).not.toBe("reconcile");
+      expect(step.explanation).not.toContain(BATCH_INTEGRITY_MESSAGES.NO_DONATIONS);
+    }
+  });
+
+  it("describes an empty entered batch as an integrity block and still rejects reconcile", async () => {
+    seedBatch({ status: OfferingBatchStatus.ENTERED, expected: "0.00", recorded: "0.00" });
+    store.donations = [];
+    const { review, step } = await reviewedGuidance(RoleCode.TREASURER);
+    expect(review.canReconcile).toBe(false);
+    expect(review.issues).toContain("NO_DONATIONS");
+    expect(step.action).not.toBe("reconcile");
+    expect(step.tone).toBe("blocked");
+    expect(step.explanation).toContain(BATCH_INTEGRITY_MESSAGES.NO_DONATIONS);
+    expect(step.explanation).not.toMatch(/your role/i);
+
+    const entry = await reviewedGuidance(RoleCode.DATA_ENTRY);
+    expect(entry.step.tone).toBe("readonly");
+    expect(entry.step.explanation).toMatch(/your role/i);
+    expect(entry.step.explanation).not.toContain(BATCH_INTEGRITY_MESSAGES.NO_DONATIONS);
+
+    mocks.getGivingAccess.mockResolvedValue(
+      getGivingCapabilitiesForRole(RoleCode.TREASURER),
+    );
+    await expect(
+      reconcileOfferingBatch(BATCH_ID, snapshot({ recordedTotal: "0.00", expectedTotal: "0.00", donationCount: 0 })),
+    ).rejects.toMatchObject({ code: "NO_DONATIONS" });
+    expect(store.batches.get(BATCH_ID)?.status).toBe(OfferingBatchStatus.ENTERED);
+  });
+
+  it("describes mismatched and missing expected totals without offering reconcile", async () => {
+    seedBatch({ status: OfferingBatchStatus.ENTERED, expected: "30.00", recorded: "25.00" });
+    seedBalancedDonation();
+    const mismatched = await reviewedGuidance(RoleCode.TREASURER);
+    expect(mismatched.review.canReconcile).toBe(false);
+    expect(mismatched.review.issues).toContain("BATCH_NOT_BALANCED");
+    expect(mismatched.step.tone).toBe("blocked");
+    expect(mismatched.step.explanation).toContain(BATCH_INTEGRITY_MESSAGES.BATCH_NOT_BALANCED);
+    expect(mismatched.step.explanation).not.toMatch(/your role/i);
+    expect(mismatched.step.explanation).not.toMatch(/enter gifts/i);
+
+    seedBatch({ status: OfferingBatchStatus.ENTERED, expected: null, recorded: "25.00" });
+    seedBalancedDonation();
+    const missing = await reviewedGuidance(RoleCode.ORG_ADMIN);
+    expect(missing.review.issues).toContain("EXPECTED_TOTAL_REQUIRED");
+    expect(missing.step.action).not.toBe("reconcile");
+    expect(missing.step.explanation).toContain(
+      BATCH_INTEGRITY_MESSAGES.EXPECTED_TOTAL_REQUIRED,
+    );
+  });
+
+  it("separates a missing deposit, an invalid deposit, a valid lock, and bad allocations", async () => {
+    seedBatch({ status: OfferingBatchStatus.RECONCILED });
+    seedBalancedDonation();
+    const missing = await reviewedGuidance(RoleCode.TREASURER);
+    expect(missing.review.canLock).toBe(false);
+    expect(missing.review.issues).toContain("DEPOSIT_REQUIRED");
+    expect(missing.step).toMatchObject({ action: "deposit", label: "Record deposit" });
+
+    const entry = await reviewedGuidance(RoleCode.DATA_ENTRY);
+    expect(entry.step.tone).toBe("readonly");
+    expect(entry.step.action).not.toBe("deposit");
+    expect(entry.step.explanation).not.toContain(BATCH_INTEGRITY_MESSAGES.DEPOSIT_REQUIRED);
+
+    seedBatch({
+      status: OfferingBatchStatus.RECONCILED,
+      depositDate: new Date("2026-09-01T00:00:00.000Z"),
+      depositReference: "SLIP-1",
+    });
+    seedBalancedDonation();
+    const early = await reviewedGuidance(RoleCode.TREASURER);
+    expect(early.review.canLock).toBe(false);
+    expect(early.review.issues).toContain("DEPOSIT_DATE_BEFORE_OFFERING");
+    expect(early.step).toMatchObject({
+      action: "deposit",
+      label: "Review deposit",
+      tone: "blocked",
+    });
+    expect(early.step.explanation).toContain(
+      BATCH_INTEGRITY_MESSAGES.DEPOSIT_DATE_BEFORE_OFFERING,
+    );
+    expect(early.step.explanation).not.toMatch(/your role/i);
+
+    const future = new Date();
+    future.setUTCDate(future.getUTCDate() + 2);
+    seedBatch({
+      status: OfferingBatchStatus.RECONCILED,
+      depositDate: future,
+      depositReference: "SLIP-1",
+    });
+    seedBalancedDonation();
+    const later = await reviewedGuidance(RoleCode.ORG_ADMIN);
+    expect(later.review.issues).toContain("DEPOSIT_DATE_IN_FUTURE");
+    expect(later.step.action).not.toBe("lock");
+    expect(later.step.explanation).toContain(BATCH_INTEGRITY_MESSAGES.DEPOSIT_DATE_IN_FUTURE);
+
+    seedBatch({
+      status: OfferingBatchStatus.RECONCILED,
+      depositDate: new Date("2026-09-06T00:00:00.000Z"),
+      depositReference: "SLIP-1",
+    });
+    seedBalancedDonation();
+    const ready = await reviewedGuidance(RoleCode.TREASURER);
+    expect(ready.review.canLock).toBe(true);
+    expect(ready.step).toMatchObject({ action: "lock", label: "Lock batch", tone: "action" });
+
+    seedBatch({
+      status: OfferingBatchStatus.RECONCILED,
+      depositDate: new Date("2026-09-06T00:00:00.000Z"),
+      depositReference: "SLIP-1",
+    });
+    store.donations = [
+      {
+        organizationId: ORG_ID,
+        batchId: BATCH_ID,
+        totalAmount: money("25.00"),
+        allocations: [{ amount: money("10.00") }],
+      },
+    ];
+    const allocations = await reviewedGuidance(RoleCode.TREASURER);
+    expect(allocations.review.canLock).toBe(false);
+    expect(allocations.review.issues).toContain("ALLOCATION_TOTAL_MISMATCH");
+    expect(allocations.step.action).not.toBe("lock");
+    expect(allocations.step.label).toBe("Lock unavailable");
+    expect(allocations.step.explanation).toContain(
+      BATCH_INTEGRITY_MESSAGES.ALLOCATION_TOTAL_MISMATCH,
+    );
+    expect(allocations.step.explanation).not.toMatch(/enter gifts/i);
+    expect(allocations.step.explanation).not.toMatch(/your role/i);
+  });
+
+  it("uses locked-history guidance for every original staff role", async () => {
+    seedBatch({
+      status: OfferingBatchStatus.LOCKED,
+      depositDate: new Date("2026-09-06T00:00:00.000Z"),
+      depositReference: "SLIP-1",
+    });
+    seedBalancedDonation();
+    for (const role of guidanceRoles) {
+      const { review, step } = await reviewedGuidance(role);
+      expect(review.isLocked).toBe(true);
+      expect(review.canLock).toBe(false);
+      expect(review.canReconcile).toBe(false);
+      expect(step).toMatchObject({
+        action: "view",
+        label: "Locked history",
+        tone: "locked",
+      });
+      expect(step.explanation).not.toMatch(/your role/i);
+    }
   });
 });

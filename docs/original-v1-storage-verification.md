@@ -96,6 +96,28 @@ Distinguish mocked adapter/probe results (passed) from live-provider
 results (not executed). A same-bucket copy would not be an independent
 durable backup even if a TEST target were later designated.
 
+## Verification (November 4, 2026)
+
+Worktree: HEAD `7787b2f` plus uncommitted Core 18–20 and this docs-only
+Core 21 record. No commit. No code, credentials, database, or bucket
+objects were changed. Core 20's disposable databases were not touched.
+
+| Check | Result |
+|---|---|
+| `e2e/.local/storage-test.env` | Absent. Overlay would supply only `BITS_STATEMENT_S3_TEST_*` |
+| Shell `BITS_STATEMENT_S3_TEST_*` | All seven allowlisted names unset |
+| Application provider in `.env` | Bucket, region, endpoint, and AWS credential names unset |
+| `e2e/.local/acceptance.env` | `BITS_STATEMENT_PDF_BACKEND` is local. Not loaded by the probe. No S3 names |
+| Read-only `npm run statements:storage-probe` | Exit 2. `mode=preflight`, `targetKind=unconfigured`, `executionKind=none`, `test-target` blocked. No secrets printed |
+| `--apply` probe and restore | Not run. No designated TEST target |
+| `git diff --check` | Passed on the Core 21 documentation edits |
+
+Preflight is not provider connectivity. No emulator or live-provider
+execution occurred. Same-bucket synthetic recovery, independent durable
+backups, provider disaster recovery, version retention, and staff/portal
+authorization remain separate and unproven. Clerk acceptance stays
+deferred. Original version 1 is not complete.
+
 ## Outstanding blockers
 
 - Designate `BITS_STATEMENT_S3_TEST_*` (shell or gitignored

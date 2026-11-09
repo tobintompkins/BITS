@@ -24,6 +24,10 @@ import { staffVolunteerScheduleNavItems } from "@/lib/validation/volunteer-sched
 import { staffMinistryResourceNavItems } from "@/lib/validation/ministry-resource";
 import { staffAccessDirectoryNavItems } from "@/lib/validation/staff-access-directory";
 import { leadershipSecurityActivityNavItems } from "@/lib/validation/leadership-security-activity";
+import {
+  canReviewGivingAuditHistory,
+  givingAuditHistoryNavItems,
+} from "@/lib/validation/giving-audit-history";
 import { churchDataExportNavItems } from "@/lib/validation/church-data-export";
 import { dataRetentionPolicyNavItems } from "@/lib/validation/data-retention-policy";
 import { backupReadinessNavItems } from "@/lib/validation/backup-readiness";
@@ -32,6 +36,10 @@ import { upcomingCelebrationsNavItems } from "@/lib/validation/upcoming-celebrat
 import { churchServiceAlertNavItems } from "@/lib/validation/church-service-alert";
 import { staffLeadershipDocumentNavItems } from "@/lib/validation/leadership-document";
 import { staffVolunteerTrainingNavItems } from "@/lib/validation/volunteer-training";
+import {
+  formatStaffRoleLabel,
+  staffChurchDisplayName,
+} from "@/lib/staff/staff-role-label";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
 export default async function StaffLayout({
@@ -185,6 +193,11 @@ export default async function StaffLayout({
         ...(givingAccess?.canReviewFinancialCorrections
           ? [{ href: "/batches/corrections", label: "Correction Review Queue" }]
           : []),
+      ],
+    },
+    {
+      label: "Statements",
+      items: [
         ...(givingAccess?.canViewStatements
           ? [
               { href: "/statements", label: "Statements & Online Giving" },
@@ -213,9 +226,14 @@ export default async function StaffLayout({
     },
     {
       label: "Reports",
-      items: givingAccess?.canExportGiving
-        ? [{ href: "/reports", label: "Reports" }]
-        : [],
+      items: [
+        ...(givingAccess?.canExportGiving
+          ? [{ href: "/reports", label: "Reports" }]
+          : []),
+        ...givingAuditHistoryNavItems(
+          Boolean(givingAccess && canReviewGivingAuditHistory(givingAccess)),
+        ),
+      ],
     },
     {
       label: "Administration",
@@ -258,6 +276,14 @@ export default async function StaffLayout({
     },
   ];
 
+  const churchName = staffChurchDisplayName(organization);
+  const roleLabel = organization
+    ? formatStaffRoleLabel(
+        organizationAccess?.roleCode ?? null,
+        Boolean(organizationAccess?.isSuperAdmin),
+      )
+    : null;
+
   return (
     <div className="min-h-full bg-[var(--bits-page)]">
       <a
@@ -275,6 +301,21 @@ export default async function StaffLayout({
             <p className="text-lg font-semibold text-white">
               Bring In The Sheaves
             </p>
+            {churchName ? (
+              <p className="mt-1 truncate text-sm text-white/85">
+                {churchName}
+                {roleLabel ? (
+                  <span className="text-white/70"> · {roleLabel}</span>
+                ) : null}
+              </p>
+            ) : (
+              <p
+                role="status"
+                className="mt-1 text-sm text-[var(--bits-gold)]"
+              >
+                No church selected. Stop. Do not save.
+              </p>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">

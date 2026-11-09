@@ -148,6 +148,8 @@ export default async function Home() {
         </div>
       </section>
 
+      <ChurchLeadershipCard />
+
       <PrayerWall requests={publicPrayerRequests} />
 
       <section
@@ -224,9 +226,6 @@ export default async function Home() {
           Guest service forms and secure online giving will be connected in the
           next small development patches.
         </p>
-        <div className="mx-auto mt-8 max-w-xl">
-          <ChurchLeadershipCard />
-        </div>
       </section>
 
       <section className="border-y border-[var(--bits-border)] bg-white">

@@ -390,6 +390,122 @@ describe("offering batch foundation", () => {
     },
   );
 
+  it("derives directory next steps from role eligibility, not status alone", async () => {
+    const draft = seedBatch();
+    mocks.findOfferingBatches.mockResolvedValue([draft]);
+    mocks.countOfferingBatches.mockResolvedValue(1);
+
+    mocks.getGivingAccess.mockResolvedValue(
+      getGivingCapabilitiesForRole(RoleCode.DATA_ENTRY),
+    );
+    const entry = await getOfferingBatchDirectory(directoryQuery);
+    expect(entry.batches[0]?.nextStep).toEqual({
+      action: "add",
+      label: "Enter gifts",
+      tone: "action",
+      explanation: "",
+    });
+
+    mocks.getGivingAccess.mockResolvedValue(
+      getGivingCapabilitiesForRole(RoleCode.REPORT_VIEWER),
+    );
+    const viewer = await getOfferingBatchDirectory(directoryQuery);
+    expect(viewer.batches[0]?.nextStep).toMatchObject({
+      action: "view",
+      label: "View only",
+      tone: "readonly",
+    });
+    expect(viewer.batches[0]?.canAddDonations).toBe(false);
+  });
+
+  it("does not promise reconcile or lock from stored batch totals", async () => {
+    const depositDate = new Date("2026-09-06T00:00:00.000Z");
+    const base = seedBatch();
+    mocks.findOfferingBatches.mockResolvedValue([
+      {
+        ...base,
+        id: "entered-empty",
+        status: OfferingBatchStatus.ENTERED,
+        expectedTotal: money("0.00"),
+        recordedTotal: money("0.00"),
+        depositDate: null,
+        depositReference: null,
+      },
+      {
+        ...base,
+        id: "entered-balanced",
+        status: OfferingBatchStatus.ENTERED,
+        expectedTotal: money("25.00"),
+        recordedTotal: money("25.00"),
+      },
+      {
+        ...base,
+        id: "reconciled-deposited",
+        status: OfferingBatchStatus.RECONCILED,
+        expectedTotal: money("25.00"),
+        recordedTotal: money("25.00"),
+        depositDate,
+        depositReference: "SLIP-1",
+      },
+      {
+        ...base,
+        id: "reconciled-open",
+        status: OfferingBatchStatus.RECONCILED,
+        expectedTotal: money("25.00"),
+        recordedTotal: money("25.00"),
+        depositDate: null,
+        depositReference: null,
+      },
+    ]);
+    mocks.countOfferingBatches.mockResolvedValue(4);
+
+    for (const role of [RoleCode.ORG_ADMIN, RoleCode.TREASURER, RoleCode.DATA_ENTRY, RoleCode.REPORT_VIEWER]) {
+      mocks.getGivingAccess.mockResolvedValue(getGivingCapabilitiesForRole(role));
+      const directory = await getOfferingBatchDirectory(directoryQuery);
+      for (const batch of directory.batches) {
+        expect(["reconcile", "lock", "complete"]).not.toContain(batch.nextStep.action);
+      }
+      const byId = Object.fromEntries(
+        directory.batches.map((batch) => [batch.id, batch.nextStep]),
+      );
+      expect(byId["entered-empty"]?.label).not.toBe("Reconcile");
+      expect(byId["entered-balanced"]?.label).not.toBe("Reconcile");
+      expect(byId["reconciled-deposited"]?.label).not.toBe("Lock batch");
+      if (role === RoleCode.ORG_ADMIN || role === RoleCode.TREASURER) {
+        expect(byId["entered-empty"]).toMatchObject({
+          action: "review",
+          label: "Review batch",
+        });
+        expect(byId["reconciled-deposited"]).toMatchObject({
+          action: "review",
+          label: "Review batch",
+        });
+        expect(byId["reconciled-open"]).toMatchObject({
+          action: "deposit",
+          label: "Record deposit",
+        });
+      } else {
+        expect(byId["entered-empty"]?.tone).toBe("readonly");
+        expect(byId["reconciled-open"]?.action).toBe("view");
+      }
+    }
+  });
+
+  it("gates the batch reconciliation report with the existing report permission", async () => {
+    seedBatch();
+    for (const role of [RoleCode.ORG_ADMIN, RoleCode.TREASURER, RoleCode.REPORT_VIEWER]) {
+      mocks.getGivingAccess.mockResolvedValue(getGivingCapabilitiesForRole(role));
+      const detail = await getOfferingBatchDetail(BATCH_ID);
+      expect(detail.canViewBatchReconciliationReport).toBe(true);
+    }
+    mocks.getGivingAccess.mockResolvedValue(
+      getGivingCapabilitiesForRole(RoleCode.DATA_ENTRY),
+    );
+    const entry = await getOfferingBatchDetail(BATCH_ID);
+    expect(entry.canViewBatchReconciliationReport).toBe(false);
+    expect(entry.canAddDonations).toBe(true);
+  });
+
   it("lets REPORT_VIEWER view but not create or edit", async () => {
     mocks.getGivingAccess.mockResolvedValue(
       getGivingCapabilitiesForRole(RoleCode.REPORT_VIEWER),

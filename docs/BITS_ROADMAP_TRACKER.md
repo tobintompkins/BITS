@@ -1,9 +1,9 @@
 # BITS Roadmap Tracker
 
-**Last updated:** October 23, 2026
+**Last updated:** November 5, 2026
 
-**Current handoff:** Original Core 17A pins `engines.node` `>=24 <25` (Railpack official order: engines beat `.nvmrc`) and verifies isolated production-mode HTTP smoke on Node v24.13.1 with existing Clerk Development keys: `/visit` 200, e2e probe 404, unsigned `/batches` 307 `/sign-in`. Next 16 `proxy.ts` keeps the same `clerkMiddleware`. No Railway project was created. Clerk signed-in acceptance, invitations, storage restore, and launch stay open. Manual CARD/ACH stay closed. Original v1 is incomplete.
-**Status basis:** Source and Git on October 23, 2026; HEAD `1fef2d0` plus uncommitted Core 02–17A and earlier local work. See `docs/original-v1-railway-test-setup.md`.
+**Current handoff:** Original Core 28 resumed Clerk acceptance. Loopback `bits_e2e` is ready. Organizations are disabled on the Development instance, and the two organization IDs and seven emails are absent. No live Playwright case ran. Railway deployment, the TEST storage bucket, and live storage recovery are deferred by the owner. Original v1 is incomplete.
+**Status basis:** Source and Git on November 5, 2026; HEAD `7787b2f` plus uncommitted Core 18–28 documentation and earlier local work. Core 28 did not rerun isolated SQL, Core 20 restore, or the storage probe.
 
 ## How to read this tracker
 
@@ -33,8 +33,8 @@ Primary source: **BITS — Bring In The Sheaves, Product and Technical Design Sp
 | Phase 1B — batches, gift/allocation entry, reconcile/lock (`FR-BATCH-*`, `FR-DON-*`) | Core implemented; live acceptance outstanding; CARD/ACH scope resolved | Core 11/11A/11B review the existing ledger: snapshot-bound complete/reconcile/lock, monotonic `reviewVersion`, draft-only audited gift correction, durable create idempotency, and operator-facing schema-not-ready handling. Core 15 confirms manual CARD/ACH rejection is intentional and not an unambiguous v1 defect. Owner delegated the decision; current restrictions are retained for v1 and administrative external CARD/ACH is deferred. Core 11C keeps ledger concurrency on isolated `bits_e2e`. Live Clerk browser acceptance remains deferred. See `docs/original-v1-ledger-acceptance.md`, `docs/original-v1-payment-method-assessment.md`, and `docs/test-database-isolation.md`. |
 | Phase 1C — giving reports and CSV (`FR-REPORT-001–002`, section 14) | Catalog views/exports implemented; acceptance pending | `/reports` provides donation-detail, donor, giving-household and offering-type views plus matching audited CSV. `/reports/batch-reconciliation` adds the batch worksheet, CSV and print view. `/reports/statement-access` adds the restricted access-event report and CSV. Attendance reports and church-data export remain separate. Authenticated treasurer/report-viewer acceptance remains. See `docs/contribution-reports.md` and `docs/report-catalog-exports.md`. |
 | Phase 1C — statements and donor portal (`FR-STMT-*`) | Substantial implementation; storage adapter present, not production-verified | Individual/household generation, publication, registry, void/reissue, gifts and authorized PDF access services exist. Local legacy PDF keys remain valid. New writes can use a private S3-compatible backend (`s3v1:` references) when configured. Core 08/14 add a fail-closed synthetic probe/restore against a designated test target, with bounded unsigned-privacy checks and run-owned cleanup manifests. Mocked adapter/probe tests passed; no emulator, live bucket, migration, or production restore has been verified. See `docs/private-statement-storage.md`, `docs/statement-storage-recovery.md`, and `docs/original-v1-storage-verification.md`. |
-| Audit (`FR-AUDIT-001–004`) | Helpers/workflows present; complete coverage unverified | Verify all original entities and protected export/view/download operations, safe metadata and append-only behavior. |
-| Phase 1D — hardening and launch | Not established complete | Core 16/17/17A document readiness, rollback, Railway TEST setup, and local unsigned HTTP smoke. Remote Railway is not linked. Live Clerk acceptance, invitation send/accept, provider backups, and a staff handbook remain open. Formal locked-ledger adjustments and Phase 2 payments stay deferred. See `docs/original-v1-railway-test-setup.md`. |
+| Audit (`FR-AUDIT-001–004`) | Original giving workflows reviewed; organization settings audit is transactional; giving history is reviewable by admin and treasurer | Core 25 adds `/reports/giving-audit`. Security Activity stays administrator-only. Core 23 and 23A keep settings, the logo key, and the audit on one transaction. See `docs/original-v1-audit-coverage.md`. |
+| Phase 1D — hardening and launch | Not established complete | Core 16/17/17A document readiness, rollback, Railway TEST setup, and local unsigned HTTP smoke. Core 18 adds a staff handbook and bounded source accessibility review with narrow original-v1 repairs. Remote Railway is not linked. Live Clerk acceptance, invitation send/accept, provider backups, and a signed-in keyboard/AT pass remain open. Formal locked-ledger adjustments and Phase 2 payments stay deferred. See `docs/original-v1-staff-handbook.md` and `docs/original-v1-accessibility-review.md`. |
 | Phase 2 — one-time Stripe gifts | Implementation present; payment acceptance outstanding | Member checkout uses `mode: "payment"`; verified/idempotent webhook persists test gifts as CARD. Live-mode webhook events are ignored. Live deployment/payment success not verified here. See `docs/original-v1-payment-method-assessment.md`. |
 | Phase 2 — recurring gifts, fee coverage, transactions/refunds (`FR-PAY-FUTURE-*`) | Remaining / not established | Weekly/monthly giving, optional fee coverage, payment lifecycle review, BITS-initiated refunds and statement impacts require implementation or evidence. Dedicated payment/recurring/refund models were not identified in the reviewed schema. Not original v1 blockers. |
 
@@ -48,8 +48,25 @@ Original version 1 is **not established complete**. Require evidence for all of 
 4. Identified and anonymous gift entry preserves allocation totals and lock rules.
 5. Required contribution reports/CSV and individual/household PDFs work.
 6. PDF artifacts and access audit records persist durably.
-7. Railway production configuration/runbook and recovery procedures are documented and validated. Core 16 documents the plan; remote Railway, backups, and a practiced restore are not validated.
+7. Railway production configuration/runbook and recovery procedures are documented and validated. Core 16 documents the plan. Core 20 practiced one local synthetic logical restore. Remote Railway, production backup scheduling, point-in-time recovery, and statement-object recovery are not validated.
 8. Financial-invariant and authorization tests pass on the release candidate.
+
+### Original v1 remaining work (Core 24, November 5, 2026)
+
+Source review only. Detailed requirement rows are in `docs/original-v1-requirement-closeout.md`. This table does not mark version 1 complete and does not promise a fixed number of later patches.
+
+| Open item | What is missing | Code or owner/provider | Evidence that closes it |
+|---|---|---|---|
+| Two-church Clerk acceptance (§18.3–18.4) | Organizations are disabled on the Development instance. The two organization IDs and seven emails are absent | Owner enables Organizations, then creates the fictional identities. See `docs/original-v1-live-acceptance-setup.md`. This workspace will not create them | Preflight and `npm run test:e2e:acceptance` after those values are in gitignored `e2e/.local/acceptance.env`. Core 28 preflight exited 2. No live pass |
+| Staff invitation delivery | A real provider send and explicit accept | Owner authorization against isolated `bits_e2e`. Mock and Clerk provider code already exist | One authorized live send and one recipient accept, with unknown delivery left for operator reconciliation |
+| Durable statement PDFs (FR-STMT-004, §15.5, §21.3) | Deferred by owner. The Railway Storage Bucket `bits-statements-test` is still unconfigured | Owner, later. See `docs/statement-storage-recovery.md`. Core 28 did not resume it | `statements:storage-probe`, then `--apply`, then `statements:storage-restore -- --apply`, with `executionKind` other than `none`. Those commands were not run |
+| PostgreSQL backups (§15.5, §21.3) | Scheduled production backup and a restore that is not the local synthetic pair | Owner and Railway, the chosen host. Core 20 already rehearsed one local fictional restore on November 4, 2026 | A host backup schedule plus a restore exercise that leaves working `bits` unchanged |
+| Railway TEST and production (§18.4, §21.1) | Deferred by owner. Railway remains the chosen host. No remote project is linked | Owner, later, using `docs/original-v1-railway-test-setup.md`. Core 28 did not create or deploy it | A separate TEST project and empty TEST database. Migrate and deploy stay separate approvals. Do not copy working `bits` |
+| Signed-in original workflows | Browser use of donors, households, batches, reports, statements, and the portal | Owner, after Clerk. Screens and services already exist | The seven Playwright cases in specification §18.3, signed in |
+| Development seed (§17) | The opt-in command exists and the dry run was reviewed on November 5, 2026. The persistent Grace set was not applied. Default `npm run db:seed` still loads Demo Community Church | Code, only against loopback `bits_e2e`. See `docs/original-v1-development-fixtures.md` | The owner runs the explicit apply against loopback `bits_e2e` and checks the fictional rows. That apply was not run in Core 26 |
+| Giving audit review | The read-only page exists at `/reports/giving-audit`. No signed-in acceptance case covers it yet. Settings browser acceptance is also absent from the harness | Code is in place. Live cases wait until the Development identities exist. None were added in Core 28 | A signed-in review on that page for one administrator and one treasurer, including an older-page link. Unit tests are not that walkthrough |
+
+**One next action:** enable Organizations on the Clerk Development instance, with Membership optional and automatic first-organization creation left off. Then create two fictional organizations and seven distinct fictional users and write their IDs and emails into gitignored `e2e/.local/acceptance.env`. Do not paste those values into chat. Railway and storage stay deferred. No live acceptance pass is claimed.
 
 The original v1 explicitly deferred live/recurring Stripe, refunds/reversals, advanced accounting integration, data deletion, custom/platform roles and additional MFA policy work. Preserve these as Phase 2/future or later-added requirements; do not present them as original v1 blockers. Operational backups and tenant security were original v1 requirements.
 
@@ -114,7 +131,7 @@ The detailed phase lists below preserve requested scope; they are not all comple
 | Full `npx vitest run` | 207 files / 1,546 tests passed |
 | Lint, typecheck, `git diff --check`, production build | Passed |
 | Mocked adapter/probe/restore tests | Passed; not live-provider proof |
-| Read-only storage probe | Blocked: `BITS_STATEMENT_S3_TEST_*` is not designated |
+| Read-only storage probe | Blocked November 4, 2026: `executionKind=none`, `targetKind=unconfigured`, exit 2 |
 | Live `--apply` probe/restore | Not executed |
 | Live Clerk two-tenant acceptance | Unchanged blocker on identities |
 
@@ -142,6 +159,103 @@ The detailed phase lists below preserve requested scope; they are not all comple
 | Owner step | Complete the names in `e2e/.local/acceptance.env`. Do not paste values into chat. Then rerun preflight, start `npm run test:e2e:acceptance:server`, preflight again, and `npm run test:e2e:acceptance` |
 | Original v1 | Still incomplete |
 
+### Staff usability polish — nav and batch entry (October 30, 2026)
+
+| Check | Result |
+|---|---|
+| Scope | Header church/role; Giving vs Statements nav; Leadership Home church + batches link; batch directory/detail next step; gift-form context and sections |
+| Church / role | Same `findPrimaryOrganization` + membership access as the page. No invented fallback |
+| Next step | Role-aware eligibility flags, not status alone |
+| Branding | Existing navy/gold, BITS title, and logo unchanged |
+| Financial / 18A | Totals, idempotency, lock rules, and gift-form field associations unchanged |
+| Demo records | None created in the working database |
+| Focused tests | Role label, next-step helper, nav current page, and directory eligibility. Combined with storage PDF re-run: 5 files / 41 passed when `NODE_ENV=test` |
+| Unit `npm test` | 229 files / 1,610 passed, 62 skipped (`NODE_ENV=test`; leftover production env fails local statement PDF writes closed) |
+| Lint, `git diff --check` | Passed |
+| Production build + typecheck after | Passed. Member-document NFT warning remains |
+| Signed-in browser | Pending — Clerk setup still deferred. `/dashboard` and `/batches` redirect to `/sign-in` |
+| Original v1 | Still incomplete |
+
+### Core 19 batch guidance (November 2, 2026)
+
+| Check | Result |
+|---|---|
+| Scope | Directory and detail next-step copy. Same navy/gold, logo, and type. No new transition, reopen, or adjustment workflow |
+| Directory | Paginated batch list still does not load gifts. Entered rows and deposited reconciled rows that the role could reconcile or lock say **Review batch** and link to the existing detail page. Stored expected/recorded equality is not treated as permission to reconcile or lock |
+| Detail | `getOfferingBatchReview` remains the integrity source. An authorized user blocked by gifts, totals, or deposit dates sees that message. A role that cannot act on the stage sees view-only guidance. Locked rows say locked history |
+| Report link | Batch detail uses `canViewBatchReconciliationReports`. Data Entry does not see the link. The report route still enforces the same helper |
+| Server guards | Complete, reconcile, and lock rejection tests kept. No financial write path changed |
+| Focused tests | Next-step helper, offering-batch directory, review/transition, deposit, integrity, and giving permissions: 6 files / 93 passed |
+| Unit `npm test` | 229 files / 1,625 passed, 62 skipped |
+| Lint, `git diff --check` | Passed |
+| Production build + typecheck after | Passed. Member-document NFT warning remains |
+| Signed-in browser | Not run. `/batches` remains behind Clerk. Unit and build success does not certify the staff workflow |
+| Original v1 | Still incomplete. Next gate is live two-church Clerk acceptance. Invitations, private storage restore, and Railway stay open |
+
+### Core 20 local database recovery (November 4, 2026)
+
+| Check | Result |
+|---|---|
+| Scope | One dry-run-by-default operator command. `--apply` may create only `bits_e2e_recovery_<runId>_source` and `bits_e2e_recovery_<runId>_restored`. No UI, no working `bits` or `bits_e2e` restore, no production attestation |
+| Tools | Postgres.app `pg_dump` / `pg_restore` 18.6. No software was installed. The local cluster was stopped; this run started it and stopped it afterward |
+| Safety tests | `lib/ops/local-database-recovery.test.ts`: 5 passed. Refuses raw URLs, hostaddr, service, options, sockets, multi-host, reserved names, and `--clean` / `--create` |
+| Rehearsal | Apply once. Source `bits_e2e_recovery_2026110502432060350d59_source`. Restored `bits_e2e_recovery_2026110502432060350d59_restored`. Server `18.6 (Postgres.app)`, loopback port 5432. Checked-in migrations applied to the new source only |
+| Dump | Custom format, 390,300 bytes, SHA-256 `8fdfcdb23c31472f2f5538e023c2d4f8fac70b278c40212447fe1c885070aa9e`. Restore exit 0. Snapshot match true, including Decimal `10.30`, household dates, audit, and idempotency |
+| Constraints | On the restored database, a second open household membership and a duplicate idempotency token returned `23505`. A missing offering-type allocation returned `23503`. Those writes were rolled back |
+| Artifacts | `e2e/.local/database-recovery/2026110502432060350d59/` mode 0700; dump and manifest mode 0600. Databases left for later reviewed cleanup. Nothing was dropped |
+| Limits | This is local synthetic logical backup/restore only. Production scheduling, role coverage beyond the archive, point-in-time recovery, post-backup writes, provider resilience, and statement-object recovery stay open |
+| Original v1 | Still incomplete |
+
+### Core 18B local Geist fonts (October 30, 2026)
+
+| Check | Result |
+|---|---|
+| Official assets | Geist release v1.9.0 zip SHA-256 matches GitHub digest. Variable roman webfonts + OFL only. See `docs/geist-font-provenance.md` |
+| Layout | `next/font/local`; `--font-geist-sans` / `--font-geist-mono` unchanged. No remaining `next/font/google` import |
+| Historical Google Fonts failure | Core 18 fetch failure retained. Core 18A cached-build success retained. Neither rewritten |
+| Focused / unit / lint / build | Working-tree: focused helper/a11y/schema tests passed; `npm test` 227 files / 1,601 passed, 62 skipped; lint and `git diff --check` passed; production build + typecheck after passed. Member-document NFT warning remains |
+| Isolated cold-cache build | `/tmp` copy of the current working tree without `.next`, `.env`, or `node_modules`. `npm ci` used install-network (577 packages). Isolated `npm run build` on Node v24.13.1 with `HTTP(S)_PROXY=http://127.0.0.1:9` compiled successfully. Bundled Geist `.woff2` sizes match source. No `fonts.googleapis` / `fonts.gstatic` in the build log or isolated `.next`. Working `.next/cache` was not deleted. Install was not fully offline |
+| Public `/visit` render | Isolated task-owned `next start` on loopback port 3031. `GET /visit` 200 with “Plan Your Visit”. Local Geist/Geist Mono assets 200 (`wOF2`, 69,576 / 71,272 bytes). HTML/CSS have no Google Fonts URLs. `/batches` 307 to sign-in; `/e2e` 404. Browser computed `font-family` is `geistSans` / `--font-geist-sans`; `geistSans` status `loaded`. Public `/visit` is not a staff a11y pass |
+| Clerk / invitations / storage / Railway | Unchanged blockers |
+| Original v1 | Still incomplete |
+
+### Core 18A gift-form validation accessibility (October 30, 2026)
+
+| Check | Result |
+|---|---|
+| Nested allocation errors | Rendered per row. Zod `flatten()` had collapsed `allocations.n.field` into `allocations[]` |
+| Field associations | Unique `useId` + field-array identity; `aria-invalid` only when that field is invalid |
+| Date override | Confirmation checkbox moved out of the offering-date label; same server copy |
+| Empty donor search | Status, not a donor-input validation failure |
+| Token / ledger | Failed save does not clear the create token. CARD/ACH, Decimal totals, `reviewVersion`, tenant checks unchanged |
+| Evidence | Helper/schema tests, not a signed-in browser pass. No RTL added |
+| Focused tests | 5 files / 57 passed (field-error helper, donation schema, create token, a11y source contracts, donation service) |
+| Unit `npm test` | 227 files / 1,601 passed, 62 skipped |
+| Lint, Prisma validate, `git diff --check` | Passed. Prisma retains the pre-existing SetNull warning |
+| Production build + typecheck after | Passed. Member-document NFT warning remains. Geist fetch was not reproduced; Next font cache from the prior successful build was reused. Cold-cache Google Fonts dependency remains; `next/font/local` is a proposed later option, not applied |
+| Protected-screen browser | Blocked: no live Clerk |
+| Isolated SQL | Not required |
+| Clerk / invitations / storage / Railway | Unchanged blockers |
+| Original v1 | Still incomplete |
+
+### Core 18 staff workflow handbook and accessibility (October 30, 2026)
+
+| Check | Result |
+|---|---|
+| Handbook | `docs/original-v1-staff-handbook.md` from current routes, labels, roles, and conflict copy. Not signed-in acceptance |
+| Accessibility review | `docs/original-v1-accessibility-review.md` with screen/control matrix, W3C citations, repairs, remaining live checks. No WCAG conformance claim |
+| Narrow repairs | Skip link; header heading demotion; unique action names; donation-form labels/alerts; picker/nav names; toast/org/backup alerts; idle-timeout DOM order; display-options and mobile-nav focus return; report `aria-current`; keyboard logo upload |
+| Authorization / ledger | Unchanged: roles, Decimal totals, idempotency, `reviewVersion`, tenant checks |
+| Focused a11y source contracts | 1 file / 4 passed (`lib/testing/original-v1-staff-accessibility.test.ts`) |
+| Unit `npm test` | 226 files / 1,594 passed, 62 skipped |
+| Lint, Prisma validate, `git diff --check` | Passed. Prisma retains the pre-existing SetNull warning |
+| Production build + typecheck after | Passed. Member-document NFT warning remains |
+| Protected-screen browser | Blocked: no live Clerk. Public `/visit` is not a substitute |
+| Isolated SQL | Not required |
+| Clerk / invitations / storage / Railway | Unchanged blockers |
+| CARD/ACH | Owner option 1 retained |
+| Original v1 | Still incomplete |
+
 ### Core 14 statement storage recovery (October 23, 2026)
 
 | Check | Result |
@@ -156,6 +270,125 @@ The detailed phase lists below preserve requested scope; they are not all comple
 | Fake SDK sender | Mocked evidence only. Not emulator or live-provider execution |
 | Clerk live acceptance | Deferred by owner. Not restarted for this increment |
 | Lint, typecheck after build, `git diff --check`, Prisma validate, production build | Passed. Prisma retains the pre-existing SetNull warning. Build keeps the existing middleware-to-proxy and member-document NFT warnings |
+| Original v1 | Still incomplete |
+
+### Core 23 organization-settings audit (November 5, 2026)
+
+| Check | Result |
+|---|---|
+| Repair | Settings update, logo key, and `UPDATE` audit share one transaction. Missing church does not create a church or grant `ORG_ADMIN`. New logos use a unique exclusive file; the prior owned file is deleted only after commit |
+| Focused unit tests | Logo staging, denial, no-op, audit rollback, write failure, and cleanup failure. Mocked transaction rollback is separate from SQL |
+| Isolated SQL | `npm run test:isolated -- server/services/organization-settings.concurrency.test.ts`: 1 file / 2 passed on `bits_e2e`. Audit failure kept the prior row, key, and `logo.png` bytes. Competing replacements serialized. Working fingerprints unchanged |
+| Unit suite, lint, build | `npm test`: 233 files / 1,646 passed, 62 skipped. ESLint passed on the Core 23 files. `npm run build` passed, then `tsc --noEmit` passed. The existing member-document NFT warning remains. `git diff --check` passed |
+| Still separate | Database commit and file cleanup are not one atomic operation. Clerk role revocation is not globally serialized. Live Clerk, invitations, storage restore, and Railway stay open |
+| Original v1 | Still incomplete |
+
+### Core 25 giving audit review (November 5, 2026)
+
+| Check | Result |
+|---|---|
+| Route | `/reports/giving-audit`. Leadership Security Activity remains `canEdit`, which is organization administrator only. Opening that catalog to treasurers would include privacy, documents, purchases, maintenance, and equipment |
+| Readers | Organization administrator and treasurer, for the session church. Data entry, report viewer, donor, signed-out, inactive membership, and an ambiguous church are denied before audit rows are read |
+| History | Exact persisted giving actions for donors, giving households, offering types, batches, gifts, organization settings, statements, report exports, and financial corrections. Pages of 25 use timestamp-then-id order. Summaries use field labels and omit addresses, emails, notes, check numbers, storage keys, and other values |
+| Links | Record links require a same-church row. Missing rows and treasurer access to organization settings omit the link. Statement access detail stays on `/reports/statement-access`; the registry stays authoritative for statement files |
+| Tests | Focused filter, query, service, existing security-activity denial, and giving-permission tests: 4 files / 38 passed. `npm test`: 235 files / 1,666 passed, 62 skipped. ESLint, `npm run build`, and `tsc --noEmit` passed. The existing member-document NFT warning remains. No isolated SQL. Opening the page does not write an audit row |
+| Still open | Signed-in Clerk walkthrough. Statement-storage target, Railway, invitations, and production backups stay owner gates |
+| Original v1 | Still incomplete |
+
+### Core 25A giving-audit usability (November 5, 2026)
+
+| Check | Result |
+|---|---|
+| UTC labels | From, Through, and Date & Time on `/reports/giving-audit` say UTC. Help text says From and Through are UTC calendar days. Query bounds and cursors stay UTC. The shared Security Activity formatter was left unchanged |
+| Gift links | A same-church gift links to `/batches/[batchId]` with the label “View gift's batch”. The link is omitted when the gift, its batch, or a same-church batch row is missing. The draft edit route is not used |
+| Tests | Focused giving-audit validation, service, and UTC label render tests: 3 files / 16 passed. ESLint on the changed files and `tsc --noEmit` passed. No isolated SQL, full suite, production build, or signed-in browser review |
+| Original v1 | Still incomplete |
+
+### Core 26 isolated development fixtures (November 5, 2026)
+
+| Check | Result |
+|---|---|
+| Command | `npx tsx prisma/seed.ts --original-v1-fixtures` prints the Grace Community Church inventory and does not write. `npm run db:seed` remains Demo Community Church. Apply is a separate `--apply` and is limited to loopback `bits_e2e` |
+| Dataset | Smith Household, Jordan Taylor with a local portal identifier, Morgan Lee without an account, inactive Riley Quinn, four offering types, a zero draft batch, and a locked `100.00` batch with a check, one split envelope, and an anonymous cash gift. Statement rows are `GENERATED` synthetic placeholders, not tax statements or restore proof |
+| Ownership | Deterministic ids, slug, and local identifiers. A matching church or account that this fixture does not own stops the apply. Drift is reported and is not reset. A repeated apply does not insert duplicates |
+| Dry run | Exit 0. `applyPerformed` is false. The report contains no database URL |
+| Apply | Not run. The persistent set was not written to `bits_e2e` |
+| Isolated SQL | Not run during Core 26. Core 26A later ran the integration namespace on `bits_e2e`. See the Core 26A section |
+| Tests | Focused fixture tests: 1 file / 10 passed. `npm test`: 237 files / 1,677 passed, 62 skipped. ESLint on the changed files and `tsc --noEmit` passed. No production build |
+| Still separate | Local identifiers do not sign anyone in. The seed does not finish Clerk, invitations, durable statement recovery, signed-in use, or a Railway launch |
+| Original v1 | Still incomplete |
+
+### Core 26A isolated fixture SQL (November 5, 2026)
+
+| Check | Result |
+|---|---|
+| Service | Postgres.app 18 was stopped. This verification started the existing `var-18` service on port 5432. It was left running. No cluster was initialized and no configuration was changed |
+| Schema | Loopback `bits_e2e` already had the fixture tables. No migration, reset, create, or drop |
+| SQL | `npm run test:isolated -- lib/ops/original-v1-development-fixtures.integration.test.ts`: 1 file / 2 passed. The integration church is separate from Grace Community Church. Creation, repeat with the same three gifts, Decimal totals, household and statement relations, a foreign-church collision, a drifted gift amount, and a different placeholder were checked on `bits_e2e` |
+| Rejected rows | The colliding church row kept its address. The drifted gift stayed at the edited amount. The different placeholder bytes stayed in place |
+| Files | A failed second placeholder removed only the file that attempt had created. An unrelated sentinel file remained. The database rows from the committed insert stayed, and the following apply added the missing files without a second set of gifts |
+| Cleanup | The test deleted its own integration ids and one test-owned foreign organization id. The persistent Grace set was not applied |
+| Working data | Working-database fingerprints were unchanged. Counts and hashes are not repeated here |
+| Mocked tests | The 1 file / 10 unit tests remain mocked evidence. They are separate from the SQL result above |
+| Original v1 | Still incomplete |
+
+### Core 27 Railway TEST storage handoff (November 5, 2026)
+
+| Check | Result |
+|---|---|
+| Scope | Setup sheet only. No application code, bucket, project, deploy, or probe |
+| Account | Railway CLI is absent. No `.railway` link and no Railway token in the shell. No TEST bucket could be inventoried |
+| Local config | `e2e/.local/storage-test.env` is absent and ignored by `/e2e/.local/`. The seven `BITS_STATEMENT_S3_TEST_*` names, the application bucket names, and `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are unset. Acceptance env keeps `BITS_STATEMENT_PDF_BACKEND=local` and is not the probe overlay |
+| Provider fit | Current Railway buckets are S3-compatible and virtual-hosted. The installed client supports that with `forcePathStyle` left off, an HTTPS endpoint, and region `auto`. Path-style remains available when a bucket's Credentials tab requires it. Railway does not offer object versioning or automatic bucket snapshots |
+| Proposed resource | Storage Bucket display name `bits-statements-test` in a TEST-only project, separate from `BITS_STATEMENT_S3_BUCKET`. Not created. Setup sheet: `docs/statement-storage-recovery.md` |
+| Commands | `statements:storage-probe`, its `--apply`, and `statements:storage-restore -- --apply` are proposed and were not run |
+| Original v1 | Still incomplete. No further code patch is needed until the owner creates the bucket |
+
+### Core 28 Clerk acceptance resume (November 5, 2026)
+
+| Check | Result |
+|---|---|
+| Scope | Existing harness only. No second auth system, no new Playwright cases, no Railway or storage work |
+| Local target | Gitignored `e2e/.local/acceptance.env`, target token, and `e2e/.local/statement-storage` are present. Loopback database name is `bits_e2e`. Fixture tables are present. No migration, reset, seed, or persistent Grace apply |
+| Clerk | Development key prefixes are present. Read-only organizations call returned `organization_not_enabled_in_instance`. One existing Development user was counted and not inspected. The two organization IDs and seven emails are absent |
+| Preflight | `npm run test:e2e:acceptance:preflight` exited 2. `readyForFixtures=false`, `readyForLiveAcceptance=false`, missing those nine names, and `server_unreachable`. The acceptance server was not started |
+| Live run | Not run. No pass is claimed. Giving-audit and organization-settings browser cases are not in this harness and were not added |
+| Railway and storage | Deferred by owner. The Core 27 bucket was not created and the storage probe was not repeated |
+| Original v1 | Still incomplete |
+
+### Core 23A organization-settings verification (November 5, 2026)
+
+| Check | Result |
+|---|---|
+| Lock observation | Competing replacements use `runWithObservedLockContention`. Writer A holds the organization lock; writer B is observed through `pg_blocking_pids` before A is released. The prior `logo.png` bytes were still present while that lock was held |
+| Logo interruption | Exclusive `open` precedes the write. A failed write removes only that attempt. A failed cleanup logs `staged-logo-leftover` with the key and error code, leaves that partial file, and keeps the original save error. An `EEXIST` collision and the current logo stay in place |
+| Isolated runner | With Postgres stopped, the same isolated command exits 2 and prints `Local database service is unavailable (ECONNREFUSED). Isolated tests were not run. No database was migrated or reset.` Connection text is redacted |
+| Isolated SQL | After Postgres.app 18 was started, `npm run test:isolated -- server/services/organization-settings.concurrency.test.ts`: 1 file / 2 passed on `bits_e2e`. Working fingerprints, including organization count and logo-key hash, were unchanged. Postgres was stopped afterward. This is separate from the mocked unit transaction |
+| Focused unit tests | Logo, settings service, settings action, isolated-runner text, and the lock helper: 5 files / 37 passed |
+| Unit suite, lint, build | `npm test`: 233 files / 1,651 passed, 62 skipped. ESLint passed on the Core 23A files. `npm run build` passed, then `tsc --noEmit` passed. The existing member-document NFT warning remains |
+| Still separate | Database commit and file cleanup are not one atomic operation. No signed-in browser save. Clerk, invitations, storage restore, and Railway stay open |
+| Original v1 | Still incomplete |
+
+### Core 22 original audit-trail review (November 4, 2026)
+
+| Check | Result |
+|---|---|
+| Scope | FR-AUDIT-001–004 for organization settings, donors, giving households, offering types, batches, gifts, and statements. No new audit table |
+| Confirmed | Those giving and statement mutations call `createAuditEvent` with the same transaction client. Portal views/downloads use `statement_access_events`. CSV exports audit before return. Repository reads filter by church. No production update/delete |
+| Real SQL already in tree | Giving-household audit injection rolls back link, move, end, and settings. Ledger concurrency records one audit row for one concurrent gift. Not rerun |
+| Finding | On November 4, settings committed before the audit. Core 23 applied the transaction repair |
+| Commands | Source and existing tests reviewed. `git diff --check` on the Core 22 docs. No suite, build, isolated SQL, Clerk, storage, or Core 20 restore |
+| Original v1 | Still incomplete |
+
+### Core 21 statement-storage gate (November 4, 2026)
+
+| Check | Result |
+|---|---|
+| Configuration | Shell and `e2e/.local/storage-test.env` (absent) have no `BITS_STATEMENT_S3_TEST_*` names. `.env` has no application bucket, region, endpoint, or AWS credential names. Acceptance env backend is local and is not the probe overlay |
+| Read-only `npm run statements:storage-probe` | Exit 2. `mode=preflight`, `targetKind=unconfigured`, `executionKind=none`. No secrets printed. Preflight is not connectivity |
+| `--apply` probe and restore | Not run. No designated isolated target and no evidenced provider |
+| Code / suite / build | Unchanged. Docs only |
+| Still separate | Independent durable backups, provider disaster recovery, version retention, staff/portal authorization, and live Clerk acceptance |
 | Original v1 | Still incomplete |
 
 ### Core 17A runtime smoke (October 23, 2026)
@@ -358,7 +591,7 @@ Live two-church Clerk acceptance remains blocked on two organization IDs and sev
 
 1. Owner: create a separate Railway TEST project and empty TEST Postgres using `docs/original-v1-railway-test-setup.md`. Approve migrate separately. Do not deploy from this chat. Do not copy working `bits`.
 2. Owner deferred Clerk organization/account setup. Do not create Clerk users, enable Organizations, or treat missing org IDs as a storage or payment task. When the owner resumes it, add the two org IDs and seven emails to gitignored `e2e/.local/acceptance.env` using `docs/original-v1-live-acceptance-setup.md`. Do not paste those values into chat.
-3. Designate an isolated `BITS_STATEMENT_S3_TEST_*` target (or gitignored `e2e/.local/storage-test.env` overlay for those TEST keys only) and run `statements:storage-probe -- --apply` plus `statements:storage-restore -- --apply`. Record emulator vs live-provider results separately. Do not use the application bucket.
+3. Owner: provision or designate the isolated TEST statement-storage target. Railway is the chosen host. No object-storage target is configured here, and this workspace will not create a bucket, purchase a service, or install an emulator. After an isolated bucket exists, set only `BITS_STATEMENT_S3_TEST_*` in the shell or gitignored `e2e/.local/storage-test.env`, then run `statements:storage-probe`, `statements:storage-probe -- --apply`, and `statements:storage-restore -- --apply`. See `docs/statement-storage-recovery.md`.
 4. Preserve patches 80–81 and Core 02–11A work. Do not treat Core 11A as original v1 completion.
 5. Apply `npm run ledger:review-local-migrate` to loopback working `bits` before using `npm run dev` for batch writes. Do not apply production automatically.
 6. Remaining original v1 gaps: live Clerk two-tenant acceptance (deferred by owner), authorized live invitation send/accept against isolated `bits_e2e`, designated emulator or live-provider object-store/restore, provider backups, and a real Railway deployment. Isolated giving-household concurrency is verified; live signed-in household forms are not. Manual CARD/ACH stay closed.

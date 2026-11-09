@@ -1,5 +1,4 @@
-import "dotenv/config";
-
+import { config as loadDotenv } from "dotenv";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   PrismaClient,
@@ -37,15 +36,30 @@ import {
   DEFAULT_EVENT_LOCATIONS,
 } from "../lib/constants/events";
 
-const connectionString = process.env.DATABASE_URL;
+loadDotenv({
+  quiet: process.argv.includes("--original-v1-fixtures"),
+});
 
-if (!connectionString) {
-  throw new Error("DATABASE_URL is required to run the seed script.");
+function createSeedPrisma() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is required to run the seed script.");
+  }
+  return new PrismaClient({
+    adapter: new PrismaPg({ connectionString }),
+  });
 }
 
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString }),
-});
+function unavailableSeedPrisma(): PrismaClient {
+  return new Proxy({} as PrismaClient, {
+    get() {
+      throw new Error("The demo seed does not run when --original-v1-fixtures is set.");
+    },
+  });
+}
+
+const originalV1Fixtures = process.argv.includes("--original-v1-fixtures");
+const prisma = originalV1Fixtures ? unavailableSeedPrisma() : createSeedPrisma();
 
 async function main() {
   const roleDefinitions: Array<{ code: RoleCode; name: string }> = [
@@ -2680,11 +2694,17 @@ async function main() {
   );
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (originalV1Fixtures) {
+  void import("../scripts/original-v1-development-fixtures").then((mod) =>
+    mod.runOriginalV1DevelopmentFixturesCli(),
+  );
+} else {
+  main()
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

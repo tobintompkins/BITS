@@ -23,6 +23,24 @@ export function isNavItemActive(pathname: string, href: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
+export function currentNavLabel(pathname: string, groups: NavGroup[]) {
+  const matches = groups
+    .flatMap((group) => group.items)
+    .filter((item) => isNavItemActive(pathname, item.href));
+  if (matches.length === 0) {
+    return "Leadership navigation";
+  }
+  matches.sort((left, right) => {
+    const leftRoute = left.href.split("?")[0];
+    const rightRoute = right.href.split("?")[0];
+    if (rightRoute.length !== leftRoute.length) {
+      return rightRoute.length - leftRoute.length;
+    }
+    return Number(left.href.includes("?")) - Number(right.href.includes("?"));
+  });
+  return matches[0]!.label;
+}
+
 function Group({
   group,
   pathname,
@@ -104,9 +122,11 @@ function Navigation({
 }
 
 export function AppShellNav({ groups }: AppShellNavProps) {
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const drawerId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const mobileLabel = currentNavLabel(pathname, groups);
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -130,7 +150,7 @@ export function AppShellNav({ groups }: AppShellNavProps) {
         onClick={() => setMobileOpen((open) => !open)}
         className="inline-flex w-full items-center justify-between rounded-xl bg-[var(--bits-navy)] px-4 py-3 text-sm font-semibold text-white shadow-sm lg:hidden"
       >
-        Leadership navigation
+        {mobileLabel}
         <span aria-hidden="true">{mobileOpen ? "Close" : "Menu"}</span>
       </button>
       <div

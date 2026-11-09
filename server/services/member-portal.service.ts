@@ -1,6 +1,7 @@
 import { RoleCode } from "@/app/generated/prisma/client";
-import { prisma } from "@/lib/db/prisma";
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
+import { isDatabaseUnavailableError } from "@/lib/db/database-unavailable";
+import { prisma } from "@/lib/db/prisma";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 import {
   findAuthorizedHouseholdIdsForStatementRecipient,
@@ -15,6 +16,17 @@ const LEADERSHIP_ROLES: RoleCode[] = [
 ];
 
 export async function getMemberPortalDashboard() {
+  try {
+    return await loadMemberPortalDashboard();
+  } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      return { status: "UNAVAILABLE" as const };
+    }
+    throw error;
+  }
+}
+
+async function loadMemberPortalDashboard() {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) {
     return { status: "SIGNED_OUT" as const };

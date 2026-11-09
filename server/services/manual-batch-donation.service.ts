@@ -34,6 +34,7 @@ import {
   type ManualBatchDonationWriteInput,
   type ManualPaymentMethod,
 } from "@/lib/validation/manual-batch-donation";
+import { OFFERING_DATE_CONFIRMATION_MESSAGE } from "@/lib/validation/manual-donation-field-errors";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
 import {
   countBatchDonations,
@@ -439,7 +440,7 @@ function requireOfferingDateConfirmation(
   ) {
     throw new ManualBatchDonationError(
       "INVALID_REQUEST",
-      "Confirm that this donation should use a different offering date than the batch.",
+      OFFERING_DATE_CONFIRMATION_MESSAGE,
     );
   }
 }
@@ -792,6 +793,7 @@ export async function getManualBatchDonationForEdit(
 
   const paymentMethod = donation.paymentMethod as ManualPaymentMethod;
   return {
+    organizationName: organization.displayName ?? organization.name,
     batch,
     selectedDonor: donation.donor
       ? {

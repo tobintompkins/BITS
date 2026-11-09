@@ -2,8 +2,13 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
-import { useFieldArray, useForm, type Resolver } from "react-hook-form";
+import { useId, useMemo, useState, useTransition } from "react";
+import {
+  useFieldArray,
+  useForm,
+  type FieldPath,
+  type Resolver,
+} from "react-hook-form";
 
 import {
   createManualBatchDonationAction,
@@ -22,9 +27,18 @@ import {
 } from "@/lib/batches/create-operation-token";
 import {
   emptyManualBatchDonationFormValues,
-  manualBatchDonationFormSchema,
   type ManualBatchDonationFormValues,
 } from "@/lib/validation/manual-batch-donation";
+import {
+  allocationRowBindings,
+  allocationsGroupMessage,
+  applyDottedFieldErrors,
+  describedFieldBinding,
+  donorSearchFeedback,
+  rhfMessage,
+  shouldClearCreateOperationToken,
+  withOfferingDateConfirmation,
+} from "@/lib/validation/manual-donation-field-errors";
 
 type DonorOption = {
   id: string;
@@ -43,6 +57,7 @@ type ManualDonationFormProps = {
   batchId: string;
   batchName: string;
   batchOfferingDate: string;
+  churchName?: string | null;
   funds: FundOption[];
   donationId?: string;
   initialValues?: ManualBatchDonationFormValues;
@@ -72,6 +87,7 @@ export function ManualDonationForm({
   batchId,
   batchName,
   batchOfferingDate,
+  churchName,
   funds,
   donationId,
   initialValues,
@@ -79,6 +95,7 @@ export function ManualDonationForm({
   expectedReviewVersion,
 }: ManualDonationFormProps) {
   const router = useRouter();
+  const formId = useId();
   const [toast, setToast] = useState<{
     message: string;
     variant: "success" | "error";
@@ -89,11 +106,15 @@ export function ManualDonationForm({
   const [donors, setDonors] = useState<DonorOption[]>(
     selectedDonor ? [selectedDonor] : [],
   );
-  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [searchFailureMessage, setSearchFailureMessage] = useState<
+    string | undefined
+  >(undefined);
+  const [searched, setSearched] = useState(false);
 
   const form = useForm<ManualBatchDonationFormValues>({
     resolver: zodResolver(
-      manualBatchDonationFormSchema,
+      withOfferingDateConfirmation(batchOfferingDate),
     ) as Resolver<ManualBatchDonationFormValues>,
     defaultValues:
       initialValues ?? emptyManualBatchDonationFormValues(batchOfferingDate),
@@ -127,20 +148,68 @@ export function ManualDonationForm({
   }, [allocationAmounts]);
 
   const dateDiffers = offeringDate !== batchOfferingDate;
+  const errors = form.formState.errors;
+  const searchFeedback = donorSearchFeedback({
+    failed: searchFailed,
+    failureMessage: searchFailureMessage,
+    resultCount: donors.length,
+    searched,
+  });
+  const donorBinding = describedFieldBinding(
+    `${formId}-donor-error`,
+    rhfMessage(errors.donorId),
+  );
+  const offeringDateHelpId = dateDiffers ? `${formId}-offering-date-help` : undefined;
+  const offeringDateBinding = describedFieldBinding(
+    `${formId}-offering-date-error`,
+    rhfMessage(errors.offeringDate),
+    offeringDateHelpId,
+  );
+  const confirmDateBinding = describedFieldBinding(
+    `${formId}-offering-date-confirm-error`,
+    rhfMessage(errors.confirmOfferingDateOverride),
+  );
+  const receivedDateBinding = describedFieldBinding(
+    `${formId}-received-date-error`,
+    rhfMessage(errors.receivedDate),
+  );
+  const paymentMethodBinding = describedFieldBinding(
+    `${formId}-payment-method-error`,
+    rhfMessage(errors.paymentMethod),
+  );
+  const checkNumberBinding = describedFieldBinding(
+    `${formId}-check-number-error`,
+    rhfMessage(errors.checkNumber),
+  );
+  const deductibleBinding = describedFieldBinding(
+    `${formId}-deductible-error`,
+    rhfMessage(errors.deductibleAmount),
+  );
+  const goodsDescriptionBinding = describedFieldBinding(
+    `${formId}-goods-description-error`,
+    rhfMessage(errors.goodsOrServicesDescription),
+  );
+  const goodsValueBinding = describedFieldBinding(
+    `${formId}-goods-value-error`,
+    rhfMessage(errors.goodsOrServicesEstimatedValue),
+  );
+  const allocationsMessage = allocationsGroupMessage(errors.allocations);
+  const allocationsGroupId = `${formId}-allocations-error`;
+  const searchErrorId = `${formId}-donor-search-error`;
 
   function runSearch() {
     startSearch(async () => {
-      setSearchError(null);
+      setSearchFailed(false);
+      setSearchFailureMessage(undefined);
+      setSearched(true);
       const result = await searchBatchDonationDonorsAction(query);
       if (!result.ok) {
         setDonors([]);
-        setSearchError(result.error);
+        setSearchFailed(true);
+        setSearchFailureMessage(result.error);
         return;
       }
       setDonors(result.donors);
-      if (result.donors.length === 0) {
-        setSearchError("No active donors in this church matched that search.");
-      }
     });
   }
 
@@ -158,8 +227,16 @@ export function ManualDonationForm({
             values,
             readOrCreateManualDonationOperationToken(batchId),
           );
+      if (shouldClearCreateOperationToken({
+        status: result.status,
+        isEdit: Boolean(donationId),
+      })) {
+        clearManualDonationOperationToken(batchId);
+        router.push(`/batches/${batchId}?donation=created`);
+        router.refresh();
+        return;
+      }
       if (result.status === "success") {
-        if (!donationId) clearManualDonationOperationToken(batchId);
         router.push(`/batches/${batchId}?donation=created`);
         router.refresh();
         return;
@@ -168,13 +245,9 @@ export function ManualDonationForm({
         message: result.message ?? "Unable to record this donation.",
         variant: "error",
       });
-      for (const [field, messages] of Object.entries(result.fieldErrors)) {
-        if (messages?.[0]) {
-          form.setError(field as keyof ManualBatchDonationFormValues, {
-            message: messages[0],
-          });
-        }
-      }
+      applyDottedFieldErrors(result.fieldErrors, (name, error) => {
+        form.setError(name as FieldPath<ManualBatchDonationFormValues>, error);
+      });
     });
   }
 
@@ -188,8 +261,26 @@ export function ManualDonationForm({
         />
       ) : null}
 
+      <section
+        className="rounded-2xl border border-[var(--bits-border)] bg-[var(--bits-page)] p-5"
+        aria-label="Gift context"
+      >
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--bits-gold-hover)]">
+          Draft batch
+        </p>
+        <p className="mt-1 text-lg font-semibold text-[var(--bits-navy)]">
+          {batchName}
+        </p>
+        {churchName ? (
+          <p className="mt-1 text-sm text-[var(--bits-navy)]">{churchName}</p>
+        ) : null}
+        <p className="mt-1 text-sm text-[var(--bits-muted)]">
+          Batch offering date {batchOfferingDate}
+        </p>
+      </section>
+
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-[var(--bits-navy)]">Donor</h2>
+        <h2 className="text-lg font-semibold text-[var(--bits-navy)]">Who</h2>
         <p className="mt-1 text-sm text-[var(--bits-muted)]">
           Search active donors in this church, or record an anonymous gift.
         </p>
@@ -203,6 +294,8 @@ export function ManualDonationForm({
                 if (checked) {
                   form.setValue("donorId", "");
                   setDonors([]);
+                  setSearched(false);
+                  setSearchFailed(false);
                 }
               },
             })}
@@ -221,8 +314,10 @@ export function ManualDonationForm({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Name, email, or phone"
-                  aria-invalid={searchError ? true : undefined}
-                  aria-describedby={searchError ? "donor-search-error" : undefined}
+                  aria-invalid={searchFeedback.invalidatesSearch ? true : undefined}
+                  aria-describedby={
+                    searchFeedback.message ? searchErrorId : undefined
+                  }
                   className={`${inputClassName} mt-1`}
                 />
               </label>
@@ -235,23 +330,23 @@ export function ManualDonationForm({
                 {searching ? "Searching…" : "Search donors"}
               </button>
             </div>
-            {searchError ? (
+            {searchFeedback.message ? (
               <p
-                id="donor-search-error"
-                role="alert"
-                className="text-sm text-rose-700"
+                id={searchErrorId}
+                role={searchFeedback.kind === "alert" ? "alert" : "status"}
+                className={
+                  searchFeedback.kind === "alert"
+                    ? "text-sm text-rose-700"
+                    : "text-sm text-[var(--bits-muted)]"
+                }
               >
-                {searchError}
+                {searchFeedback.message}
               </p>
             ) : null}
             {donors.length ? (
               <fieldset
                 className="space-y-2"
-                aria-describedby={
-                  form.formState.errors.donorId?.message
-                    ? "donor-field-error"
-                    : undefined
-                }
+                aria-describedby={donorBinding.describedBy}
               >
                 <legend className="sr-only">Select donor</legend>
                 {donors.map((donor) => (
@@ -281,30 +376,35 @@ export function ManualDonationForm({
             ) : null}
           </div>
         )}
-        <FieldError
-          id="donor-field-error"
-          message={form.formState.errors.donorId?.message}
-        />
+        <FieldError id={donorBinding.errorId} message={donorBinding.message} />
       </section>
 
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-          Gift details
+          Payment
         </h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="block text-sm">
-            <span className="font-medium text-[var(--bits-navy)]">Offering date *</span>
-            <input
-              type="date"
-              {...form.register("offeringDate", {
-                onChange: (event) => setOfferingDate(event.target.value),
-              })}
-              disabled={isPending}
-              className={inputClassName}
+          <div className="block text-sm">
+            <label className="block">
+              <span className="font-medium text-[var(--bits-navy)]">Offering date *</span>
+              <input
+                type="date"
+                {...form.register("offeringDate", {
+                  onChange: (event) => setOfferingDate(event.target.value),
+                })}
+                aria-invalid={offeringDateBinding.invalid}
+                aria-describedby={offeringDateBinding.describedBy}
+                disabled={isPending}
+                className={inputClassName}
+              />
+            </label>
+            <FieldError
+              id={offeringDateBinding.errorId}
+              message={offeringDateBinding.message}
             />
-            <FieldError message={form.formState.errors.offeringDate?.message} />
             {dateDiffers ? (
               <div
+                id={offeringDateHelpId}
                 role="status"
                 className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
               >
@@ -316,22 +416,33 @@ export function ManualDonationForm({
                   <input
                     type="checkbox"
                     {...form.register("confirmOfferingDateOverride")}
+                    aria-invalid={confirmDateBinding.invalid}
+                    aria-describedby={confirmDateBinding.describedBy}
                     disabled={isPending}
                   />
                   Use this different offering date
                 </label>
+                <FieldError
+                  id={confirmDateBinding.errorId}
+                  message={confirmDateBinding.message}
+                />
               </div>
             ) : null}
-          </label>
+          </div>
           <label className="block text-sm">
             <span className="font-medium text-[var(--bits-navy)]">Received date *</span>
             <input
               type="date"
               {...form.register("receivedDate")}
+              aria-invalid={receivedDateBinding.invalid}
+              aria-describedby={receivedDateBinding.describedBy}
               disabled={isPending}
               className={inputClassName}
             />
-            <FieldError message={form.formState.errors.receivedDate?.message} />
+            <FieldError
+              id={receivedDateBinding.errorId}
+              message={receivedDateBinding.message}
+            />
           </label>
           <label className="block text-sm">
             <span className="font-medium text-[var(--bits-navy)]">Payment method *</span>
@@ -344,6 +455,8 @@ export function ManualDonationForm({
                   }
                 },
               })}
+              aria-invalid={paymentMethodBinding.invalid}
+              aria-describedby={paymentMethodBinding.describedBy}
               disabled={isPending}
               className={inputClassName}
             >
@@ -352,16 +465,25 @@ export function ManualDonationForm({
               <option value="STOCK_OR_NONCASH">Stock or non-cash</option>
               <option value="OTHER">Other</option>
             </select>
+            <FieldError
+              id={paymentMethodBinding.errorId}
+              message={paymentMethodBinding.message}
+            />
           </label>
           {paymentMethod === "CHECK" ? (
             <label className="block text-sm">
               <span className="font-medium text-[var(--bits-navy)]">Check number *</span>
               <input
                 {...form.register("checkNumber")}
+                aria-invalid={checkNumberBinding.invalid}
+                aria-describedby={checkNumberBinding.describedBy}
                 disabled={isPending}
                 className={inputClassName}
               />
-              <FieldError message={form.formState.errors.checkNumber?.message} />
+              <FieldError
+                id={checkNumberBinding.errorId}
+                message={checkNumberBinding.message}
+              />
             </label>
           ) : null}
           <label className="block text-sm">
@@ -372,16 +494,20 @@ export function ManualDonationForm({
               className={inputClassName}
             />
           </label>
-          <label className="block text-sm md:col-span-2">
-            <span className="font-medium text-[var(--bits-navy)]">Note</span>
-            <textarea
-              {...form.register("note")}
-              rows={3}
-              disabled={isPending}
-              className={inputClassName}
-            />
-          </label>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-[var(--bits-navy)]">Notes</h2>
+        <label className="mt-4 block text-sm">
+          <span className="font-medium text-[var(--bits-navy)]">Note</span>
+          <textarea
+            {...form.register("note")}
+            rows={3}
+            disabled={isPending}
+            className={inputClassName}
+          />
+        </label>
       </section>
 
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
@@ -410,10 +536,15 @@ export function ManualDonationForm({
             <input
               {...form.register("deductibleAmount")}
               inputMode="decimal"
+              aria-invalid={deductibleBinding.invalid}
+              aria-describedby={deductibleBinding.describedBy}
               disabled={isPending || !taxDeductible}
               className={inputClassName}
             />
-            <FieldError message={form.formState.errors.deductibleAmount?.message} />
+            <FieldError
+              id={deductibleBinding.errorId}
+              message={deductibleBinding.message}
+            />
           </label>
           <label className="flex items-center gap-2 text-sm font-medium text-[var(--bits-navy)] md:col-span-2">
             <input
@@ -433,11 +564,14 @@ export function ManualDonationForm({
                 </span>
                 <input
                   {...form.register("goodsOrServicesDescription")}
+                  aria-invalid={goodsDescriptionBinding.invalid}
+                  aria-describedby={goodsDescriptionBinding.describedBy}
                   disabled={isPending}
                   className={inputClassName}
                 />
                 <FieldError
-                  message={form.formState.errors.goodsOrServicesDescription?.message}
+                  id={goodsDescriptionBinding.errorId}
+                  message={goodsDescriptionBinding.message}
                 />
               </label>
               <label className="block text-sm">
@@ -447,13 +581,14 @@ export function ManualDonationForm({
                 <input
                   {...form.register("goodsOrServicesEstimatedValue")}
                   inputMode="decimal"
+                  aria-invalid={goodsValueBinding.invalid}
+                  aria-describedby={goodsValueBinding.describedBy}
                   disabled={isPending}
                   className={inputClassName}
                 />
                 <FieldError
-                  message={
-                    form.formState.errors.goodsOrServicesEstimatedValue?.message
-                  }
+                  id={goodsValueBinding.errorId}
+                  message={goodsValueBinding.message}
                 />
               </label>
             </>
@@ -473,7 +608,7 @@ export function ManualDonationForm({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-              Fund allocations
+              Funds
             </h2>
             <p className="mt-1 text-sm text-[var(--bits-muted)]">
               Split this gift across one or more active giving funds.
@@ -484,68 +619,82 @@ export function ManualDonationForm({
           </p>
         </div>
         <div className="mt-4 space-y-3">
-          {allocations.fields.map((field, index) => (
-            <div
-              key={field.id}
-              className="grid gap-3 rounded-xl border border-[var(--bits-border)] p-3 md:grid-cols-[1fr_10rem_auto]"
-            >
-              <label className="block text-sm">
-                <span className="font-medium text-[var(--bits-navy)]">
-                  Giving fund {index + 1}
-                </span>
-                <select
-                  {...form.register(`allocations.${index}.offeringTypeId`)}
-                  disabled={isPending}
-                  className={inputClassName}
-                >
-                  <option value="">Select a fund</option>
-                  {funds.map((fund) => (
-                    <option key={fund.id} value={fund.id}>
-                      {fund.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-[var(--bits-navy)]">
-                  Amount {index + 1}
-                </span>
-                <input
-                  {...form.register(`allocations.${index}.amount`, {
-                    onChange: (event) => {
-                      setAllocationAmounts((current) => {
-                        const next = [...current];
-                        next[index] = event.target.value;
-                        return next;
-                      });
-                    },
-                  })}
-                  inputMode="decimal"
-                  disabled={isPending}
-                  className={inputClassName}
-                />
-              </label>
-              {allocations.fields.length > 1 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    allocations.remove(index);
-                    setAllocationAmounts((current) =>
-                      current.filter((_, rowIndex) => rowIndex !== index),
-                    );
-                  }}
-                  aria-label={`Remove allocation ${index + 1}`}
-                  className="self-end rounded-xl border border-[var(--bits-border)] px-3 py-2 text-sm font-semibold text-[var(--bits-navy)]"
-                >
-                  Remove
-                </button>
-              ) : null}
-            </div>
-          ))}
-          <FieldError message={form.formState.errors.allocations?.message} />
-          <FieldError
-            message={form.formState.errors.allocations?.root?.message}
-          />
+          {allocations.fields.map((field, index) => {
+            const row = allocationRowBindings(
+              formId,
+              field.id,
+              errors.allocations,
+              index,
+            );
+            return (
+              <div
+                key={field.id}
+                className="grid gap-3 rounded-xl border border-[var(--bits-border)] p-3 md:grid-cols-[1fr_10rem_auto]"
+              >
+                <label className="block text-sm">
+                  <span className="font-medium text-[var(--bits-navy)]">
+                    Giving fund {index + 1}
+                  </span>
+                  <select
+                    {...form.register(`allocations.${index}.offeringTypeId`)}
+                    aria-invalid={row.offeringTypeId.invalid}
+                    aria-describedby={row.offeringTypeId.describedBy}
+                    disabled={isPending}
+                    className={inputClassName}
+                  >
+                    <option value="">Select a fund</option>
+                    {funds.map((fund) => (
+                      <option key={fund.id} value={fund.id}>
+                        {fund.name}
+                      </option>
+                    ))}
+                  </select>
+                  <FieldError
+                    id={row.offeringTypeId.errorId}
+                    message={row.offeringTypeId.message}
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="font-medium text-[var(--bits-navy)]">
+                    Amount {index + 1}
+                  </span>
+                  <input
+                    {...form.register(`allocations.${index}.amount`, {
+                      onChange: (event) => {
+                        setAllocationAmounts((current) => {
+                          const next = [...current];
+                          next[index] = event.target.value;
+                          return next;
+                        });
+                      },
+                    })}
+                    inputMode="decimal"
+                    aria-invalid={row.amount.invalid}
+                    aria-describedby={row.amount.describedBy}
+                    disabled={isPending}
+                    className={inputClassName}
+                  />
+                  <FieldError id={row.amount.errorId} message={row.amount.message} />
+                </label>
+                {allocations.fields.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      allocations.remove(index);
+                      setAllocationAmounts((current) =>
+                        current.filter((_, rowIndex) => rowIndex !== index),
+                      );
+                    }}
+                    aria-label={`Remove allocation ${index + 1}`}
+                    className="self-end rounded-xl border border-[var(--bits-border)] px-3 py-2 text-sm font-semibold text-[var(--bits-navy)]"
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+          <FieldError id={allocationsGroupId} message={allocationsMessage} />
           <button
             type="button"
             onClick={() => {

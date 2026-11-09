@@ -123,6 +123,10 @@ provider proof. See `docs/original-v1-storage-verification.md`.
 
 Not verified here: a live private bucket or S3-compatible test service,
 signed-in staff/donor download against remote objects, production restore,
-or cutover of existing local PDFs. Provider testing remains pending until
-`BITS_STATEMENT_S3_TEST_*` is designated. Production storage is an adapter,
-not marked configured or recovered.
+or cutover of existing local PDFs. On November 4, 2026 the existing
+read-only probe again reported `executionKind=none` and
+`targetKind=unconfigured`. No provider is configured, so `--apply` stays
+blocked. Production storage is an adapter, not marked configured or
+recovered. Same-bucket synthetic recovery would not prove independent
+durable backups, provider disaster recovery, version retention, or
+staff/portal authorization.

@@ -2,32 +2,12 @@ import { OrganizationSettingsForm } from "./organization-settings-form";
 import { OrganizationAuditLog } from "./organization-audit-log";
 
 import { getOrganizationAccess } from "@/lib/auth/permissions";
+import { formatStaffRoleLabel } from "@/lib/staff/staff-role-label";
 import {
   getOrganizationSettingsAuditLog,
   getOrganizationSettingsValues,
 } from "@/server/services/organization-settings.service";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
-
-function formatRoleLabel(roleCode: string | null, isSuperAdmin: boolean) {
-  if (isSuperAdmin) {
-    return "Super Admin";
-  }
-
-  switch (roleCode) {
-    case "ORG_ADMIN":
-      return "Organization Admin";
-    case "TREASURER":
-      return "Treasurer";
-    case "DATA_ENTRY":
-      return "Data Entry";
-    case "REPORT_VIEWER":
-      return "Report Viewer";
-    case "DONOR":
-      return "Donor";
-    default:
-      return null;
-  }
-}
 
 export default async function OrganizationSettingsPage() {
   const organization = await findPrimaryOrganization();
@@ -37,7 +17,7 @@ export default async function OrganizationSettingsPage() {
     getOrganizationSettingsAuditLog(),
   ]);
 
-  const roleLabel = formatRoleLabel(access.roleCode, access.isSuperAdmin);
+  const roleLabel = formatStaffRoleLabel(access.roleCode, access.isSuperAdmin);
 
   return (
     <div className="space-y-6">

@@ -223,3 +223,38 @@ export function isolatedTestChildEnv(
 export function isolatedPrismaBlockedMessage() {
   return "Real Prisma construction is blocked during unit tests. Mock @/lib/db/prisma or run npm run test:isolated against a verified bits_e2e database.";
 }
+
+const LOCAL_DATABASE_UNAVAILABLE =
+  "Local database service is unavailable (ECONNREFUSED). Isolated tests were not run. No database was migrated or reset.";
+
+export function describeIsolatedRunnerFailure(error: unknown): string {
+  return sanitizeIsolatedRunnerText(describeIsolatedRunnerFailureRaw(error));
+}
+
+function describeIsolatedRunnerFailureRaw(error: unknown): string {
+  if (error instanceof AggregateError) {
+    const nested = error.errors.map((item) => describeIsolatedRunnerFailureRaw(item));
+    if (nested.some((item) => item.includes("ECONNREFUSED"))) {
+      return LOCAL_DATABASE_UNAVAILABLE;
+    }
+    return nested.filter(Boolean).join("; ") || "Isolated database command failed.";
+  }
+  if (error instanceof Error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code === "ECONNREFUSED") return LOCAL_DATABASE_UNAVAILABLE;
+    const parts = [err.code, err.syscall, err.message].filter(
+      (part) => typeof part === "string" && part.trim() !== "",
+    );
+    return parts.join(" ") || error.name || "Isolated database command failed.";
+  }
+  return "isolated tests failed";
+}
+
+export function sanitizeIsolatedRunnerText(message: string) {
+  const redacted = message
+    .replace(/postgres(?:ql)?:\/\/\S+/gi, "[redacted-database-url]")
+    .replace(/\b(password|pwd)=([^\s&]+)/gi, "$1=[redacted]");
+  return redacted.trim()
+    ? redacted
+    : "Isolated database command failed without a message.";
+}

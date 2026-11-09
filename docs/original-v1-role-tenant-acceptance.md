@@ -133,14 +133,19 @@ two roles on the same destination cannot bypass the working-database guard.
 
 ## Outstanding blockers
 
-- Clerk development identities must be created before live acceptance can
-  pass. Isolated-database setup may already be present locally.
+- Core 28 rechecked on November 5, 2026. Loopback `bits_e2e`, the target
+  token, and local PDF storage are ready. Organizations are disabled on the
+  Development instance (`organization_not_enabled_in_instance`). The two
+  organization IDs and seven emails are absent. Live acceptance did not run.
+  Owner setup is `docs/original-v1-live-acceptance-setup.md`.
+- Railway deployment, the TEST storage bucket, and live storage recovery are
+  deferred by the owner. They are not an unknown provider choice.
 - Staff invitation, role-change, and complete staff-management UI remain a
   separate original-core gap.
 - Isolated giving-household concurrency is verified on `bits_e2e` (Core 12A).
   Live signed-in household forms, including the stale-settings Playwright
   case, have not run.
-- Live object-store probe/restore and deployment readiness are unchanged.
+- Live object-store probe/restore and Railway deployment are deferred by the owner.
 - Original version 1 is not complete.
 
 ## Core 13 (October 23, 2026)
@@ -171,6 +176,6 @@ No commit was created for this increment.
 | Full `npx vitest run` | 206 files / 1,534 tests passed |
 | Isolated `bits_e2e` setup | Already present from earlier 07A setup. Working `bits` was not reset, copied, dropped, or seeded. |
 | Isolated server handshake | Not rerun in this review-fix pass |
-| `npm run test:e2e:acceptance` | Blocked: Clerk development organizations and seven fictional identities are not configured. |
+| `npm run test:e2e:acceptance` | Blocked on October 14, 2026: Clerk development organizations and seven fictional identities were not configured. Core 28 rechecked this on November 5 and the identities are still absent. |
 
 A real authenticated two-tenant Playwright run did **not** occur. Original version 1 is not complete.

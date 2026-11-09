@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isNavItemActive, type NavGroup } from "./app-shell-nav";
+import {
+  currentNavLabel,
+  isNavItemActive,
+  type NavGroup,
+} from "./app-shell-nav";
 
 describe("leadership navigation", () => {
   it("matches exact and nested routes without changing hrefs", () => {
@@ -19,5 +23,22 @@ describe("leadership navigation", () => {
     ];
 
     expect(groups.filter((group) => group.items.length > 0)).toHaveLength(1);
+  });
+
+  it("names the current page for the mobile toggle", () => {
+    const groups: NavGroup[] = [
+      {
+        label: "Giving",
+        items: [
+          { href: "/batches", label: "Batches" },
+          { href: "/batches/corrections", label: "Correction Review Queue" },
+        ],
+      },
+    ];
+    expect(currentNavLabel("/batches/abc", groups)).toBe("Batches");
+    expect(currentNavLabel("/batches/corrections", groups)).toBe(
+      "Correction Review Queue",
+    );
+    expect(currentNavLabel("/dashboard", groups)).toBe("Leadership navigation");
   });
 });

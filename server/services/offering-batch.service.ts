@@ -6,9 +6,12 @@ import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import {
   requireBatchManageAccess,
   requireBatchViewAccess,
+  type GivingAccess,
 } from "@/lib/auth/giving-permissions";
 import { lockChurchThenOfferingBatch } from "@/lib/batches/ledger-locks";
 import { ledgerReviewSchemaFailureMessage } from "@/lib/batches/ledger-review-schema-error";
+import { canViewBatchReconciliationReports } from "@/lib/auth/report-catalog-permissions";
+import { directoryBatchNextStep } from "@/lib/batches/next-step";
 import { reviewVersionIncrement } from "@/lib/batches/review-version";
 import { moneyDifference } from "@/lib/money/decimal";
 import {
@@ -104,6 +107,30 @@ function mapBatchRow(batch: {
   };
 }
 
+function directoryBatchFlags(
+  access: GivingAccess,
+  row: {
+    status: OfferingBatchStatus;
+    depositDate: Date | null;
+    depositReference?: string | null;
+  },
+) {
+  const depositRecorded = Boolean(row.depositDate && row.depositReference?.trim());
+  return {
+    canAddDonations:
+      access.canAddBatchDonations && row.status === OfferingBatchStatus.DRAFT,
+    canCompleteEntry: false,
+    canReconcile: false,
+    canRecordDeposit:
+      access.canRecordBatchDeposits &&
+      row.status === OfferingBatchStatus.RECONCILED,
+    canLock: false,
+    depositRecorded,
+    isLocked: row.status === OfferingBatchStatus.LOCKED,
+    nextStep: directoryBatchNextStep(access, row),
+  };
+}
+
 export async function getOfferingBatchDirectory(query: OfferingBatchDirectoryQuery) {
   await requireActor();
   const organization = await requireOrganization();
@@ -185,11 +212,15 @@ export async function getOfferingBatchDirectory(query: OfferingBatchDirectoryQue
       locked: lockedCount,
       recordedThisMonth: monthTotal._sum.recordedTotal?.toString() ?? "0.00",
     },
-    batches: rows.map((row) => ({
-      ...mapBatchRow(row),
-      canEdit:
-        access.canManageBatches && row.status === OfferingBatchStatus.DRAFT,
-    })),
+    batches: rows.map((row) => {
+      const mapped = mapBatchRow(row);
+      return {
+        ...mapped,
+        canEdit:
+          access.canManageBatches && row.status === OfferingBatchStatus.DRAFT,
+        ...directoryBatchFlags(access, mapped),
+      };
+    }),
   };
 }
 
@@ -220,10 +251,14 @@ export async function getOfferingBatchDetail(batchId: string) {
   const recordedTotal = batch.recordedTotal.toString();
 
   return {
+    organizationName: organization.displayName ?? organization.name,
     canManage: access.canManageBatches,
     canEdit: access.canManageBatches && batch.status === OfferingBatchStatus.DRAFT,
     canAddDonations:
       access.canAddBatchDonations && batch.status === OfferingBatchStatus.DRAFT,
+    canViewBatchReconciliationReport: canViewBatchReconciliationReports(
+      access.roleCode,
+    ),
     batch: {
       ...batch,
       expectedTotal,

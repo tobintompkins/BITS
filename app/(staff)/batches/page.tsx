@@ -8,6 +8,7 @@ import {
   formatBatchDate,
   formatBatchMoney,
 } from "@/lib/batches/display";
+import { batchNextStepHref } from "@/lib/batches/next-step";
 import { parseOfferingBatchDirectoryQuery } from "@/lib/validation/offering-batch";
 import { LedgerSchemaAlert } from "@/components/batches/ledger-schema-alert";
 import {
@@ -15,7 +16,13 @@ import {
   getOfferingBatchDirectory,
 } from "@/server/services/offering-batch.service";
 
-function DirectoryHeader({ canManage }: { canManage: boolean }) {
+function DirectoryHeader({
+  canManage,
+  churchName,
+}: {
+  canManage: boolean;
+  churchName?: string | null;
+}) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div>
@@ -25,6 +32,11 @@ function DirectoryHeader({ canManage }: { canManage: boolean }) {
         <h1 className="mt-1 text-3xl font-semibold text-[var(--bits-navy)]">
           Offering Batches
         </h1>
+        {churchName ? (
+          <p className="mt-1 text-sm font-medium text-[var(--bits-navy)]">
+            {churchName}
+          </p>
+        ) : null}
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
           Create draft offering batches, record deposits on reconciled batches,
           and review locked batches.
@@ -69,7 +81,7 @@ async function OfferingBatchDirectory({
   if (!parsed.success) {
     return (
       <>
-        <DirectoryHeader canManage={false} />
+        <DirectoryHeader canManage={false} churchName={null} />
         <p
           role="alert"
           className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800"
@@ -93,14 +105,14 @@ async function OfferingBatchDirectory({
     if (error instanceof OfferingBatchError && error.code === "SCHEMA_NOT_READY") {
       return (
         <>
-          <DirectoryHeader canManage={false} />
+          <DirectoryHeader canManage={false} churchName={null} />
           <LedgerSchemaAlert message={error.message} />
         </>
       );
     }
     return (
       <>
-        <DirectoryHeader canManage={false} />
+        <DirectoryHeader canManage={false} churchName={null} />
         <p
           role="alert"
           className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800"
@@ -123,7 +135,10 @@ async function OfferingBatchDirectory({
 
   return (
     <>
-      <DirectoryHeader canManage={directory.canManage} />
+      <DirectoryHeader
+        canManage={directory.canManage}
+        churchName={directory.organizationName}
+      />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {[
@@ -238,8 +253,7 @@ async function OfferingBatchDirectory({
               Batch directory
             </h2>
             <p className="mt-1 text-xs text-[var(--bits-muted)]">
-              {directory.total} batch{directory.total === 1 ? "" : "es"} for{" "}
-              {directory.organizationName}.
+              {directory.total} batch{directory.total === 1 ? "" : "es"}.
             </p>
           </div>
         </div>
@@ -254,6 +268,7 @@ async function OfferingBatchDirectory({
                   <th scope="col" className="px-3 py-2">Offering date</th>
                   <th scope="col" className="px-3 py-2">Service description</th>
                   <th scope="col" className="px-3 py-2">Status</th>
+                  <th scope="col" className="px-3 py-2">Next step</th>
                   <th scope="col" className="px-3 py-2">Expected total</th>
                   <th scope="col" className="px-3 py-2">Recorded total</th>
                   <th scope="col" className="px-3 py-2">Difference</th>
@@ -285,6 +300,20 @@ async function OfferingBatchDirectory({
                       >
                         {batchStatusLabel(batch.status)}
                       </span>
+                    </td>
+                    <td className="px-3 py-3">
+                      {batch.nextStep.action === "view" ? (
+                        <span className="text-[var(--bits-muted)]">
+                          {batch.nextStep.label}
+                        </span>
+                      ) : (
+                        <Link
+                          href={batchNextStepHref(batch.id, batch.nextStep)}
+                          className="text-sm font-semibold text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+                        >
+                          {batch.nextStep.label}
+                        </Link>
+                      )}
                     </td>
                     <td className="px-3 py-3">
                       {formatBatchMoney(batch.expectedTotal)}

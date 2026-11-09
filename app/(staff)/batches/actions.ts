@@ -16,6 +16,10 @@ import {
   type ManualBatchDonationFormValues,
 } from "@/lib/validation/manual-batch-donation";
 import {
+  collectManualDonationFieldErrors,
+  offeringDateConfirmationFieldErrors,
+} from "@/lib/validation/manual-donation-field-errors";
+import {
   ManualBatchDonationError,
   createManualBatchDonation,
   deleteManualBatchDonation,
@@ -183,7 +187,7 @@ export async function updateManualBatchDonationAction(
     return {
       status: "error",
       message: "Please correct the highlighted fields and try again.",
-      fieldErrors: parsed.error.flatten().fieldErrors,
+      fieldErrors: collectManualDonationFieldErrors(parsed.error),
     };
   }
 
@@ -202,13 +206,14 @@ export async function updateManualBatchDonationAction(
       fieldErrors: {},
     };
   } catch (error) {
+    const message =
+      error instanceof ManualBatchDonationError
+        ? error.message
+        : "Unable to update this donation.";
     return {
       status: "error",
-      message:
-        error instanceof ManualBatchDonationError
-          ? error.message
-          : "Unable to update this donation.",
-      fieldErrors: {},
+      message,
+      fieldErrors: offeringDateConfirmationFieldErrors(message),
     };
   }
 }
@@ -256,7 +261,7 @@ export async function createManualBatchDonationAction(
     return {
       status: "error",
       message: "Please correct the highlighted fields and try again.",
-      fieldErrors: parsed.error.flatten().fieldErrors,
+      fieldErrors: collectManualDonationFieldErrors(parsed.error),
     };
   }
 
@@ -274,13 +279,14 @@ export async function createManualBatchDonationAction(
       fieldErrors: {},
     };
   } catch (error) {
+    const message =
+      error instanceof ManualBatchDonationError
+        ? error.message
+        : "Unable to record this donation.";
     return {
       status: "error",
-      message:
-        error instanceof ManualBatchDonationError
-          ? error.message
-          : "Unable to record this donation.",
-      fieldErrors: {},
+      message,
+      fieldErrors: offeringDateConfirmationFieldErrors(message),
     };
   }
 }

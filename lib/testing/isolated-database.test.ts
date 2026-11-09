@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyIsolatedDatabasePreflight,
   classifyIsolatedDatabaseRuntime,
+  describeIsolatedRunnerFailure,
   isolatedDatabaseRunEnabled,
   isolatedTestChildEnv,
   isIsolatedDatabaseReady,
@@ -176,5 +177,30 @@ describe("isolated database runtime", () => {
         BITS_ISOLATED_REQUIRE_DB: "1",
       }),
     ).toThrow(/same PostgreSQL database as BITS_E2E_DATABASE_URL/i);
+  });
+});
+
+describe("isolated runner failure text", () => {
+  it("explains an empty connection AggregateError without a database URL", () => {
+    const error = new AggregateError([
+      Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:5432"), {
+        code: "ECONNREFUSED",
+        syscall: "connect",
+      }),
+    ]);
+    error.message = "";
+    expect(describeIsolatedRunnerFailure(error)).toMatch(/ECONNREFUSED/);
+    expect(describeIsolatedRunnerFailure(error)).toMatch(/not run/i);
+    expect(describeIsolatedRunnerFailure(error)).not.toMatch(/postgresql:\/\//);
+  });
+
+  it("redacts a connection URL from other failures", () => {
+    const error = new Error(
+      "password=secret failed for postgresql://tester:secret@127.0.0.1:5432/bits_e2e",
+    );
+    const text = describeIsolatedRunnerFailure(error);
+    expect(text).toContain("[redacted-database-url]");
+    expect(text).toContain("password=[redacted]");
+    expect(text).not.toContain("secret@");
   });
 });

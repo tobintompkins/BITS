@@ -65,6 +65,11 @@ export default async function NewBatchDonationPage({
         <h1 className="mt-1 text-3xl font-semibold text-[var(--bits-navy)]">
           Add Donation
         </h1>
+        {detail.organizationName ? (
+          <p className="mt-1 text-sm font-medium text-[var(--bits-navy)]">
+            {detail.organizationName}
+          </p>
+        ) : null}
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
           Record a manual gift in this draft batch. Card and ACH gifts continue
           to come from Stripe and cannot be entered here.
@@ -76,6 +81,7 @@ export default async function NewBatchDonationPage({
           batchId={detail.batch.id}
           batchName={detail.batch.name}
           batchOfferingDate={offeringDate}
+          churchName={detail.organizationName}
           funds={funds}
         />
       ) : (

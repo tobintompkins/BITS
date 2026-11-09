@@ -33,7 +33,7 @@ inventories are recorded here.
 | Railway app + Postgres | §2, §15.5, §21.1 | `railway.json` + `docs/original-v1-railway-test-setup.md`. No remote project is linked | Unverified / blocked — owner must create the TEST project |
 | Separate test and production | §15.5, §21.1 | Isolated `bits_e2e` harness exists; no second Railway project is evidenced | Blocked for production |
 | Durable private PDF storage | §15.5, §21.1, FR-STMT-004 | Local adapter + S3 config; production local writes fail closed unless explicitly allowed. Live TEST target unset | Blocked for production PDFs |
-| Postgres and PDF backups before real donor data | §15.5, §21.3 | `/administration/backup-readiness` is an attestation log, not a backup. No restore rehearsal | Blocked |
+| Postgres and PDF backups before real donor data | §15.5, §21.3 | `/administration/backup-readiness` is an attestation log, not a backup. Core 20 restored one local synthetic dump into a new disposable database. Production scheduling, point-in-time recovery, and statement PDFs remain unproven | Blocked |
 | Documented Railway/production config | §18.4, Phase 1D | This review plus `docs/original-v1-launch-runbook.md` | Ready locally as documentation; remote config unverified |
 | Two-org isolation and roles | §18.3–18.4, FR-ORG / FR-AUTH | Unit/isolated tests; live two-church Clerk run deferred | Blocked for launch acceptance |
 | Staff/donor auth | §18.4 | Clerk middleware + server role checks; live identities deferred | Blocked for launch acceptance |
@@ -106,9 +106,16 @@ Fifty-two Prisma migrations are on disk under `prisma/migrations/`, including la
 
 ## Staff operations and accessibility
 
-Increment docs exist for donors, households, offering types, ledger, reports, statements, invitations, and storage. There is no single staff handbook covering the weekly batch-to-statement path. Portal `/portal/help` and `/help/leadership` are in-app fragments, not launch documentation.
+Increment docs exist for donors, households, offering types, ledger, reports, statements, invitations, and storage. Core 18 adds `docs/original-v1-staff-handbook.md` for the weekly batch-to-statement path and `docs/original-v1-accessibility-review.md` for a bounded source review. Portal `/portal/help` and `/help/leadership` remain in-app fragments, not launch documentation.
 
-Accessibility of core workflows was not re-tested here. That remains an open Phase 1D check.
+The handbook is not signed-in acceptance. Protected-screen keyboard and screen-reader checks remain blocked without live Clerk.
+
+Core 18B vendors official Geist v1.9.0 variable webfonts and loads them
+with `next/font/local`. An isolated cold-cache production build with
+Google Fonts blocked at the proxy compiled without
+`fonts.googleapis.com`. Isolated `GET /visit` 200 served the bundled
+woff2 files. The historical Core 18 Google Fonts fetch failure stays on
+record. See `docs/geist-font-provenance.md`.
 
 ## Section 18.4 — missing checks, not assumed passes
 
@@ -167,6 +174,6 @@ acceptance, not Railway, and not a launch certificate.
 3. Owner: authorized live invitation send/accept against isolated `bits_e2e` only. See `docs/original-v1-staff-invitations.md`.
 4. Owner: designate isolated `BITS_STATEMENT_S3_TEST_*`, run probe/restore `--apply`, then choose production private PDF storage and a backup/restore exercise. FR-STMT-004, §15.5.
 5. Recertify `npm ci`, `npm run build`, `npm start`, lint, typecheck after build, and `npm test` on the intended Node version. §18.4.
-6. Staff handbook and accessibility pass for the original batch/report/statement path. Phase 1D.
+6. Live signed-in keyboard and screen-reader pass of the original batch/report/statement path. Handbook and source a11y review exist (`docs/original-v1-staff-handbook.md`, `docs/original-v1-accessibility-review.md`); they are not AT evidence. Phase 1D.
 
 Live Clerk two-church acceptance, invitation send/accept, and provider backup/restore stay open launch gates. Formal locked-ledger adjustments and Phase 2 payments stay deferred and are not treated as v1 blockers.

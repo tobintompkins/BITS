@@ -82,7 +82,10 @@ const ISOLATED_PROCESS_KEYS = [
   "BITS_ISOLATED_RUN_ID",
 ] as const;
 
-export function loadOriginalV1AcceptanceEnvFiles(cwd = process.cwd()) {
+export function loadOriginalV1AcceptanceEnvFiles(
+  cwd = process.cwd(),
+  options: { quiet?: boolean } = {},
+) {
   const presetKeys = nonemptyKeys(process.env);
   const isolatedProcess =
     process.env.BITS_ISOLATED_DATABASE === "1"
@@ -90,7 +93,11 @@ export function loadOriginalV1AcceptanceEnvFiles(cwd = process.cwd()) {
           ISOLATED_PROCESS_KEYS.map((key) => [key, process.env[key]]),
         )
       : null;
-  loadDotenv({ path: path.join(cwd, ".env"), override: false });
+  loadDotenv({
+    path: path.join(cwd, ".env"),
+    override: false,
+    quiet: options.quiet,
+  });
   if (isolatedProcess) {
     Object.assign(process.env, isolatedProcess);
   }

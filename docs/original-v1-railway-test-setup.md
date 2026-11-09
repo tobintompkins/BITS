@@ -67,8 +67,10 @@ predeploy, or health checks. Remote Node selection is **not** verified.
    backup of that empty TEST database. Not part of `npm start`.
 7. First HTTP check: unsigned `/visit` is 200 and
    `/api/e2e/original-v1-target` is 404.
-8. Signed-in acceptance still needs Clerk identities. Private PDFs still
-   need a designated object store. Those remain blocked.
+8. Railway deployment and the `bits-statements-test` bucket are deferred
+   by the owner as of Core 28. The setup sheet remains
+   `docs/statement-storage-recovery.md`. Signed-in acceptance is the
+   resumed gate and is blocked until Clerk Organizations are enabled.
 
 Costs that need owner approval: Railway project, Postgres plugin,
 outbound egress, any object-storage bucket, custom domain, and paid

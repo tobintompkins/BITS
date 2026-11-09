@@ -45,6 +45,98 @@ Required names only:
 - `BITS_STATEMENT_S3_TEST_REGION` or `BITS_STATEMENT_S3_REGION`
 - optional test endpoint / prefix / path-style / insecure-HTTP flags
 
+### Owner handoff (November 4, 2026)
+
+Core 21 inspected configuration by name only and ran the existing
+read-only probe once. No writes were attempted. The result was
+`mode=preflight`, `targetKind=unconfigured`, `executionKind=none`,
+check `test-target` blocked, exit 2. That was configuration preflight,
+not provider connectivity. `--apply` was not run. Core 27 does not
+repeat that probe.
+
+### Railway TEST bucket sheet (November 5, 2026)
+
+Railway is the chosen host. The concrete resource for this rehearsal is
+one new Railway Storage Bucket whose display name is
+`bits-statements-test`, inside a TEST-only Railway project. It must stay
+separate from any application statement bucket
+(`BITS_STATEMENT_S3_BUCKET`) and from the TEST Postgres database in
+`docs/original-v1-railway-test-setup.md`. Railway appends a hash to the
+display name. Use the Credentials tab value `BUCKET` as the S3 API name.
+Use `RAILWAY_BUCKET_NAME` only as the display name.
+
+Official dashboard steps, from
+[Storage Buckets](https://docs.railway.com/storage-buckets)
+on November 5, 2026:
+
+1. Open the Railway dashboard and a TEST-only project. This workspace
+   has no Railway CLI, no `.railway` link, and no Railway token.
+2. On the project canvas, click Create, select Bucket, choose a region,
+   and set the name to `bits-statements-test`. The region cannot be
+   changed after creation.
+3. After the bucket deploys, open its Credentials tab. That tab shows
+   whether the bucket uses virtual-hosted or path-style URLs.
+
+Current buckets use virtual-hosted URLs. The documented endpoint shape
+is `https://t3.storageapi.dev`, and the documented region value is
+`auto` ([Storage Buckets](https://docs.railway.com/storage-buckets)).
+The installed `@aws-sdk/client-s3` client sends `forcePathStyle` only
+when `BITS_STATEMENT_S3_TEST_FORCE_PATH_STYLE=1`. Leave that unset for a
+virtual-hosted bucket. Set it to `1` only when the Credentials tab says
+the bucket requires path-style URLs. The endpoint must be HTTPS. Leave
+`BITS_STATEMENT_S3_TEST_ALLOW_INSECURE_HTTP` unset.
+
+The client does not read Railway's `BUCKET`, `ENDPOINT`, `REGION`,
+`ACCESS_KEY_ID`, or `SECRET_ACCESS_KEY` names. Map them as follows.
+Put only the seven `BITS_STATEMENT_S3_TEST_*` names in gitignored
+`e2e/.local/storage-test.env`. `git check-ignore` matches that path
+through `/e2e/.local/`. The file is absent. The probe loads those seven
+names from the process environment first, then from that file. It does
+not load the rest of the file.
+
+| Railway Credentials value | App name | Where it belongs |
+|---|---|---|
+| Dedicated TEST bucket, not an application bucket | `BITS_STATEMENT_S3_TEST_TARGET=1` | `e2e/.local/storage-test.env` |
+| `BUCKET` | `BITS_STATEMENT_S3_TEST_BUCKET` | `e2e/.local/storage-test.env` |
+| `REGION` | `BITS_STATEMENT_S3_TEST_REGION` | `e2e/.local/storage-test.env` |
+| `ENDPOINT` | `BITS_STATEMENT_S3_TEST_ENDPOINT` | `e2e/.local/storage-test.env` |
+| Optional object prefix | `BITS_STATEMENT_S3_TEST_PREFIX` | `e2e/.local/storage-test.env` |
+| Path-style only when the Credentials tab requires it | `BITS_STATEMENT_S3_TEST_FORCE_PATH_STYLE` | `e2e/.local/storage-test.env` |
+| Leave unset for Railway HTTPS | `BITS_STATEMENT_S3_TEST_ALLOW_INSECURE_HTTP` | `e2e/.local/storage-test.env` |
+| `ACCESS_KEY_ID` | `AWS_ACCESS_KEY_ID` | Shell for the probe process. Not part of the file allowlist |
+| `SECRET_ACCESS_KEY` | `AWS_SECRET_ACCESS_KEY` | Shell for the probe process. Not part of the file allowlist |
+
+Do not commit those values. Do not paste them into chat. Do not copy
+`BITS_STATEMENT_S3_BUCKET` into the test file. `.env` has none of the
+application bucket, region, endpoint, or AWS credential names.
+`e2e/.local/acceptance.env` sets `BITS_STATEMENT_PDF_BACKEND` to `local`
+and is not loaded by the probe.
+
+Railway bills bucket storage at $0.015 per GB-month. Its docs say S3
+API operations and bucket egress are free, and that buckets have no
+object versioning, lifecycle rules, or automatic snapshots
+([Storage Buckets](https://docs.railway.com/storage-buckets)). Creating
+this bucket can incur storage charges. This workspace will not create it.
+
+No suitable TEST bucket is configured. These commands are proposed and
+were not run:
+
+```bash
+npm run statements:storage-probe
+npm run statements:storage-probe -- --apply
+npm run statements:storage-restore -- --apply
+```
+
+The first command is read-only after the target is configured. The two
+`--apply` commands write and delete a synthetic object and wait for an
+explicit owner authorization for that bucket. A successful probe is not
+disaster recovery, independent backup retention, or launch acceptance.
+
+Record `emulator` and `live-provider` separately. A later same-bucket
+synthetic recovery still would not prove independent durable backups,
+provider disaster recovery, version retention, or staff/portal
+authorization.
+
 Scripts load those TEST names from the process environment, then from
 gitignored `e2e/.local/storage-test.env` if present. Process values win.
 The overlay cannot change database URLs or Clerk keys. Do not put

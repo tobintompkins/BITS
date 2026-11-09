@@ -62,6 +62,11 @@ export default async function EditBatchDonationPage({
         <h1 className="mt-1 text-3xl font-semibold text-[var(--bits-navy)]">
           Edit Draft Donation
         </h1>
+        {detail.organizationName ? (
+          <p className="mt-1 text-sm font-medium text-[var(--bits-navy)]">
+            {detail.organizationName}
+          </p>
+        ) : null}
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
           Correct this draft gift before entry is completed. The batch recorded
           total is recalculated from the new allocation sum. Stripe gifts stay
@@ -74,6 +79,7 @@ export default async function EditBatchDonationPage({
           batchId={detail.batch.id}
           batchName={detail.batch.name}
           batchOfferingDate={offeringDate}
+          churchName={detail.organizationName}
           funds={funds}
           donationId={donationId}
           initialValues={detail.formValues}

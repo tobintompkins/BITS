@@ -1,7 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 
+import type { Prisma, PrismaClient } from "@/app/generated/prisma/client";
 import { isDatabaseUnavailableError } from "@/lib/db/database-unavailable";
 import { prisma } from "@/lib/db/prisma";
+
+type OrganizationDb = PrismaClient | Prisma.TransactionClient;
 
 export type OrganizationWriteInput = {
   name: string;
@@ -76,16 +79,22 @@ export async function findPrimaryOrganization() {
   }
 }
 
-export async function findOrganizationBySlug(slug: string) {
-  return prisma.organization.findUnique({
+export async function findOrganizationBySlug(
+  slug: string,
+  db: OrganizationDb = prisma,
+) {
+  return db.organization.findUnique({
     where: {
       slug,
     },
   });
 }
 
-export async function createOrganization(data: OrganizationWriteInput) {
-  return prisma.organization.create({
+export async function createOrganization(
+  data: OrganizationWriteInput,
+  db: OrganizationDb = prisma,
+) {
+  return db.organization.create({
     data: {
       ...data,
       active: true,
@@ -97,8 +106,9 @@ export async function createOrganization(data: OrganizationWriteInput) {
 export async function updateOrganization(
   id: string,
   data: Omit<OrganizationWriteInput, "slug">,
+  db: OrganizationDb = prisma,
 ) {
-  return prisma.organization.update({
+  return db.organization.update({
     where: {
       id,
     },
@@ -109,8 +119,9 @@ export async function updateOrganization(
 export async function updateOrganizationLogo(
   id: string,
   logoStorageKey: string | null,
+  db: OrganizationDb = prisma,
 ) {
-  return prisma.organization.update({
+  return db.organization.update({
     where: { id },
     data: { logoStorageKey },
   });

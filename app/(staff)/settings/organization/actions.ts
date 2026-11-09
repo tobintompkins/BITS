@@ -3,7 +3,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
-import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { requireOrganizationEditAccess } from "@/lib/auth/permissions";
 import {
   createOrganizationSettingsActionState,
@@ -56,14 +55,17 @@ export async function saveOrganizationSettingsAction(
     };
   }
 
-  try {
-    const organization = await findPrimaryOrganization();
+  const organization = await findPrimaryOrganization();
+  if (!organization) {
+    return {
+      ...createOrganizationSettingsActionState(values),
+      status: "error",
+      message: "Select a church organization before editing settings.",
+    };
+  }
 
-    if (organization) {
-      await requireOrganizationEditAccess(organization.id);
-    } else {
-      await requireOrganizationEditAccess();
-    }
+  try {
+    await requireOrganizationEditAccess(organization.id);
   } catch (error) {
     return {
       ...createOrganizationSettingsActionState(values),
@@ -106,9 +108,7 @@ export async function saveOrganizationSettingsAction(
   }
 
   try {
-    const userAccount = await getOrCreateUserAccount();
-    const organization = await saveOrganizationSettings(parsed.data, {
-      actorUserAccountId: userAccount?.id ?? null,
+    const saved = await saveOrganizationSettings(parsed.data, {
       logoFile:
         logoFile instanceof File && logoFile.size > 0 ? logoFile : null,
       removeLogo,
@@ -118,14 +118,16 @@ export async function saveOrganizationSettingsAction(
     revalidatePath("/settings/organization");
 
     const savedValues = {
-      ...toOrganizationSettingsFormValues(organization),
-      logoUrl: getLogoPublicUrl(organization.logoStorageKey) ?? "",
+      ...toOrganizationSettingsFormValues(saved.organization),
+      logoUrl: getLogoPublicUrl(saved.organization.logoStorageKey) ?? "",
     };
 
     return {
       ...createOrganizationSettingsActionState(savedValues),
       status: "success",
-      message: "Organization Settings Updated Successfully",
+      message: saved.cleanupNotice
+        ? `Organization Settings Updated Successfully. ${saved.cleanupNotice}`
+        : "Organization Settings Updated Successfully",
     };
   } catch (error) {
     return {

@@ -12,6 +12,7 @@ import {
   formatBatchMoney,
   paymentMethodLabel,
 } from "@/lib/batches/display";
+import { batchNextStep } from "@/lib/batches/next-step";
 import { BATCH_INTEGRITY_MESSAGES } from "@/lib/batches/integrity";
 import { toDateOnlyString } from "@/lib/batches/dates";
 import { parseBatchDonationListQuery } from "@/lib/validation/manual-batch-donation";
@@ -105,6 +106,22 @@ export default async function OfferingBatchDetailPage({
     batch.createdBy.displayName?.trim() ||
     batch.createdBy.primaryEmail ||
     "Church staff";
+  const nextStep = batchNextStep({
+    canAddDonations: detail.canAddDonations,
+    showCompleteEntry: review.showCompleteEntry,
+    canCompleteEntry: review.canCompleteEntry,
+    showReconcile: review.showReconcile,
+    canReconcile: review.canReconcile,
+    showDepositForm: review.showDepositForm,
+    canRecordDeposit: review.canRecordDeposit,
+    showLock: review.showLock,
+    canLock: review.canLock,
+    depositRecorded: Boolean(batch.depositDate && batch.depositReference?.trim()),
+    isLocked: review.isLocked,
+    issues: review.issues,
+  });
+  const secondaryActionClass =
+    "rounded-xl border border-[var(--bits-border)] px-4 py-2 text-sm font-semibold text-[var(--bits-navy)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]";
 
   return (
     <div className="space-y-6">
@@ -122,6 +139,11 @@ export default async function OfferingBatchDetailPage({
           <h1 className="mt-1 text-3xl font-semibold text-[var(--bits-navy)]">
             {batch.name}
           </h1>
+          {detail.organizationName ? (
+            <p className="mt-1 text-sm font-medium text-[var(--bits-navy)]">
+              {detail.organizationName}
+            </p>
+          ) : null}
           <p className="mt-2">
             <span
               className={`rounded-full px-3 py-1 text-xs font-bold ${batchStatusClassName(batch.status)}`}
@@ -131,7 +153,59 @@ export default async function OfferingBatchDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          {detail.canAddDonations ? (
+          {detail.canViewBatchReconciliationReport ? (
+            <Link
+              href={`/reports/batch-reconciliation?batchId=${batch.id}`}
+              className={secondaryActionClass}
+            >
+              Reconciliation report
+            </Link>
+          ) : null}
+          {detail.canEdit ? (
+            <Link
+              href={`/batches/${batch.id}/edit`}
+              className={secondaryActionClass}
+            >
+              Edit Batch
+            </Link>
+          ) : null}
+          {review.isLocked ? (
+            <Link
+              href={`/batches/${batch.id}/corrections`}
+              className="rounded-xl border border-[var(--bits-gold)] bg-white px-4 py-2 text-sm font-semibold text-[var(--bits-navy)]"
+            >
+              Correction Requests
+            </Link>
+          ) : null}
+        </div>
+      </header>
+
+      <section
+        className="rounded-2xl border border-[var(--bits-border)] border-l-4 border-l-[var(--bits-gold)] bg-white p-5 shadow-sm"
+        aria-labelledby="batch-next-action-heading"
+      >
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--bits-gold-hover)]">
+          Next action
+        </p>
+        <h2
+          id="batch-next-action-heading"
+          className="mt-1 text-xl font-semibold text-[var(--bits-navy)]"
+        >
+          {nextStep.label}
+        </h2>
+        {nextStep.explanation ? (
+          <p
+            className={`mt-2 text-sm leading-6 ${
+              nextStep.tone === "readonly"
+                ? "text-[var(--bits-muted)]"
+                : "text-[var(--bits-navy)]"
+            }`}
+          >
+            {nextStep.explanation}
+          </p>
+        ) : null}
+        <div className="mt-4 flex flex-wrap gap-3">
+          {nextStep.action === "add" && detail.canAddDonations ? (
             <Link
               href={`/batches/${batch.id}/donations/new`}
               className="rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
@@ -139,7 +213,7 @@ export default async function OfferingBatchDetailPage({
               Add Donation
             </Link>
           ) : null}
-          {review.showCompleteEntry ? (
+          {nextStep.action === "complete" && review.canCompleteEntry ? (
             <BatchTransitionDialog
               batchId={batch.id}
               kind="complete"
@@ -150,7 +224,7 @@ export default async function OfferingBatchDetailPage({
               reviewVersion={review.reviewVersion}
             />
           ) : null}
-          {review.showReconcile ? (
+          {nextStep.action === "reconcile" && review.canReconcile ? (
             <BatchTransitionDialog
               batchId={batch.id}
               kind="reconcile"
@@ -161,7 +235,15 @@ export default async function OfferingBatchDetailPage({
               reviewVersion={review.reviewVersion}
             />
           ) : null}
-          {review.showLock ? (
+          {nextStep.action === "deposit" && review.showDepositForm ? (
+            <a
+              href="#batch-deposit"
+              className="rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+            >
+              {nextStep.label}
+            </a>
+          ) : null}
+          {nextStep.action === "lock" && review.canLock ? (
             <BatchTransitionDialog
               batchId={batch.id}
               kind="lock"
@@ -172,27 +254,47 @@ export default async function OfferingBatchDetailPage({
               reviewVersion={review.reviewVersion}
             />
           ) : null}
-          <Link
-            href={`/reports/batch-reconciliation?batchId=${batch.id}`}
-            className="rounded-xl border border-[var(--bits-border)] px-4 py-2 text-sm font-semibold text-[var(--bits-navy)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-          >
-            Reconciliation report
-          </Link>
-          {detail.canEdit ? (
-            <Link
-              href={`/batches/${batch.id}/edit`}
-              className="rounded-xl border border-[var(--bits-border)] px-4 py-2 text-sm font-semibold text-[var(--bits-navy)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-            >
-              Edit Batch
-            </Link>
-          ) : null}
-          {review.isLocked ? (
-            <Link href={`/batches/${batch.id}/corrections`} className="rounded-xl border border-[var(--bits-gold)] bg-white px-4 py-2 text-sm font-semibold text-[var(--bits-navy)]">
-              Correction Requests
-            </Link>
-          ) : null}
         </div>
-      </header>
+        {review.showCompleteEntry && nextStep.action !== "complete" ? (
+          <div className="mt-4">
+            <BatchTransitionDialog
+              batchId={batch.id}
+              kind="complete"
+              disabled={!review.canCompleteEntry}
+              recordedTotal={review.recordedTotal}
+              expectedTotal={review.expectedTotal}
+              donationCount={review.donationCount}
+              reviewVersion={review.reviewVersion}
+            />
+          </div>
+        ) : null}
+        {review.showReconcile && nextStep.action !== "reconcile" ? (
+          <div className="mt-3">
+            <BatchTransitionDialog
+              batchId={batch.id}
+              kind="reconcile"
+              disabled={!review.canReconcile}
+              recordedTotal={review.recordedTotal}
+              expectedTotal={review.expectedTotal}
+              donationCount={review.donationCount}
+              reviewVersion={review.reviewVersion}
+            />
+          </div>
+        ) : null}
+        {review.showLock && nextStep.action !== "lock" ? (
+          <div className="mt-3">
+            <BatchTransitionDialog
+              batchId={batch.id}
+              kind="lock"
+              disabled={!review.canLock}
+              recordedTotal={review.recordedTotal}
+              expectedTotal={review.expectedTotal}
+              donationCount={review.donationCount}
+              reviewVersion={review.reviewVersion}
+            />
+          </div>
+        ) : null}
+      </section>
 
       {review.isLocked ? (
         <p
@@ -291,7 +393,10 @@ export default async function OfferingBatchDetailPage({
       batch.status === "LOCKED" ||
       batch.depositDate ||
       batch.depositReference ? (
-        <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
+        <section
+          id="batch-deposit"
+          className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm"
+        >
           <h2 className="text-xl font-semibold text-[var(--bits-navy)]">
             Deposit information
           </h2>

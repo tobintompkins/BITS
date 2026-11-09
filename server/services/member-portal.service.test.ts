@@ -49,6 +49,19 @@ describe("member portal ownership foundation", () => {
     mocks.householdFindMany.mockResolvedValue([]);
   });
 
+  it("returns unavailable when the database connection is refused", async () => {
+    mocks.getOrCreateUserAccount.mockRejectedValue(
+      Object.assign(new Error("connect ECONNREFUSED"), {
+        code: "ECONNREFUSED",
+      }),
+    );
+
+    await expect(getMemberPortalDashboard()).resolves.toEqual({
+      status: "UNAVAILABLE",
+    });
+    expect(mocks.donorFindFirst).not.toHaveBeenCalled();
+  });
+
   it("returns signed out without querying church records", async () => {
     mocks.getOrCreateUserAccount.mockResolvedValue(null);
 

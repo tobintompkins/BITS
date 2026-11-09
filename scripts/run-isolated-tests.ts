@@ -1,18 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { writeSync } from "node:fs";
 
 import { Client } from "pg";
 
 import { loadOriginalV1AcceptanceEnvFiles } from "@/lib/testing/original-v1-acceptance-env";
 import {
   classifyIsolatedDatabasePreflight,
+  describeIsolatedRunnerFailure,
   isolatedTestChildEnv,
+  sanitizeIsolatedRunnerText,
 } from "@/lib/testing/isolated-database";
 
 loadOriginalV1AcceptanceEnvFiles();
 
 function fail(message: string): never {
-  process.stderr.write(`${message}\n`);
+  writeSync(process.stderr.fd, `${sanitizeIsolatedRunnerText(message)}\n`);
   process.exit(2);
 }
 
@@ -63,6 +66,8 @@ async function fingerprintWorkingDatabase(url: string) {
       batch_fp: string;
       household_fp: string;
       household_membership_fp: string;
+      organizations: number;
+      organization_fp: string;
     }>(
       `SELECT
          (SELECT COUNT(*)::int FROM audit_events) AS audits,
@@ -118,7 +123,14 @@ async function fingerprintWorkingDatabase(url: string) {
                      || '|' || "donorId"::text || '|' || "startDate"::text
                      || '|' || COALESCE("endDate"::text, '') || '|' || "updatedAt"::text AS row_key
               FROM household_memberships
-            ) s) AS household_membership_fp`,
+            ) s) AS household_membership_fp,
+         (SELECT COUNT(*)::int FROM organizations) AS organizations,
+         (SELECT md5(COALESCE(string_agg(row_key, ',' ORDER BY row_key), ''))
+            FROM (
+              SELECT id::text || '|' || name || '|' || COALESCE("logoStorageKey", '')
+                     || '|' || "updatedAt"::text AS row_key
+              FROM organizations
+            ) s) AS organization_fp`,
     );
     return result.rows[0];
   } finally {
@@ -163,5 +175,5 @@ async function main() {
 }
 
 main().catch((error) => {
-  fail(error instanceof Error ? error.message : "isolated tests failed");
+  fail(describeIsolatedRunnerFailure(error));
 });

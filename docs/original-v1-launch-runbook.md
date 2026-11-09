@@ -81,6 +81,17 @@ Do not run `npm run db:seed`, `npm run db:migrate`,
 Local schema-setup scripts are for isolated `bits_e2e` or an explicitly
 chosen loopback working database. They are not production migrate.
 
+Core 20, November 4, 2026, rehearsed a **local synthetic** logical backup
+on loopback Postgres.app 18.6. Command:
+`npm run recovery:local-database -- --host 127.0.0.1 --port 5432 --username <local role> --maintenance-database postgres`
+and the same command with `--apply` only after the safety tests pass.
+The apply created `bits_e2e_recovery_2026110502432060350d59_source` and
+`bits_e2e_recovery_2026110502432060350d59_restored`, restored the dump,
+and left both databases for review. It did not restore working `bits`,
+replace a connection string, or prove production backup scheduling,
+point-in-time recovery, or statement PDFs. See
+`docs/original-v1-local-database-recovery.md`.
+
 ## 4. Test-to-production configuration
 
 Copy names from `.env.example` into the host’s secret store. Process
@@ -138,7 +149,10 @@ App rollback does not always need a data restore. A restore can discard newer gi
 - Designated statement TEST target, then production object-store
   backup/restore.
 - Railway TEST project from `docs/original-v1-railway-test-setup.md`, then a later production project.
-- Staff handbook and accessibility review.
+- Live signed-in keyboard and screen-reader pass of original staff
+  screens. Handbook and source accessibility review:
+  `docs/original-v1-staff-handbook.md`,
+  `docs/original-v1-accessibility-review.md`.
 - Release-candidate recertification of install/build/test on the pinned
   Node version.
 
