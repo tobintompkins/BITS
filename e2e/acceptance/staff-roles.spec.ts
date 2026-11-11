@@ -100,7 +100,7 @@ test.describe("original five staff and donor roles", () => {
       await expect(page.getByRole("link", { name: "Add donor" })).toBeVisible();
 
       await page.goto("/reports");
-      await expect(page.getByRole("alert")).toContainText(/permission/i);
+      await expect(page.getByRole("alert", { name: /permission/i })).toBeVisible();
       await expect(page.getByText(manifest.donors.a1.amount)).toHaveCount(0);
 
       const csv = await readCsv(page, contributionCsvPath(manifest));
@@ -184,7 +184,7 @@ test.describe("original five staff and donor roles", () => {
       await expect(page.getByRole("heading", { name: "Donors" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Add donor" })).toHaveCount(0);
       await page.goto("/donors/new");
-      await expect(page.getByRole("alert")).toContainText(/permission/i);
+      await expect(page.getByRole("alert", { name: /permission/i })).toBeVisible();
 
       await page.goto("/reports");
       await expect(
@@ -208,7 +208,9 @@ test.describe("original five staff and donor roles", () => {
     try {
       const { page, manifest } = session;
       await page.goto("/donors");
-      await expect(page.getByRole("alert")).toContainText(/permission|staff|church/i);
+      await expect(
+        page.getByRole("alert", { name: /permission|staff|church/i }),
+      ).toBeVisible();
       await expect(page.getByText(manifest.donors.a2.label)).toHaveCount(0);
 
       const csv = await readCsv(page, contributionCsvPath(manifest));
@@ -236,7 +238,9 @@ test.describe("original five staff and donor roles", () => {
       await row.getByLabel("Intended role").selectOption("DATA_ENTRY");
       await row.getByLabel("I confirm this role change for this existing staff membership.").check();
       await row.getByRole("button", { name: "Save membership" }).click();
-      await expect(page.getByRole("alert")).toContainText("Staff membership updated.");
+      await expect(
+        page.getByRole("alert", { name: "Staff membership updated." }),
+      ).toBeVisible();
     } finally {
       await closeSession(session);
     }

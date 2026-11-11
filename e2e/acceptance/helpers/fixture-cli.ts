@@ -18,8 +18,10 @@ export function runOriginalV1FixtureCli(args: string[], inherit = false) {
   }
 }
 
-export function queryOriginalV1Fixture<T>(op: string): T {
-  const output = runOriginalV1FixtureCli(["query", op]).trim();
+export function queryOriginalV1Fixture<T>(op: string, extra?: string): T {
+  const output = runOriginalV1FixtureCli(
+    extra ? ["query", op, extra] : ["query", op],
+  ).trim();
   const line = output.split("\n").filter(Boolean).at(-1);
   if (!line) {
     throw new Error(`Fixture query ${op} returned no JSON.`);

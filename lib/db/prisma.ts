@@ -49,7 +49,9 @@ function createPrismaClient(connectionString: string) {
       connectionString,
       ...(process.env.VITEST && process.env.BITS_ISOLATED_DATABASE === "1"
         ? { max: 3 }
-        : {}),
+        : process.env.BITS_E2E_ACCEPTANCE === "1"
+          ? { max: 2 }
+          : {}),
     }),
   });
 }

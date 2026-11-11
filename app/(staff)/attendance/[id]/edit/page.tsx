@@ -6,10 +6,8 @@ import {
   getCareAccess,
 } from "@/app/(staff)/care/actions";
 import { getMemberSelectOptions } from "@/app/(staff)/member/actions";
-import {
-  AttendanceForm,
-  mapAttendanceToFormValues,
-} from "@/components/care/attendance-form";
+import { AttendanceForm } from "@/components/care/attendance-form";
+import { mapAttendanceToFormValues } from "@/components/care/care-form-utils";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
 type EditAttendancePageProps = {

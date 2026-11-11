@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { parseOriginalV1AcceptanceConfig } from "@/lib/testing/original-v1-acceptance-config";
 import { loadOriginalV1AcceptanceEnvFiles } from "@/lib/testing/original-v1-acceptance-env";
 import {
@@ -5,15 +8,39 @@ import {
   formatOriginalV1PreflightReport,
   probeOriginalV1AcceptanceTarget,
 } from "@/lib/testing/original-v1-acceptance-preflight";
+import { originalV1AuditIdMayBeRecorded } from "@/lib/testing/original-v1-giving-audit-fixtures";
+import {
+  resolveAcceptanceOrganizationLogoRoot,
+  resolveOwnedOrganizationLogoPath,
+} from "@/lib/storage/organization-logo";
 
 import { cleanupOriginalV1AcceptanceFixtures } from "./cleanup";
-import { readOriginalV1Manifest } from "./manifest";
+import {
+  readOriginalV1Manifest,
+  writeOriginalV1Manifest,
+} from "./manifest";
 import { prepareOriginalV1AcceptanceFixtures } from "./prepare";
 import { createOriginalV1AcceptancePrisma } from "./prisma";
 
+function isolatedLogoFile(organizationId: string, storageKey: string) {
+  const root = resolveAcceptanceOrganizationLogoRoot(process.env, process.cwd());
+  const absolute = resolveOwnedOrganizationLogoPath(organizationId, storageKey);
+  if (!root || !absolute) return null;
+  const relative = path.relative(path.resolve(root), absolute);
+  if (
+    relative === "" ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    return null;
+  }
+  return absolute;
+}
+
 loadOriginalV1AcceptanceEnvFiles();
 
-async function query(op: string) {
+async function query(op: string, extra?: string) {
   const config = parseOriginalV1AcceptanceConfig();
   const manifest = await readOriginalV1Manifest();
   const prisma = createOriginalV1AcceptancePrisma(config);
@@ -58,6 +85,110 @@ async function query(op: string) {
       );
       return;
     }
+    if (op === "settings-snapshot") {
+      const organizations = await prisma.organization.findMany({
+        where: { id: { in: [manifest.orgs.a.id, manifest.orgs.b.id] } },
+        select: { id: true, statementFooterText: true, logoStorageKey: true },
+      });
+      const audits = await prisma.auditEvent.findMany({
+        where: {
+          organizationId: { in: [manifest.orgs.a.id, manifest.orgs.b.id] },
+          entityType: "Organization",
+          action: "UPDATE",
+          entityId: { in: [manifest.orgs.a.id, manifest.orgs.b.id] },
+        },
+        select: { id: true, organizationId: true },
+      });
+      const footer = (id: string) =>
+        organizations.find((row) => row.id === id)?.statementFooterText ?? null;
+      const logo = (id: string) =>
+        organizations.find((row) => row.id === id)?.logoStorageKey ?? null;
+      process.stdout.write(
+        `${JSON.stringify({
+          footerA: footer(manifest.orgs.a.id),
+          footerB: footer(manifest.orgs.b.id),
+          logoKeyA: logo(manifest.orgs.a.id),
+          organizationAuditIdsA: audits
+            .filter((row) => row.organizationId === manifest.orgs.a.id)
+            .map((row) => row.id)
+            .sort(),
+          logoIsolated: Boolean(
+            resolveAcceptanceOrganizationLogoRoot(process.env, process.cwd()),
+          ),
+        })}\n`,
+      );
+      return;
+    }
+    if (op === "logo-file") {
+      const storageKey = extra?.trim() ?? "";
+      const absolute = isolatedLogoFile(manifest.orgs.a.id, storageKey);
+      if (!absolute) {
+        process.stdout.write(
+          `${JSON.stringify({ readable: false, exists: false, byteLength: 0, hex: null })}\n`,
+        );
+        return;
+      }
+      try {
+        const bytes = readFileSync(absolute);
+        const hex = bytes.length <= 4096 ? bytes.toString("hex") : null;
+        process.stdout.write(
+          `${JSON.stringify({ readable: true, exists: true, byteLength: bytes.length, hex })}\n`,
+        );
+      } catch {
+        process.stdout.write(
+          `${JSON.stringify({ readable: true, exists: false, byteLength: 0, hex: null })}\n`,
+        );
+      }
+      return;
+    }
+    if (op === "record-owned-audit") {
+      const auditId = extra?.trim() ?? "";
+      const audit = await prisma.auditEvent.findUnique({
+        where: { id: auditId },
+        select: { id: true, organizationId: true, entityType: true, entityId: true },
+      });
+      const allowed =
+        audit !== null &&
+        originalV1AuditIdMayBeRecorded({
+          auditId: audit.id,
+          organizationId: audit.organizationId,
+          entityType: audit.entityType,
+          entityId: audit.entityId,
+          orgIds: [manifest.orgs.a.id, manifest.orgs.b.id],
+          donationIds: [
+            manifest.donations.a1.id,
+            manifest.donations.a2.id,
+            manifest.donations.b1.id,
+          ],
+        });
+      if (!allowed) {
+        throw new Error("That audit row is not owned by this acceptance run.");
+      }
+      if (!manifest.ownedAuditEventIds.includes(auditId)) {
+        manifest.ownedAuditEventIds.push(auditId);
+        await writeOriginalV1Manifest(manifest);
+      }
+      process.stdout.write(`${JSON.stringify({ recorded: true })}\n`);
+      return;
+    }
+    if (op === "record-owned-logo") {
+      const storageKey = extra?.trim() ?? "";
+      const organizationId = manifest.orgs.a.id;
+      const absolute = isolatedLogoFile(organizationId, storageKey);
+      if (!absolute) {
+        throw new Error("That logo is not inside the isolated acceptance root.");
+      }
+      const known = manifest.ownedLogoKeys.some(
+        (entry) =>
+          entry.organizationId === organizationId && entry.storageKey === storageKey,
+      );
+      if (!known) {
+        manifest.ownedLogoKeys.push({ organizationId, storageKey });
+        await writeOriginalV1Manifest(manifest);
+      }
+      process.stdout.write(`${JSON.stringify({ recorded: true })}\n`);
+      return;
+    }
     throw new Error(`Unknown original-v1 fixture query: ${op}`);
   } finally {
     await prisma.$disconnect();
@@ -65,7 +196,7 @@ async function query(op: string) {
 }
 
 async function main() {
-  const [command, op] = process.argv.slice(2);
+  const [command, op, extra] = process.argv.slice(2);
   if (command === "preflight") {
     const report = diagnoseOriginalV1AcceptanceEnv();
     const baseUrl =
@@ -99,7 +230,7 @@ async function main() {
     return;
   }
   if (command === "query" && op) {
-    await query(op);
+    await query(op, extra);
     return;
   }
   throw new Error(

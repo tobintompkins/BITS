@@ -37,7 +37,7 @@ vi.mock("@/e2e/acceptance/fixtures/manifest", () => ({
 
 import { cleanupOwnedOriginalV1Rows } from "@/e2e/acceptance/fixtures/cleanup";
 
-import { originalV1OwnedAuditEventWhere } from "./original-v1-acceptance-cleanup";
+import { originalV1OwnedAuditEventWhere, originalV1OwnedAuditIdsWhere } from "./original-v1-acceptance-cleanup";
 
 const ORG_A = "org-a";
 const PREFIX_A = "E2E07-runA-";
@@ -114,5 +114,17 @@ describe("original v1 owned audit cleanup", () => {
     expect(deletedWhere.entityId.in).not.toContain(ORG_A);
     expect(deletedWhere).not.toHaveProperty("action");
     expect(deletedWhere).not.toHaveProperty("OR");
+  });
+
+  it("deletes recorded audit rows by exact id inside the fixture churches", () => {
+    const auditId = "55555555-5555-4555-8555-555555555555";
+    const where = originalV1OwnedAuditIdsWhere([ORG_A], [auditId]);
+    expect(where).toEqual({
+      organizationId: { in: [ORG_A] },
+      id: { in: [auditId] },
+    });
+    expect(where).not.toHaveProperty("action");
+    expect(where).not.toHaveProperty("entityId");
+    expect(originalV1OwnedAuditIdsWhere([], [auditId])).toBeNull();
   });
 });

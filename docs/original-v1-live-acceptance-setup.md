@@ -75,6 +75,11 @@ Write only those names into `e2e/.local/acceptance.env`. Do not commit the
 file and do not paste the values into chat. This package cannot create the
 identities for you, and no live pass is claimed.
 
+Core 28A on November 9, 2026 added the Giving Audit and Organization Settings
+cases to this same harness. `playwright test -c playwright.acceptance.config.ts --list`
+listed 33 tests in 10 files and did not run setup or any case. The nine
+identity names were still absent, so the live command was not started.
+
 BITS financial roles are assigned by `e2e/acceptance/fixtures/prepare.ts`.
 Do not create matching Clerk dashboard roles.
 

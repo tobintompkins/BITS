@@ -1,9 +1,9 @@
 # BITS Roadmap Tracker
 
-**Last updated:** November 5, 2026
+**Last updated:** November 9, 2026
 
-**Current handoff:** Original Core 28 resumed Clerk acceptance. Loopback `bits_e2e` is ready. Organizations are disabled on the Development instance, and the two organization IDs and seven emails are absent. No live Playwright case ran. Railway deployment, the TEST storage bucket, and live storage recovery are deferred by the owner. Original v1 is incomplete.
-**Status basis:** Source and Git on November 5, 2026; HEAD `7787b2f` plus uncommitted Core 18–28 documentation and earlier local work. Core 28 did not rerun isolated SQL, Core 20 restore, or the storage probe.
+**Current handoff:** Local Railway TEST preparation is written and not applied. `.railway/railway.ts` proposes the empty project `bits-test` with health check `/visit` and no migration in startup. No project is linked, no database was copied, and no bucket was created. Clerk acceptance is still blocked: the two organization IDs and seven emails are absent. Storage recovery has not been run. Original v1 is incomplete and is not launch-ready.
+**Status basis:** Source and Git on November 9, 2026; HEAD `7787b2f` plus uncommitted Core 18–28A work. Core 28A did not rerun preflight, isolated SQL, Core 20 restore, or the storage probe.
 
 ## How to read this tracker
 
@@ -61,12 +61,12 @@ Source review only. Detailed requirement rows are in `docs/original-v1-requireme
 | Staff invitation delivery | A real provider send and explicit accept | Owner authorization against isolated `bits_e2e`. Mock and Clerk provider code already exist | One authorized live send and one recipient accept, with unknown delivery left for operator reconciliation |
 | Durable statement PDFs (FR-STMT-004, §15.5, §21.3) | Deferred by owner. The Railway Storage Bucket `bits-statements-test` is still unconfigured | Owner, later. See `docs/statement-storage-recovery.md`. Core 28 did not resume it | `statements:storage-probe`, then `--apply`, then `statements:storage-restore -- --apply`, with `executionKind` other than `none`. Those commands were not run |
 | PostgreSQL backups (§15.5, §21.3) | Scheduled production backup and a restore that is not the local synthetic pair | Owner and Railway, the chosen host. Core 20 already rehearsed one local fictional restore on November 4, 2026 | A host backup schedule plus a restore exercise that leaves working `bits` unchanged |
-| Railway TEST and production (§18.4, §21.1) | Deferred by owner. Railway remains the chosen host. No remote project is linked | Owner, later, using `docs/original-v1-railway-test-setup.md`. Core 28 did not create or deploy it | A separate TEST project and empty TEST database. Migrate and deploy stay separate approvals. Do not copy working `bits` |
+| Railway TEST and production (§18.4, §21.1) | Local file prepared. Railway remains the chosen host. No remote project is linked | Owner approval before `railway config apply`, then a separate migrate approval. See `docs/original-v1-railway-test-setup.md` | A separate empty `bits-test` project. Do not copy working `bits` |
 | Signed-in original workflows | Browser use of donors, households, batches, reports, statements, and the portal | Owner, after Clerk. Screens and services already exist | The seven Playwright cases in specification §18.3, signed in |
 | Development seed (§17) | The opt-in command exists and the dry run was reviewed on November 5, 2026. The persistent Grace set was not applied. Default `npm run db:seed` still loads Demo Community Church | Code, only against loopback `bits_e2e`. See `docs/original-v1-development-fixtures.md` | The owner runs the explicit apply against loopback `bits_e2e` and checks the fictional rows. That apply was not run in Core 26 |
-| Giving audit review | The read-only page exists at `/reports/giving-audit`. No signed-in acceptance case covers it yet. Settings browser acceptance is also absent from the harness | Code is in place. Live cases wait until the Development identities exist. None were added in Core 28 | A signed-in review on that page for one administrator and one treasurer, including an older-page link. Unit tests are not that walkthrough |
+| Giving audit review | Signed-in cases now exist for `/reports/giving-audit` and `/settings/organization`. They were listed and not executed | Code is in the Core 07 harness. Live execution waits on the Development identities | `npm run test:e2e:acceptance` after Clerk setup. Core 28A listed the cases and ran none |
 
-**One next action:** enable Organizations on the Clerk Development instance, with Membership optional and automatic first-organization creation left off. Then create two fictional organizations and seven distinct fictional users and write their IDs and emails into gitignored `e2e/.local/acceptance.env`. Do not paste those values into chat. Railway and storage stay deferred. No live acceptance pass is claimed.
+**One next action:** approve or decline the unapplied `bits-test` plan in `docs/original-v1-railway-test-setup.md` before any Railway project, database, migration, bucket, or deploy is created. Clerk Development setup in `docs/original-v1-live-acceptance-setup.md` remains required before signed-in acceptance. Storage probe and restore remain unrun. No launch is claimed.
 
 The original v1 explicitly deferred live/recurring Stripe, refunds/reversals, advanced accounting integration, data deletion, custom/platform roles and additional MFA policy work. Preserve these as Phase 2/future or later-added requirements; do not present them as original v1 blockers. Operational backups and tenant security were original v1 requirements.
 
@@ -356,6 +356,28 @@ The detailed phase lists below preserve requested scope; they are not all comple
 | Railway and storage | Deferred by owner. The Core 27 bucket was not created and the storage probe was not repeated |
 | Original v1 | Still incomplete |
 
+### Core 28A missing browser acceptance (November 9, 2026)
+
+| Check | Result |
+|---|---|
+| Cases added | Giving Audit: administrator and treasurer page through one church, equal timestamps, UTC labels, redacted field names, same-church batch links, a missing target with no link, and the other church's sentinel stays there. Data entry, report viewer, and donor are denied by direct URL. Treasurer is denied Security Activity by direct URL and category query. Organization settings: one fictional footer change, one no-op with no new audit, unauthorized roles have no submit button, and logo replacement only when the acceptance root is inside `e2e/.local` |
+| Discovery | `npx playwright test -c playwright.acceptance.config.ts --list` listed 33 tests in 10 files, including setup and teardown. It did not execute setup or any test. The 11 new cases are in `e2e/acceptance/giving-audit.spec.ts` and `e2e/acceptance/organization-settings.spec.ts` |
+| Live run | Not run. The two organization IDs and seven emails are still absent. Preflight was not repeated. No pass is claimed |
+| Focused checks | Fixture, cleanup, and logo-root tests: 3 files / 13 passed. ESLint on the changed files and `tsc --noEmit` passed. No full suite and no production build |
+| Logo root | The isolated acceptance storage root resolves under `e2e/.local`. The logo case writes there only. It was not executed |
+| Railway and storage | Deferred by owner. No probe, bucket, or deploy |
+| Original v1 | Still incomplete |
+
+### Railway TEST local preparation (November 10, 2026)
+
+| Check | Result |
+|---|---|
+| Scope | One unapplied `.railway/railway.ts`. SDK `railway@3.16.0` typechecks it. CLI 5.71.0 loads it locally. No login, link, remote plan, apply, deploy, remote migration, or database copy |
+| Health check | `/visit`, the existing unsigned page with no database read. `/` remains unsuitable |
+| Start | `npm start` stays `next start`. Installed Next 16.2.10 reads `PORT` and binds `0.0.0.0`. Migrations stay in `npm run db:migrate` |
+| Storage and backups | Bucket `bits-statements-test` is still a separate approval. Railway buckets do not version or snapshot objects. Probe and restore were not run |
+| Original v1 | Still incomplete. Clerk acceptance and storage recovery remain unfinished |
+
 ### Core 23A organization-settings verification (November 5, 2026)
 
 | Check | Result |
@@ -423,7 +445,7 @@ The detailed phase lists below preserve requested scope; they are not all comple
 | Working-tree `npm test` | 222 files / 1,579 passed, 62 skipped |
 | Lint, Prisma validate, `git diff --check` | Passed |
 | Working-tree build + typecheck after | Passed. Existing middleware-to-proxy and NFT warnings remain |
-| Railway | `railway.json` selects Railpack and `npm start`. No healthcheck on `/`. No remote project created |
+| Railway | October 23 review: `railway.json` selected Railpack and `npm start`, with no health check on `/`. No remote project created. The current unapplied file is `.railway/railway.ts` |
 | Rollback docs | Launch runbook no longer auto-restores the active database |
 | Clerk / storage / invitations | Unchanged blockers |
 | Original v1 | Still incomplete |

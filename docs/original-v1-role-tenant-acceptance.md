@@ -138,6 +138,9 @@ two roles on the same destination cannot bypass the working-database guard.
   Development instance (`organization_not_enabled_in_instance`). The two
   organization IDs and seven emails are absent. Live acceptance did not run.
   Owner setup is `docs/original-v1-live-acceptance-setup.md`.
+- Core 28A on November 9, 2026 added Giving Audit and Organization Settings
+  cases to the same harness. Playwright listed 33 tests in 10 files and
+  executed none. Those cases do not replace the missing Development accounts.
 - Railway deployment, the TEST storage bucket, and live storage recovery are
   deferred by the owner. They are not an unknown provider choice.
 - Staff invitation, role-change, and complete staff-management UI remain a

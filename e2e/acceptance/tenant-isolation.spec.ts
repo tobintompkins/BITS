@@ -23,10 +23,10 @@ test.describe("two-church isolation", () => {
       await expect(page.getByText("Drew")).toHaveCount(0);
 
       await page.goto(`/donors/${manifest.donors.b1.id}`);
-      await expect(page.getByRole("alert")).toContainText(/not found/i);
+      await expect(page.getByRole("alert", { name: /not found/i })).toBeVisible();
 
       await page.goto(`/giving-households/${manifest.households.b.id}`);
-      await expect(page.getByRole("alert")).toContainText(/not found/i);
+      await expect(page.getByRole("alert", { name: /not found/i })).toBeVisible();
 
       const csv = await readCsv(page, contributionCsvPath(manifest));
       expect(csv.response.status()).toBe(200);
@@ -69,7 +69,7 @@ test.describe("two-church isolation", () => {
       }>("org-b-totals");
 
       await page.goto(`/donors/${manifest.donors.b1.id}`);
-      await expect(page.getByRole("alert")).toContainText(/not found/i);
+      await expect(page.getByRole("alert", { name: /not found/i })).toBeVisible();
       if (await page.getByRole("button", { name: "Save donor" }).count()) {
         await page.getByLabel("First name").fill("ShouldNotSave");
         await page.getByRole("button", { name: "Save donor" }).click();

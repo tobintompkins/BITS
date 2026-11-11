@@ -10,8 +10,86 @@ The local original-v1 acceptance harness stays on loopback
 `bits_e2e`. Do not point isolated SQL scripts at Railway by bypassing
 their guards.
 
-Manual CARD/ACH stay closed. Clerk Organizations setup stays deferred.
+Manual CARD/ACH stay closed. Clerk Organizations setup stays unfinished.
 Do not copy working `bits` data to Railway.
+
+## Current host file (November 10, 2026)
+
+Railway Config as Code is deprecated. A new service cannot use
+`railway.json`. Existing files stop being read on December 1, 2026.
+This repository now has one unapplied file, `.railway/railway.ts`.
+Railway does not read that directory during a deploy. The CLI evaluates
+it with `railway config plan` (read-only) and `railway config apply`
+(creates billed resources). Neither command has been run. No project is
+linked.
+
+The file proposes project `bits-test`, environment `test`:
+
+| Resource | Setting |
+|---|---|
+| App service `bits` | Build `npm run build`. Start `npm start`. Health check `GET /visit`. No source, so no deploy |
+| Postgres `bits-test-db` | New empty database. `DATABASE_URL` is a reference to that database |
+| Clerk keys | References to shared variables that must already exist on the `test` environment |
+| `APP_BASE_URL` | Ignored by `variables.ignore` entry `bits/APP_BASE_URL`. The create does not send it. A later plan does not delete it |
+| Migrations | Not in `npm start` and not a pre-deploy command |
+| Storage bucket | Not included. Bucket creation stays a separate approval |
+
+`railway` 3.16.0 typechecks the file. `@railway/cli` 5.71.0 is installed
+and its evaluator loaded the file. `npm run railway:check` passed. A remote
+plan has not been run.
+
+The installed Next.js 16.2.10 `next start` command reads `PORT` and
+listens on `0.0.0.0`. The start command does not need an added
+`--port $PORT`. Do not add `-H 127.0.0.1`: a local production start
+bound only to that address returned 500 because the Next proxy could
+not reach itself. The default bind returned 200 for `/visit`. `RAILPACK_NODE_VERSION=24` is a non-secret service
+variable in the file. Restart-on-failure was in the old file and is not
+a field in the current Infrastructure as Code reference, so it was not
+copied into an invented field.
+
+### Setup sequence
+
+Local validation does not create a Railway project. It is already done:
+
+1. `npx tsc -p .railway --noEmit`
+2. `npm run railway:check`
+
+That check uses Railway CLI 5.71.0 to load `.railway/railway.ts`. It
+confirms `APP_BASE_URL` is ignored, no migration command is present, and a
+plan stops until `npm run railway:shared-check` has verified the Clerk
+shared values.
+
+Remote plan requires the Railway project and the `test` environment to
+exist. The app service and database remain uncreated until a later
+approved apply. Do not log in, link, or plan until that project and
+environment are the intended target.
+
+1. Run `railway login`.
+2. Create project `bits-test`. Create an empty environment named `test`.
+   Railway's default environment is named `production`; do not use it.
+   Do not attach the working `bits` database.
+3. In Shared Variables for environment `test`, set
+   `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` from the
+   existing development keys. Do not paste the values into chat or git.
+4. From this repository, run `railway link` and select `bits-test` /
+   `test`.
+5. Run `npm run railway:shared-check`. It stops if either value is missing
+   or empty, and it does not print the values.
+6. Run `railway config plan`. Read it before any approval. Stop if it names
+   another project, the `production` environment, a bucket, a migration, a
+   repository source, or a variable value. The first plan can warn that
+   `bits/APP_BASE_URL` matches nothing. That warning is expected until the
+   service exists and the variable is set.
+7. Approval to apply is separate. Apply would create the empty Postgres
+   service `bits-test-db` and the app service `bits`. It would not copy
+   church data, create a bucket, or deploy.
+8. After the service exists, set its `APP_BASE_URL` to the generated
+   `https` domain before connecting a repository or deploying. Later plans
+   leave that variable alone because it is ignored.
+9. Migration stays a separate approval: back up the still-empty TEST
+   database, then run `npm run db:migrate` against that `DATABASE_URL`
+   only. `prisma.config.ts` reads `DATABASE_URL`. It does not read
+   `DIRECT_URL`.
 
 ## Why `/` is not the health check
 
@@ -24,8 +102,8 @@ role/tenant acceptance.
 used later as an HTTP 200 smoke URL. It does not prove Postgres, Clerk,
 or statement storage. A dedicated health route was **not** added.
 
-`railway.json` therefore omits `healthcheckPath`. Do not add `/` as the
-platform health check.
+The unapplied `.railway/railway.ts` sets the platform health check to
+`/visit`. Do not change it to `/`. A 200 is process liveness only.
 
 ## Runtime pin
 
@@ -43,7 +121,7 @@ from a remote Railway build.
 | npm | `engines.npm` `>=10`. Verified locally with npm 11.8.0. Separate from the Node pin |
 | Requested LTS line | Node 24 |
 | Verified on this machine | Node v24.13.1 / npm 11.8.0 |
-| Host builder | Railpack via `railway.json` (not Docker, not a second Nixpacks file) |
+| Host builder | Railpack by default. No Dockerfile. `.railway/railway.ts` is the unapplied service definition |
 | Optional host env | `RAILPACK_NODE_VERSION=24` is a documented Railpack variable. It is **not** a `railway.json` field. Set it only in the host secret/env store if the owner wants an explicit override |
 | Install / build / start | `npm ci` · `npm run build` (`prisma generate && next build`) · `npm start` (no migrate) |
 
@@ -51,26 +129,17 @@ from a remote Railway build.
 reads the schema and does not migrate. Do not add migrate to start,
 predeploy, or health checks. Remote Node selection is **not** verified.
 
-## Owner steps (all require approval; none executed here)
+## After the remote plan
 
-1. Create a **new** Railway project named for TEST only. Do not reuse a
-   production project.
-2. Attach a **new empty** PostgreSQL plugin in that project. Do not
-   restore working `bits` into it.
-3. Connect the GitHub repository later, or deploy from a reviewed
-   commit. This increment does not push.
-4. Confirm Railpack is the builder (`railway.json`).
-5. Set variable **names** from the table below in the Railway service.
-   Paste values only in the host secret store.
-6. Review pending Prisma migrations by filename and SQL. Apply
-   `npm run db:migrate` only after an explicit owner approval and a
-   backup of that empty TEST database. Not part of `npm start`.
-7. First HTTP check: unsigned `/visit` is 200 and
-   `/api/e2e/original-v1-target` is 404.
-8. Railway deployment and the `bits-statements-test` bucket are deferred
-   by the owner as of Core 28. The setup sheet remains
-   `docs/statement-storage-recovery.md`. Signed-in acceptance is the
-   resumed gate and is blocked until Clerk Organizations are enabled.
+Use the setup sequence above. These checks stay separate from it:
+
+- First HTTP check after a deploy: unsigned `/visit` is 200 and
+  `/api/e2e/original-v1-target` is 404.
+- Leave statement storage unset. The `bits-statements-test` bucket is a
+  separate approval at the published $0.015/GB-month storage price.
+  Railway buckets do not version or snapshot objects. The setup sheet
+  remains `docs/statement-storage-recovery.md`. Signed-in acceptance
+  stays blocked until Clerk Organizations are enabled.
 
 Costs that need owner approval: Railway project, Postgres plugin,
 outbound egress, any object-storage bucket, custom domain, and paid
@@ -86,9 +155,9 @@ Set values in Railway. Do not commit them.
 | `DIRECT_URL` | Same TEST database if a pooler is used |
 | `NODE_ENV` | Railway sets `production` |
 | `PORT` | Railway injects this; `next start` reads it |
-| `APP_BASE_URL` | The TEST public HTTPS origin |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Development `pk_test_` only until production is authorized |
-| `CLERK_SECRET_KEY` | Development `sk_test_` only |
+| `APP_BASE_URL` | Set on service `bits` after its public domain exists. `bits/APP_BASE_URL` is ignored, so later plans do not delete or overwrite it |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Shared variable on environment `test`, development `pk_test_` only |
+| `CLERK_SECRET_KEY` | Shared variable on environment `test`, development `sk_test_` only |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` |
 | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/sign-up` |
 | `BITS_STATEMENT_PDF_BACKEND` | `local` only if the owner accepts ephemeral disks; otherwise leave unconfigured until a TEST bucket exists |

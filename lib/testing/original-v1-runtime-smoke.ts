@@ -13,7 +13,7 @@ export const RAILPACK_NODE_VERSION_HINT = "24";
 /**
  * Official Railpack Node order (https://railpack.com/languages/node/).
  * `engines.node` beats `.nvmrc`. `RAILPACK_NODE_VERSION` beats engines.
- * That variable is a host env name, not a railway.json field.
+ * That variable is a host env name. The unapplied TEST file sets it on the service.
  */
 export const RAILPACK_NODE_PRECEDENCE = [
   "RAILPACK_NODE_VERSION",

@@ -26,6 +26,9 @@
 # production
 /build
 
+# Railway shared-variable check receipt. Names only; never commit it.
+.railway/.shared-check.json
+
 # misc
 .DS_Store
 *.pem

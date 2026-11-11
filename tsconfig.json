@@ -35,10 +35,13 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts",
-    ".next/dev/dev/types/**/*.ts"
+    ".next/dev/dev/types/**/*.ts",
+    ".next/e2e-acceptance/types/**/*.ts",
+    ".next/e2e-acceptance/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    ".tmp"
+    ".tmp",
+    ".railway"
   ]
 }

@@ -70,6 +70,8 @@ export type OriginalV1Manifest = {
     b1Published: OriginalV1StatementRecord;
     b1Generated: OriginalV1StatementRecord;
   };
+  ownedAuditEventIds: string[];
+  ownedLogoKeys: Array<{ organizationId: string; storageKey: string }>;
 };
 
 export async function writeOriginalV1Manifest(manifest: OriginalV1Manifest) {
@@ -83,7 +85,12 @@ export async function writeOriginalV1Manifest(manifest: OriginalV1Manifest) {
 
 export async function readOriginalV1Manifest() {
   const raw = await readFile(ORIGINAL_V1_MANIFEST_PATH, "utf8");
-  return JSON.parse(raw) as OriginalV1Manifest;
+  const parsed = JSON.parse(raw) as OriginalV1Manifest;
+  return {
+    ...parsed,
+    ownedAuditEventIds: parsed.ownedAuditEventIds ?? [],
+    ownedLogoKeys: parsed.ownedLogoKeys ?? [],
+  };
 }
 
 export async function tryReadOriginalV1Manifest() {

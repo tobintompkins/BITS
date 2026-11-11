@@ -30,7 +30,7 @@ inventories are recorded here.
 
 | Requirement | Exact original point | Evidence | Status |
 |---|---|---|---|
-| Railway app + Postgres | §2, §15.5, §21.1 | `railway.json` + `docs/original-v1-railway-test-setup.md`. No remote project is linked | Unverified / blocked — owner must create the TEST project |
+| Railway app + Postgres | §2, §15.5, §21.1 | Unapplied `.railway/railway.ts` + `docs/original-v1-railway-test-setup.md`. No remote project is linked | Unverified / blocked — owner must approve and create the empty `bits-test` project |
 | Separate test and production | §15.5, §21.1 | Isolated `bits_e2e` harness exists; no second Railway project is evidenced | Blocked for production |
 | Durable private PDF storage | §15.5, §21.1, FR-STMT-004 | Local adapter + S3 config; production local writes fail closed unless explicitly allowed. Live TEST target unset | Blocked for production PDFs |
 | Postgres and PDF backups before real donor data | §15.5, §21.3 | `/administration/backup-readiness` is an attestation log, not a backup. Core 20 restored one local synthetic dump into a new disposable database. Production scheduling, point-in-time recovery, and statement PDFs remain unproven | Blocked |
@@ -54,8 +54,8 @@ inventories are recorded here.
 | `engines` / `.nvmrc` | `engines.node` `>=24 <25` (Core 17A). `.nvmrc` is `24`. Railpack official order puts engines above `.nvmrc`. Verified locally on Node v24.13.1. `@types/node` `^20` is types only | Ready locally; remote Railway unverified |
 | Install | `npm ci` in an isolated `/tmp` copy of the current working tree | Recertified in Core 17A |
 | Build / start | `npm run build` is `prisma generate && next build`. `npm start` does not migrate. Railway injects `PORT` | Isolated production-mode start recertified in Core 17A |
-| Bind / health | No dedicated health route. `/` is not the probe. Isolated `GET /visit` returned **200**. `railway.json` still omits `healthcheckPath` | Local unsigned smoke only. Not DB or role acceptance |
-| Host manifest | `railway.json` selects Railpack, `npm start`, restart on failure. Optional `RAILPACK_NODE_VERSION=24` is a host env name, not a `railway.json` field | Ready as config; no remote service linked |
+| Bind / health | No dedicated health route. `/` is not the probe. Isolated `GET /visit` returned **200**. The unapplied file sets the platform check to `/visit` | Local unsigned smoke only. Not DB or role acceptance |
+| Host manifest | `.railway/railway.ts` proposes Railpack's default build, `npm start`, and `/visit`. `railway.json` was removed so a new service has one config. `RAILPACK_NODE_VERSION=24` is a service variable in that file | Ready as unapplied config; no remote service linked |
 | Clerk request boundary | Next 16 `proxy.ts` with the same `clerkMiddleware` and staff matchers. Deprecated `middleware.ts` caused production `next start` to HTTP-proxy `/visit` and the e2e probe to the same port (500) | Local smoke repaired; not a Clerk Organizations setup |
 
 ## Configuration and secret boundaries

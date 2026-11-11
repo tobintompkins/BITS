@@ -120,11 +120,11 @@ browser cases have not been executed with live Clerk.
 
 ## One next action
 
-Core 28 resumed Clerk acceptance and stopped at the Development instance:
-Organizations are disabled (`organization_not_enabled_in_instance`), and the
-two organization IDs and seven emails are absent. Preflight exited 2. No
-acceptance server and no live Playwright case ran. Railway deployment, the
-TEST storage bucket, and live storage recovery are deferred by the owner.
-The next owner action is to enable Organizations and create the fictional
-identities in `docs/original-v1-live-acceptance-setup.md`. This package
-cannot substitute for those accounts, and no live pass is claimed.
+Core 28A added Giving Audit and Organization Settings cases to the existing
+harness and listed them. It did not run them. Organizations are still
+disabled on the Development instance, and the two organization IDs and seven
+emails are absent. The next owner action is to complete that Development
+setup in `docs/original-v1-live-acceptance-setup.md` so the new and existing
+signed-in cases can run. These tests do not create the accounts, and no live
+pass is claimed. Local Railway TEST configuration is prepared and not
+applied. Live storage recovery and the remote project remain unfinished.

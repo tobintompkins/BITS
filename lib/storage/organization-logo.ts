@@ -42,8 +42,31 @@ export function runWithOrganizationLogoSeams<T>(
   return seamStore.run({ ...seamStore.getStore(), ...seams }, fn);
 }
 
+/**
+ * Logo files for the isolated acceptance server stay under the gitignored
+ * storage root. The path is not taken from a request. A production process
+ * and any root outside `e2e/.local` keep the normal public directory.
+ */
+export function resolveAcceptanceOrganizationLogoRoot(
+  env: Record<string, string | undefined>,
+  cwd: string,
+) {
+  if (env.BITS_E2E_ACCEPTANCE !== "1") return null;
+  const configured = env.BITS_FILE_STORAGE_ROOT?.trim();
+  if (!configured) return null;
+  const localRoot = path.resolve(cwd, "e2e", ".local");
+  const resolved = path.resolve(configured);
+  const relative = path.relative(localRoot, resolved);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  return path.join(resolved, "organization-logos");
+}
+
 function publicRoot() {
-  return rootStore.getStore() ?? path.join(process.cwd(), "public");
+  return (
+    rootStore.getStore() ??
+    resolveAcceptanceOrganizationLogoRoot(process.env, process.cwd()) ??
+    path.join(process.cwd(), "public")
+  );
 }
 
 export type LogoValidationResult =

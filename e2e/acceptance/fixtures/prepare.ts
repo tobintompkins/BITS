@@ -8,10 +8,27 @@ import {
 } from "@/app/generated/prisma/client";
 import type { OriginalV1AcceptanceConfig } from "@/lib/testing/original-v1-acceptance-config";
 import { parseOriginalV1AcceptanceConfig } from "@/lib/testing/original-v1-acceptance-config";
+import {
+  ORIGINAL_V1_CHURCH_B_AUDIT_ID,
+  ORIGINAL_V1_GIVING_AUDIT_AT,
+  ORIGINAL_V1_GIVING_AUDIT_ROW_COUNT,
+  ORIGINAL_V1_MISSING_DONATION_ID,
+  ORIGINAL_V1_PRIVATE_CHECK_A,
+  ORIGINAL_V1_PRIVATE_DEPOSIT_A,
+  ORIGINAL_V1_PRIVATE_GOODS_B,
+  ORIGINAL_V1_PRIVATE_NOTE_A,
+  originalV1GivingAuditEventId,
+  originalV1GivingAuditEventIds,
+} from "@/lib/testing/original-v1-giving-audit-fixtures";
 
 import { lookupAllClerkUserIds } from "./clerk-users";
-import { cleanupOwnedOriginalV1Rows } from "./cleanup";
 import {
+  cleanupOwnedOriginalV1Rows,
+  deleteRecordedOriginalV1Audits,
+  resetOriginalV1SentinelSettings,
+} from "./cleanup";
+import {
+  tryReadOriginalV1Manifest,
   writeOriginalV1Manifest,
   type OriginalV1Manifest,
 } from "./manifest";
@@ -70,6 +87,7 @@ export async function prepareOriginalV1AcceptanceFixtures(
       update: {
         name: "E2E07 Northside Chapel",
         displayName: "Northside Chapel",
+        contactEmail: "northside-fixture@example.test",
         active: true,
       },
       create: {
@@ -77,6 +95,7 @@ export async function prepareOriginalV1AcceptanceFixtures(
         name: "E2E07 Northside Chapel",
         displayName: "Northside Chapel",
         slug: e2eSlug("north", config.clerkOrgAId),
+        contactEmail: "northside-fixture@example.test",
         ...churchAddress(),
       },
     });
@@ -85,6 +104,7 @@ export async function prepareOriginalV1AcceptanceFixtures(
       update: {
         name: "E2E07 Southside Chapel",
         displayName: "Southside Chapel",
+        contactEmail: "southside-fixture@example.test",
         active: true,
       },
       create: {
@@ -92,11 +112,22 @@ export async function prepareOriginalV1AcceptanceFixtures(
         name: "E2E07 Southside Chapel",
         displayName: "Southside Chapel",
         slug: e2eSlug("south", config.clerkOrgBId),
+        contactEmail: "southside-fixture@example.test",
         ...churchAddress(),
       },
     });
 
+    const previous = await tryReadOriginalV1Manifest();
     await cleanupOwnedOriginalV1Rows(prisma, [orgA.id, orgB.id], config.prefix);
+    await deleteRecordedOriginalV1Audits(prisma, [orgA.id, orgB.id], [
+      ...originalV1GivingAuditEventIds(),
+      ...(previous?.ownedAuditEventIds ?? []),
+    ]);
+    await resetOriginalV1SentinelSettings(
+      prisma,
+      [orgA.id, orgB.id],
+      previous?.ownedLogoKeys ?? [],
+    );
 
     const roles = await prisma.roleType.findMany({
       where: { code: { in: ROLE_NAMES.map((row) => row.code) } },
@@ -490,6 +521,85 @@ export async function prepareOriginalV1AcceptanceFixtures(
       },
     });
 
+    const occurredAt = new Date(ORIGINAL_V1_GIVING_AUDIT_AT);
+    const ownedAuditEventIds: string[] = [];
+    try {
+      for (let index = 1; index <= ORIGINAL_V1_GIVING_AUDIT_ROW_COUNT; index += 1) {
+        const id = originalV1GivingAuditEventId(index);
+        const linked = index === ORIGINAL_V1_GIVING_AUDIT_ROW_COUNT;
+        const missing = index === ORIGINAL_V1_GIVING_AUDIT_ROW_COUNT - 1;
+        const row = await prisma.auditEvent.create({
+          data: {
+            id,
+            organizationId: orgA.id,
+            actorUserAccountId: users.orgAdmin.id,
+            action: "UPDATE_MANUAL_BATCH_DONATION",
+            entityType: "Donation",
+            entityId: linked
+              ? donationA1.id
+              : missing
+                ? ORIGINAL_V1_MISSING_DONATION_ID
+                : donationA2.id,
+            changeMetadata: {
+              changes: linked
+                ? [{ field: "notes", oldValue: null, newValue: ORIGINAL_V1_PRIVATE_NOTE_A }]
+                : missing
+                  ? [
+                      { field: "checkNumber", oldValue: null, newValue: ORIGINAL_V1_PRIVATE_CHECK_A },
+                      {
+                        field: "depositReference",
+                        oldValue: null,
+                        newValue: ORIGINAL_V1_PRIVATE_DEPOSIT_A,
+                      },
+                    ]
+                  : [{ field: "totalAmount", oldValue: null, newValue: "1.00" }],
+            },
+            occurredAt,
+          },
+        });
+        ownedAuditEventIds.push(row.id);
+      }
+      const churchBAudit = await prisma.auditEvent.create({
+        data: {
+          id: ORIGINAL_V1_CHURCH_B_AUDIT_ID,
+          organizationId: orgB.id,
+          actorUserAccountId: users.multiOrg.id,
+          action: "UPDATE_MANUAL_BATCH_DONATION",
+          entityType: "Donation",
+          entityId: donationB1.id,
+          changeMetadata: {
+            changes: [
+              {
+                field: "goodsOrServicesDescription",
+                oldValue: null,
+                newValue: ORIGINAL_V1_PRIVATE_GOODS_B,
+              },
+            ],
+          },
+          occurredAt,
+        },
+      });
+      ownedAuditEventIds.push(churchBAudit.id);
+    } catch (error) {
+      try {
+        if (ownedAuditEventIds.length) {
+          await prisma.auditEvent.deleteMany({
+            where: {
+              id: { in: ownedAuditEventIds },
+              organizationId: { in: [orgA.id, orgB.id] },
+            },
+          });
+        }
+      } catch (cleanupError) {
+        const originalMessage =
+          error instanceof Error ? error.message : "Giving audit fixture setup failed.";
+        const cleanupMessage =
+          cleanupError instanceof Error ? cleanupError.message : "cleanup failed";
+        throw new Error(`${originalMessage}\nCleanup also failed: ${cleanupMessage}`);
+      }
+      throw error;
+    }
+
     const manifest: OriginalV1Manifest = {
       runId: config.runId,
       prefix,
@@ -558,6 +668,8 @@ export async function prepareOriginalV1AcceptanceFixtures(
         b1: { id: donationB1.id, amount: B1_AMOUNT },
       },
       statements,
+      ownedAuditEventIds,
+      ownedLogoKeys: [],
     };
 
     await writeOriginalV1Manifest(manifest);

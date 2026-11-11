@@ -12,23 +12,12 @@ import {
   sectionBodyClassName,
   sectionClassName,
   sectionHeaderClassName,
-  toDateInputValue,
-  toTimeInputValue,
+  type AttendanceFormValues,
   type MemberOption,
 } from "@/components/care/care-form-utils";
 import { Toast } from "@/components/ui/toast";
 import { attendanceTypeOptions } from "@/lib/constants/care-engagement";
 import { getMemberDisplayName } from "@/lib/utils/member-display";
-
-export type AttendanceFormValues = {
-  memberId: string;
-  attendanceDate: string;
-  serviceName: string;
-  attendanceType: string;
-  checkInTime: string;
-  checkOutTime: string;
-  notes: string;
-};
 
 type AttendanceFormProps = {
   mode: "create" | "edit";
@@ -236,24 +225,4 @@ export function AttendanceForm({
       </form>
     </>
   );
-}
-
-export function mapAttendanceToFormValues(record: {
-  memberId: string;
-  attendanceDate: Date;
-  serviceName: string;
-  attendanceType: string;
-  checkInTime: Date | null;
-  checkOutTime: Date | null;
-  notes: string | null;
-}): AttendanceFormValues {
-  return {
-    memberId: record.memberId,
-    attendanceDate: toDateInputValue(record.attendanceDate),
-    serviceName: record.serviceName,
-    attendanceType: record.attendanceType,
-    checkInTime: toTimeInputValue(record.checkInTime),
-    checkOutTime: toTimeInputValue(record.checkOutTime),
-    notes: record.notes ?? "",
-  };
 }

@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getLogoPublicUrl,
   removeOrganizationLogoFile,
+  resolveAcceptanceOrganizationLogoRoot,
   resolveOwnedOrganizationLogoPath,
   runWithOrganizationLogoRoot,
   runWithOrganizationLogoSeams,
@@ -41,6 +42,32 @@ describe("organization logo files", () => {
       "https://cdn.example.test/logo.png",
     );
     expect(getLogoPublicUrl(null)).toBeNull();
+  });
+
+  it("uses the gitignored acceptance root only for the isolated server", () => {
+    const cwd = path.join(tmpdir(), "bits-logo-root-check");
+    const storage = path.join(cwd, "e2e", ".local", "statement-storage");
+    const accepted = resolveAcceptanceOrganizationLogoRoot(
+      { BITS_E2E_ACCEPTANCE: "1", BITS_FILE_STORAGE_ROOT: storage },
+      cwd,
+    );
+    expect(accepted).toBe(path.join(storage, "organization-logos"));
+    expect(accepted?.startsWith(path.join(cwd, "public"))).toBe(false);
+    expect(
+      resolveAcceptanceOrganizationLogoRoot(
+        { BITS_FILE_STORAGE_ROOT: storage },
+        cwd,
+      ),
+    ).toBeNull();
+    expect(
+      resolveAcceptanceOrganizationLogoRoot(
+        {
+          BITS_E2E_ACCEPTANCE: "1",
+          BITS_FILE_STORAGE_ROOT: path.join(cwd, "public"),
+        },
+        cwd,
+      ),
+    ).toBeNull();
   });
 
   it("stages a unique file and leaves an existing same-extension logo untouched", async () => {
