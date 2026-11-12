@@ -24,9 +24,12 @@ test.describe("original ledger workflow", () => {
       await expect(page.getByRole("heading", { name: `${manifest.prefix}Ledger Sunday` })).toBeVisible();
 
       await page.getByRole("link", { name: "Add Donation" }).click();
+      const [donorLast, donorFirst] = manifest.donors.a1.label.split(", ");
       await page.getByPlaceholder("Name, email, or phone").fill(manifest.donors.a1.label);
       await page.getByRole("button", { name: "Search donors" }).click();
-      await expect(page.getByText(manifest.donors.a1.label)).toBeVisible();
+      await expect(
+        page.getByRole("radio", { name: new RegExp(`${donorFirst} ${donorLast}`) }),
+      ).toBeVisible();
       await page.getByRole("radio").first().check();
       await page.getByLabel("Payment method").selectOption("CHECK");
       await page.getByLabel("Check number").fill("441");

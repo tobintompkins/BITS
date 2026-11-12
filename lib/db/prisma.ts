@@ -1,3 +1,4 @@
+import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "@/app/generated/prisma/client";
@@ -43,16 +44,31 @@ const REQUIRED_DELEGATES = [
   "childPickupCheckoutVerification",
 ] as const;
 
+type PgWithPools = typeof pg & { __bitsPools?: Map<string, pg.Pool> };
+
+function sharedPool(connectionString: string, max: number) {
+  const host = pg as PgWithPools;
+  const pools = host.__bitsPools ?? new Map<string, pg.Pool>();
+  host.__bitsPools = pools;
+  const existing = pools.get(`${max}:${connectionString}`);
+  if (existing) return existing;
+  const pool = new pg.Pool({ connectionString, max });
+  pools.set(`${max}:${connectionString}`, pool);
+  return pool;
+}
+
 function createPrismaClient(connectionString: string) {
+  const max =
+    process.env.VITEST && process.env.BITS_ISOLATED_DATABASE === "1"
+      ? 3
+      : process.env.BITS_E2E_ACCEPTANCE === "1"
+        ? 5
+        : 10;
+  // PrismaPg opens a new pool on every connect when given a config object.
+  // Next re-evaluates this module often, so the one pool has to live on the
+  // external pg module rather than on this module's global cache.
   return new PrismaClient({
-    adapter: new PrismaPg({
-      connectionString,
-      ...(process.env.VITEST && process.env.BITS_ISOLATED_DATABASE === "1"
-        ? { max: 3 }
-        : process.env.BITS_E2E_ACCEPTANCE === "1"
-          ? { max: 2 }
-          : {}),
-    }),
+    adapter: new PrismaPg(sharedPool(connectionString, max)),
   });
 }
 

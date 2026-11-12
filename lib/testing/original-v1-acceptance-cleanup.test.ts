@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   householdMembershipDeleteMany: vi.fn(),
   householdUpdateMany: vi.fn(),
   householdDeleteMany: vi.fn(),
+  offeringTypeFindMany: vi.fn(),
   offeringTypeDeleteMany: vi.fn(),
   auditDeleteMany: vi.fn(),
 }));
@@ -67,7 +68,10 @@ const prisma = {
     deleteMany: mocks.householdDeleteMany,
   },
   householdMembership: { deleteMany: mocks.householdMembershipDeleteMany },
-  offeringType: { deleteMany: mocks.offeringTypeDeleteMany },
+  offeringType: {
+    findMany: mocks.offeringTypeFindMany,
+    deleteMany: mocks.offeringTypeDeleteMany,
+  },
   auditEvent: { deleteMany: mocks.auditDeleteMany },
 };
 
@@ -79,6 +83,7 @@ describe("original v1 owned audit cleanup", () => {
     mocks.batchFindMany.mockResolvedValue([]);
     mocks.donationFindMany.mockResolvedValue([]);
     mocks.householdFindMany.mockResolvedValue([]);
+    mocks.offeringTypeFindMany.mockResolvedValue([]);
   });
 
   it("scopes deletes to owned entity IDs and never to action names", () => {
@@ -114,6 +119,18 @@ describe("original v1 owned audit cleanup", () => {
     expect(deletedWhere.entityId.in).not.toContain(ORG_A);
     expect(deletedWhere).not.toHaveProperty("action");
     expect(deletedWhere).not.toHaveProperty("OR");
+  });
+
+  it("includes a prefix-owned offering type in the audit cleanup before deleting it", async () => {
+    const fundId = "66666666-6666-4666-8666-666666666666";
+    mocks.offeringTypeFindMany.mockResolvedValue([{ id: fundId }]);
+
+    await cleanupOwnedOriginalV1Rows(prisma as never, [ORG_A], PREFIX_A);
+
+    expect(mocks.auditDeleteMany.mock.calls[0][0].where.entityId.in).toContain(fundId);
+    expect(mocks.offeringTypeDeleteMany).toHaveBeenCalledWith({
+      where: { id: { in: [fundId] }, organizationId: { in: [ORG_A] } },
+    });
   });
 
   it("deletes recorded audit rows by exact id inside the fixture churches", () => {

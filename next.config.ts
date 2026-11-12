@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
     root: appRoot,
   },
   allowedDevOrigins: ["127.0.0.1"],
+  serverExternalPackages: ["pg", "@prisma/adapter-pg"],
   images: {
     remotePatterns: [
       {

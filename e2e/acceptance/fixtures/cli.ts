@@ -40,6 +40,31 @@ function isolatedLogoFile(organizationId: string, storageKey: string) {
 
 loadOriginalV1AcceptanceEnvFiles();
 
+function money(value: { toString(): string } | null | undefined) {
+  if (value == null) return null;
+  const [whole, fraction = ""] = value.toString().split(".");
+  return `${whole}.${(fraction + "00").slice(0, 2)}`;
+}
+
+function statusChange(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || !("changes" in metadata)) {
+    return null;
+  }
+  const changes = (metadata as { changes?: unknown }).changes;
+  if (!Array.isArray(changes)) return null;
+  const status = changes.find(
+    (row) =>
+      Boolean(row) &&
+      typeof row === "object" &&
+      (row as { field?: string }).field === "status",
+  ) as { oldValue?: unknown; newValue?: unknown } | undefined;
+  if (!status) return null;
+  return {
+    oldValue: typeof status.oldValue === "string" ? status.oldValue : null,
+    newValue: typeof status.newValue === "string" ? status.newValue : null,
+  };
+}
+
 async function query(op: string, extra?: string) {
   const config = parseOriginalV1AcceptanceConfig();
   const manifest = await readOriginalV1Manifest();
@@ -187,6 +212,109 @@ async function query(op: string, extra?: string) {
         await writeOriginalV1Manifest(manifest);
       }
       process.stdout.write(`${JSON.stringify({ recorded: true })}\n`);
+      return;
+    }
+    if (op === "owned-offering-type" || op === "owned-batch") {
+      const name = extra?.trim() ?? "";
+      if (!name.startsWith(manifest.prefix)) {
+        throw new Error("That name is not owned by this acceptance run.");
+      }
+      if (op === "owned-offering-type") {
+        const fund = await prisma.offeringType.findFirst({
+          where: { organizationId: manifest.orgs.a.id, name },
+          select: {
+            name: true,
+            code: true,
+            description: true,
+            active: true,
+            displayOrder: true,
+            defaultTaxDeductible: true,
+          },
+        });
+        const allocations = fund
+          ? await prisma.donationAllocation.findMany({
+              where: {
+                organizationId: manifest.orgs.a.id,
+                offeringType: { organizationId: manifest.orgs.a.id, name },
+              },
+              select: { amount: true },
+            })
+          : [];
+        process.stdout.write(
+          `${JSON.stringify({
+            fund: fund
+              ? {
+                  name: fund.name,
+                  code: fund.code,
+                  description: fund.description,
+                  active: fund.active,
+                  displayOrder: fund.displayOrder,
+                  defaultTaxDeductible: fund.defaultTaxDeductible,
+                }
+              : null,
+            allocationCount: allocations.length,
+            allocationAmounts: allocations.map((row) => money(row.amount)),
+          })}\n`,
+        );
+        return;
+      }
+      const batch = await prisma.offeringBatch.findFirst({
+        where: { organizationId: manifest.orgs.a.id, name },
+        select: {
+          id: true,
+          status: true,
+          expectedTotal: true,
+          recordedTotal: true,
+          depositDate: true,
+          depositReference: true,
+        },
+      });
+      const donations = batch
+        ? await prisma.donation.findMany({
+            where: { organizationId: manifest.orgs.a.id, batchId: batch.id },
+            select: {
+              totalAmount: true,
+              allocations: {
+                select: { amount: true, offeringType: { select: { name: true } } },
+              },
+            },
+          })
+        : [];
+      const lockAudits = batch
+        ? await prisma.auditEvent.findMany({
+            where: {
+              organizationId: manifest.orgs.a.id,
+              entityType: "OfferingBatch",
+              entityId: batch.id,
+              action: "LOCK_OFFERING_BATCH",
+            },
+            select: { changeMetadata: true },
+          })
+        : [];
+      process.stdout.write(
+        `${JSON.stringify({
+          batch: batch
+            ? {
+                status: batch.status,
+                expectedTotal: money(batch.expectedTotal),
+                recordedTotal: money(batch.recordedTotal),
+                depositDate: batch.depositDate
+                  ? batch.depositDate.toISOString().slice(0, 10)
+                  : null,
+                depositReference: batch.depositReference,
+              }
+            : null,
+          donationTotals: donations.map((row) => money(row.totalAmount)),
+          allocations: donations.flatMap((row) =>
+            row.allocations.map((allocation) => ({
+              fund: allocation.offeringType.name,
+              amount: money(allocation.amount),
+            })),
+          ),
+          lockAuditCount: lockAudits.length,
+          lockStatus: statusChange(lockAudits[0]?.changeMetadata),
+        })}\n`,
+      );
       return;
     }
     throw new Error(`Unknown original-v1 fixture query: ${op}`);

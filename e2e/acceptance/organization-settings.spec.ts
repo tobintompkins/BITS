@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import type { OriginalV1AcceptanceRole } from "@/lib/testing/original-v1-acceptance-config";
 import { ORIGINAL_V1_SETTINGS_FOOTER } from "@/lib/testing/original-v1-giving-audit-fixtures";
@@ -34,6 +34,18 @@ function snapshot() {
   return queryOriginalV1Fixture<SettingsSnapshot>("settings-snapshot");
 }
 
+async function saveOrganizationSettings(page: Page) {
+  const status = page.getByRole("status");
+  await expect(status).toBeHidden();
+  await page.getByRole("button", { name: "Save Changes" }).click({ noWaitAfter: true });
+  await expect(status).toContainText("Organization Settings Updated Successfully");
+  const dismiss = page.getByRole("button", { name: "Dismiss notification" });
+  if (await dismiss.isVisible()) {
+    await dismiss.click();
+  }
+  await expect(status).toBeHidden();
+}
+
 function addedAuditIds(before: string[], after: string[]) {
   const seen = new Set(before);
   return after.filter((id) => !seen.has(id));
@@ -55,20 +67,14 @@ test.describe("organization settings acceptance", () => {
       await expect(page.getByLabel("Email")).not.toHaveValue("");
       await expect(page.getByLabel("Statement Footer")).toHaveValue(before.footerA ?? "");
 
-      await page.getByRole("button", { name: "Save Changes" }).click();
-      await expect(page.getByRole("status")).toContainText(
-        "Organization Settings Updated Successfully",
-      );
+      await saveOrganizationSettings(page);
       const noOp = snapshot();
       expect(noOp.organizationAuditIdsA).toEqual(before.organizationAuditIdsA);
       expect(noOp.footerB).toBe(before.footerB);
 
       await page.getByLabel("Statement Footer").fill(ORIGINAL_V1_SETTINGS_FOOTER);
-      await page.getByRole("button", { name: "Save Changes" }).click();
-      await expect(page.getByRole("status")).toContainText(
-        "Organization Settings Updated Successfully",
-      );
-      await page.reload();
+      await saveOrganizationSettings(page);
+      await page.goto("/settings/organization", { waitUntil: "domcontentloaded" });
       await expect(page.getByLabel("Statement Footer")).toHaveValue(ORIGINAL_V1_SETTINGS_FOOTER);
       const changed = snapshot();
       const created = addedAuditIds(before.organizationAuditIdsA, changed.organizationAuditIdsA);
@@ -77,10 +83,7 @@ test.describe("organization settings acceptance", () => {
       expect(changed.footerB).toBe(before.footerB);
       queryOriginalV1Fixture("record-owned-audit", created[0]);
 
-      await page.getByRole("button", { name: "Save Changes" }).click();
-      await expect(page.getByRole("status")).toContainText(
-        "Organization Settings Updated Successfully",
-      );
+      await saveOrganizationSettings(page);
       const secondNoOp = snapshot();
       expect(secondNoOp.organizationAuditIdsA).toEqual(changed.organizationAuditIdsA);
 
@@ -102,10 +105,7 @@ test.describe("organization settings acceptance", () => {
           mimeType: "image/png",
           buffer: PNG_A,
         });
-        await page.getByRole("button", { name: "Save Changes" }).click();
-        await expect(page.getByRole("status")).toContainText(
-          "Organization Settings Updated Successfully",
-        );
+        await saveOrganizationSettings(page);
         const firstLogo = snapshot();
         expect(firstLogo.logoKeyA).toBeTruthy();
         const firstFile = queryOriginalV1Fixture<LogoFile>("logo-file", firstLogo.logoKeyA ?? "");
@@ -119,10 +119,7 @@ test.describe("organization settings acceptance", () => {
           mimeType: "image/png",
           buffer: PNG_B,
         });
-        await page.getByRole("button", { name: "Save Changes" }).click();
-        await expect(page.getByRole("status")).toContainText(
-          "Organization Settings Updated Successfully",
-        );
+        await saveOrganizationSettings(page);
         const secondLogo = snapshot();
         expect(secondLogo.logoKeyA).toBeTruthy();
         expect(secondLogo.logoKeyA).not.toBe(firstLogo.logoKeyA);
@@ -134,10 +131,7 @@ test.describe("organization settings acceptance", () => {
         queryOriginalV1Fixture("record-owned-logo", secondLogo.logoKeyA ?? "");
 
         await page.getByRole("button", { name: "Remove Logo" }).click();
-        await page.getByRole("button", { name: "Save Changes" }).click();
-        await expect(page.getByRole("status")).toContainText(
-          "Organization Settings Updated Successfully",
-        );
+        await saveOrganizationSettings(page);
         const removed = snapshot();
         expect(removed.logoKeyA).toBeNull();
         expect(queryOriginalV1Fixture<LogoFile>("logo-file", secondLogo.logoKeyA ?? "").exists).toBe(
@@ -146,10 +140,7 @@ test.describe("organization settings acceptance", () => {
       }
 
       await page.getByLabel("Statement Footer").fill(before.footerA ?? "");
-      await page.getByRole("button", { name: "Save Changes" }).click();
-      await expect(page.getByRole("status")).toContainText(
-        "Organization Settings Updated Successfully",
-      );
+      await saveOrganizationSettings(page);
       const restored = snapshot();
       expect(restored.footerA).toBe(before.footerA);
       expect(restored.footerB).toBe(before.footerB);

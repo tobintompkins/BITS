@@ -137,12 +137,14 @@ export async function cleanupOwnedOriginalV1Rows(
     });
   }
 
-  await prisma.offeringType.deleteMany({
+  const offeringTypes = await prisma.offeringType.findMany({
     where: {
       organizationId: { in: orgIds },
       name: { startsWith: prefix },
     },
+    select: { id: true },
   });
+  const offeringTypeIds = offeringTypes.map((row) => row.id);
 
   const ownedIds = [
     ...donorIds,
@@ -150,10 +152,17 @@ export async function cleanupOwnedOriginalV1Rows(
     ...batchIds,
     ...donationIds,
     ...statementIds,
+    ...offeringTypeIds,
   ];
   const auditWhere = originalV1OwnedAuditEventWhere(orgIds, ownedIds);
   if (auditWhere) {
     await prisma.auditEvent.deleteMany({ where: auditWhere });
+  }
+
+  if (offeringTypeIds.length) {
+    await prisma.offeringType.deleteMany({
+      where: { id: { in: offeringTypeIds }, organizationId: { in: orgIds } },
+    });
   }
 }
 

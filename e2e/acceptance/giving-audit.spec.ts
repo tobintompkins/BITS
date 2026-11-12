@@ -106,7 +106,9 @@ test.describe("giving audit acceptance", () => {
 
       await page.goto("/reports/giving-audit?category=PRIVACY");
       await expect(
-        page.getByRole("alert", { name: "Choose a valid giving audit filter." }),
+        page.locator("[role='alert']").filter({
+          hasText: "Choose a valid giving audit filter.",
+        }),
       ).toBeVisible();
       await expect(page.getByText(ORIGINAL_V1_PRIVATE_NOTE_A)).toHaveCount(0);
       expect(ORIGINAL_V1_GIVING_AUDIT_PAGE_SIZE + 1).toBe(ORIGINAL_V1_GIVING_AUDIT_ROW_COUNT);

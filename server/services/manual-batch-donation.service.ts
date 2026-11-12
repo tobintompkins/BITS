@@ -200,6 +200,15 @@ export async function searchDonorsForBatchDonation(rawQuery: string) {
       ],
     });
   }
+  const commaParts = q.split(",").map((part) => part.trim()).filter(Boolean);
+  if (commaParts.length >= 2) {
+    filters.push({
+      AND: [
+        { lastName: { contains: commaParts[0], mode: "insensitive" } },
+        { firstName: { contains: commaParts.slice(1).join(" "), mode: "insensitive" } },
+      ],
+    });
+  }
   if (digits.length >= 4) {
     filters.push({ phone: { contains: digits } });
     filters.push({ phone: { contains: digits.slice(-4) } });

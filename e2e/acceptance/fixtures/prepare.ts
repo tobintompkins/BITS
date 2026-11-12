@@ -324,6 +324,17 @@ export async function prepareOriginalV1AcceptanceFixtures(
         name: `${prefix}General`,
         code: `E2E07A${config.runId}`.slice(0, 64),
         defaultTaxDeductible: true,
+        displayOrder: 0,
+        active: true,
+      },
+    });
+    await prisma.offeringType.create({
+      data: {
+        organizationId: orgA.id,
+        name: `${prefix}Building`,
+        code: `E2E07C${config.runId}`.slice(0, 64),
+        defaultTaxDeductible: true,
+        displayOrder: 1,
         active: true,
       },
     });
