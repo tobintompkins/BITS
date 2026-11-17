@@ -6,11 +6,18 @@ import { REQUIRED_CLERK_SHARED_KEYS } from "./shared-variables.ts";
 
 /**
  * Desired TEST graph for Railway CLI 5.71.0.
- * Not linked and not applied.
+ * Linked to project bits-test, environment test.
+ *
+ * This file is a named partial. A whole-project plan on November 16 showed
+ * a delete of bucket bits-statements-test. That plan was not applied.
+ * The named partial was applied and owns only service bits and database
+ * bits-test-db. A named partial only deletes resources it owns, and that
+ * bucket is not owned. Do not remove the partial or run a whole-project apply.
  *
  * APP_BASE_URL is ignored by the variable policy. The first create does not
  * send it, and a later plan does not delete it after it is set on the service.
  */
+export const partial = "bits-app";
 const TEST_PROJECT = "bits-test";
 const TEST_ENVIRONMENT = "test";
 

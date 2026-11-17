@@ -1,0 +1,9 @@
+# Root-only. A bare storage/ pattern would also exclude lib/storage.
+/.env
+/.env.*
+/e2e/.local/
+/storage/
+/.clerk/
+*.pem
+*.dump
+*.sql.gz

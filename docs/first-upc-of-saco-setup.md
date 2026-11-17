@@ -1,0 +1,29 @@
+# First UPC of Saco setup — November 15, 2026
+
+The owner confirmed the stored name/display name First UPC of Saco, mailing address 110 Old Orchard Rd, Saco, ME 04072, US, and America/New_York. EIN, contact phone/email/website, statement footer and logo remain unset. No old gifts or people were moved.
+
+A new empty organization and one ORG_ADMIN membership for the existing owner account were created in working `bits`, with an organization-creation audit. A separate Clerk Development organization was created using that existing verified account as creator. The Clerk application name, test chapels, membership limits and pending invitation were not changed. Clerk organization slugs are disabled; the mapping uses its generated organization ID, not a Clerk slug. The BITS slug is `first-upc-of-saco`.
+
+The local gitignored `.env` sets BITS_PUBLIC_ORGANIZATION_SLUG to the new BITS slug. Public homepage prayer data, public prayer submission, public events, public service alerts and public giving use an explicit public-site resolver independent of the caller's private session. Unset, missing or inactive configuration fails closed; there is no oldest-church fallback. Portal giving retains its private session context. Public content remains subject to existing publication/privacy rules.
+
+`/select-organization` lists only active BITS memberships with active Clerk-linked churches for the signed-in active account. Choosing a church calls Clerk's official setActive API. Private staff/portal layouts direct unresolved sessions to that selection page. No saved cookie or membership grant is used; an unknown active Clerk organization still does not fall back to another church. Fresh sign-in with no active organization and multiple BITS memberships requires selection. Existing unlinked legacy church records are preserved but are not offered as Clerk choices. No records are merged or deleted.
+
+Use http://localhost:3000/select-organization, sign in with the existing owner account, and choose First UPC of Saco. This user-driven session selection is still required; setup did not impersonate the owner or modify a live session. Verify the staff header after choosing. A fresh-sign-in browser walkthrough has not yet been performed.
+
+Before mutation, a new custom-format pg_dump was stored under gitignored e2e/.local/backups. pg_restore decoded the full archive to /dev/null successfully. This proves archive readability, not an actual restore rehearsal. The private setup-result JSON records the backup checksum and before-table fingerprints. Inside the creation transaction, complete row-content fingerprints of every pre-existing public table were compared while excluding only the new organization, membership and audit; all matched. No schema migration ran.
+
+Validation: 240 unit files / 1,692 passed, 62 skipped; typecheck and changed-file lint passed. Homepage returned 200 and unsigned church selection returned 307 to sign-in. Live data readback verified new membership and empty church. Production build result is recorded after completion below. Railway and the Northside invitation remain unchanged. Original v1 is not launch-ready.
+
+Production validation: a temporary-copy `npm run build` using the normal Turbopack builder passed, including `/select-organization`; the existing member-document tracing warning remains. The working dev cache was not replaced. An earlier alternate Webpack build failed on the existing QR `node:crypto` client import; Webpack is not the configured builder and was not adopted. Temporary copies were removed. Public homepage/events/giving returned 200 and contained none of the checked legacy church/event labels.
+
+## Owner portal connection — November 15, 2026
+
+At the owner’s explicit request, created one active donor in First UPC of Saco using the existing Clerk-verified first/last name and matching account email, linked to that same BITS user account. No personal address/phone was inferred and no old gifts moved. The create/link audit and donor were committed together. A fresh private custom-format backup was decoded successfully before the write. Every pre-existing public-table row-content fingerprint matched inside the transaction, excluding only the newly created donor and audit. Readback: one active owner-linked donor, zero gifts, zero statements. Existing administrator access remains. No Clerk account, roles, organization, invitation or Railway setting was changed. The owner should refresh `/portal` with First UPC of Saco selected; live browser confirmation remains pending.
+
+## Access verification — November 16, 2026
+
+A read-only check found the same Saco organization, active owner administrator membership, and one linked active donor. That donor still has zero gifts and zero statements. The four First Community gifts remain on a different donor. Clerk Development still shows the owner only in First UPC of Saco, and that membership matches the stored BITS organization id. No membership, donor, gift, invitation, or church was created or changed.
+
+The working app was already serving http://localhost:3000. Unsigned public home, giving, and events returned 200 for Saco, with an empty prayer wall and no posted public events. No application defect was confirmed, and no code was changed.
+
+The owner later signed in through the normal Clerk screen. Church selection offered only First UPC of Saco. Choosing it opened the Leadership Portal, and a reload kept “First UPC of Saco · Organization Admin.” The Saco donor page said “Connected to a portal account.” The Member Portal showed that church and donor, zero 2026 gifts, and no published statements. The unconnected-record notice was absent. The Saco contribution report for the year through November 16 showed 0 gifts and did not list First Community. No church, donor, or gift record was changed.

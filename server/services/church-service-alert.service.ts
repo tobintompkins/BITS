@@ -1,3 +1,4 @@
+import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 import { getAnnouncementAccess } from "@/lib/auth/announcement-permissions";
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { prisma } from "@/lib/db/prisma";
@@ -156,7 +157,7 @@ export async function getChurchServiceAlerts(
 export async function getPublicChurchServiceAlert(
   now = new Date(),
 ): Promise<PublicChurchServiceAlertView> {
-  const organization = await findPrimaryOrganization();
+  const organization = await findPublicOrganization();
   if (!organization) return { status: "NONE" };
 
   const record = await prisma.churchServiceAlert.findFirst({

@@ -35,14 +35,15 @@ const ORG_B = { id: "00000000-0000-4000-8000-00000000a002", active: true };
 describe("findPrimaryOrganization", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.stubEnv("BITS_PUBLIC_ORGANIZATION_SLUG", "public-church");
     mocks.auth.mockResolvedValue({ userId: null, orgId: null });
   });
 
-  it("returns the first organization for signed-out public pages", async () => {
+  it("returns only the configured organization for signed-out public pages", async () => {
     mocks.findFirst.mockResolvedValue(ORG_A);
     await expect(findPrimaryOrganization()).resolves.toEqual(ORG_A);
     expect(mocks.findFirst).toHaveBeenCalledWith({
-      orderBy: { createdAt: "asc" },
+      where: { slug: "public-church", active: true },
     });
     expect(mocks.findMany).not.toHaveBeenCalled();
   });

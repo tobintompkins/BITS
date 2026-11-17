@@ -1,3 +1,4 @@
+import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 import { auth } from "@clerk/nextjs/server";
 
 import type { Prisma, PrismaClient } from "@/app/generated/prisma/client";
@@ -25,21 +26,13 @@ export type OrganizationWriteInput = {
   logoStorageKey?: string | null;
 };
 
-async function oldestOrganization() {
-  return prisma.organization.findFirst({
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-}
-
 /**
  * Resolve the current church.
  *
  * Signed-in callers use the active Clerk organization, then exactly one
  * active membership. A lone active church is not authorization. Signed-out
- * public pages keep the legacy oldest-organization fallback for branding
- * only; that path must not grant financial or staff privileges.
+ * public callers use the configured public church only; that path
+ * must not grant financial or staff privileges.
  */
 export async function findPrimaryOrganization() {
   try {
@@ -72,7 +65,7 @@ export async function findPrimaryOrganization() {
       return memberships.length === 1 ? memberships[0].organization : null;
     }
 
-    return await oldestOrganization();
+    return await findPublicOrganization();
   } catch (error) {
     if (!isDatabaseUnavailableError(error)) throw error;
     return null;

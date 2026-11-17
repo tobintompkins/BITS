@@ -22,7 +22,7 @@ export default async function TestGivingSuccessPage({
 
   try {
     if (!sessionId) throw new Error("Stripe checkout reference is missing.");
-    receipt = await recordStripeTestCheckout(sessionId);
+    receipt = await recordStripeTestCheckout(sessionId, "public");
   } catch (caught) {
     error =
       caught instanceof Error

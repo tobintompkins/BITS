@@ -2,10 +2,10 @@ import Link from "next/link";
 
 import { DisplayOptions } from "@/components/accessibility/display-options";
 import { findEvents } from "@/server/repositories/event.repository";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 
 export default async function PublicChurchEventsPage() {
-  const organization = await findPrimaryOrganization();
+  const organization = await findPublicOrganization();
   const events = organization
     ? (
         await findEvents(organization.id, {

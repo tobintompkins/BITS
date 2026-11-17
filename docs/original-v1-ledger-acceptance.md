@@ -181,3 +181,23 @@ not deleted.
 - No working-database gift edits, invitations, charges, or object-store writes.
 
 Original v1 remains incomplete.
+
+## Anonymous gift entry — November 16, 2026
+
+`npm run test:isolated -- server/services/anonymous-gift.integration.test.ts` passed 1 file / 1 test on `bits_e2e`. A throwaway organization recorded one identified check for 10.00 and one anonymous cash gift for 5.00. The anonymous row has no donor. The batch total is 15.00. Donor-statement selection returns only the identified gift. After entry is complete, another anonymous gift is rejected and the two gifts remain. The test deleted only its own rows. Working fingerprints were unchanged. This is not a signed-in browser pass. The lock matrix is the separate SQL run below. Live invitation acceptance stays deferred. Original v1 remains incomplete.
+
+## Ledger lock matrix — November 16, 2026
+
+`npm run test:isolated -- server/services/ledger-lock.integration.test.ts` passed 1 file / 1 test on `bits_e2e` in 5.34 seconds. The guarded runner reported working fingerprints unchanged. The test used run-owned churches, donors, funds, batches, and memberships. Clerk sign-in was stubbed to those memberships. No Playwright browser was opened. Core 29 remains the historical signed-in evidence for one lock path. The November 11 33-test suite and Core 29 were not rerun.
+
+The SQL case walked one batch from draft through lock:
+
+- Data Entry created a 10.00 check, edited it to 12.00, and deleted a separate 1.00 check that a Treasurer had added. The batch total returned to 12.00.
+- Data Entry completed entry. A Treasurer reconciled the balanced batch and recorded deposit reference `SLIP-LOCK-1`. An Organization Admin locked it.
+- Report Viewer and Donor creates were forbidden. A signed-out create was rejected. Data Entry could not reconcile, deposit, or lock. Report Viewer could not complete entry or lock.
+- Reconcile, deposit, and lock were rejected on the draft. Create, edit, delete, deposit, and lock were rejected after entry was complete. Lock was rejected after reconcile until a deposit existed. A deposit date before the offering date was rejected.
+- After lock, create, edit, delete, reconcile, deposit, and a second lock were rejected. Replaying the original create token returned the original gift and left the batch locked. The same token with a different amount conflicted.
+- Stale edit, delete, reconcile, and lock confirmations were rejected. Reconcile and lock confirmations that kept the current review version but submitted a recorded total of 0.00 were rejected.
+- Every rejected call left that batch's gifts, allocations, totals, review version, deposit, and audits unchanged. A second run-owned church and its 4.00 gift stayed unchanged.
+
+No product defect was confirmed, so application code was not changed. Working `bits`, Northside, and Railway were not changed. Original v1 remains incomplete.

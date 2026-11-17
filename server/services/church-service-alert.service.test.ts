@@ -47,6 +47,10 @@ vi.mock("@/lib/auth/user-account", () => ({
   getOrCreateUserAccount: mocks.getOrCreateUserAccount,
 }));
 
+vi.mock("@/server/repositories/public-organization.repository", () => ({
+  findPublicOrganization: mocks.findPrimaryOrganization,
+}));
+
 vi.mock("@/server/repositories/organization.repository", () => ({
   findPrimaryOrganization: mocks.findPrimaryOrganization,
 }));

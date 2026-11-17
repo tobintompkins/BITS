@@ -2,7 +2,6 @@ import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 
 import { DisplayOptions } from "@/components/accessibility/display-options";
-import { ChurchLeadershipCard } from "@/components/home/church-leadership-card";
 import { ChurchServiceAlertBanner } from "@/components/home/church-service-alert-banner";
 import {
   ChurchPhotoCarousel,
@@ -10,12 +9,18 @@ import {
 } from "@/components/home/church-photo-carousel";
 import { PrayerWall } from "@/components/home/prayer-wall";
 import { findPublicPrayerWallRequests } from "@/server/repositories/care-engagement.repository";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 import { getPublicChurchServiceAlert } from "@/server/services/church-service-alert.service";
 
 const churchPhotos: ChurchPhoto[] = [];
 
 const guestOptions = [
+  {
+    icon: "✝",
+    title: "Meet Our Team",
+    description: "Meet the people serving First UPC of Saco.",
+    href: "/church-leadership",
+  },
   {
     icon: "⌂",
     title: "Plan Your Visit",
@@ -54,7 +59,7 @@ const guestOptions = [
 ];
 
 export default async function Home() {
-  const organization = await findPrimaryOrganization().catch(() => null);
+  const organization = await findPublicOrganization().catch(() => null);
   const publicPrayerRequests = organization
     ? await findPublicPrayerWallRequests(organization.id).catch(() => [])
     : [];
@@ -73,13 +78,8 @@ export default async function Home() {
             >
               ✝
             </span>
-            <span>
-              <span className="block text-xs font-bold uppercase tracking-[0.2em] text-[var(--bits-gold)]">
-                BITS
-              </span>
-              <span className="block text-lg font-semibold text-white">
-                Bring In The Sheaves
-              </span>
+            <span className="text-lg font-semibold leading-tight text-white">
+              First UPC of Saco
             </span>
           </Link>
 
@@ -119,16 +119,7 @@ export default async function Home() {
         />
         <div className="relative mx-auto grid w-full max-w-7xl items-stretch gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8 lg:py-6">
           <div className="flex items-center gap-4 py-1 sm:gap-6">
-            <span
-              aria-hidden="true"
-              className="hidden h-16 w-16 shrink-0 place-items-center rounded-full border-2 border-[var(--bits-gold)] bg-white/5 text-3xl text-[var(--bits-gold)] shadow-xl sm:grid"
-            >
-              ✝
-            </span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--bits-gold)] sm:text-sm">
-                First UPC of Saco
-              </p>
               <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
                 Welcome Home
               </h1>
@@ -147,8 +138,6 @@ export default async function Home() {
           </div>
         </div>
       </section>
-
-      <ChurchLeadershipCard />
 
       <PrayerWall requests={publicPrayerRequests} />
 
@@ -265,17 +254,20 @@ export default async function Home() {
         </div>
       </section>
 
-      <footer className="bg-[var(--bits-navy-deep)] text-white">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-8 text-center sm:px-6 md:flex-row md:items-center md:justify-between md:text-left lg:px-8">
+      <footer className="border-t-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white">
+        <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-6 sm:px-6 lg:px-8">
+          <span
+            aria-hidden="true"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-[var(--bits-gold)] text-2xl font-semibold text-[var(--bits-gold)]"
+          >
+            ✝
+          </span>
           <div>
-            <p className="font-semibold">First UPC of Saco</p>
-            <p className="mt-1 text-sm text-white/65">
+            <p className="text-lg font-semibold leading-tight">First UPC of Saco</p>
+            <p className="mt-1 text-sm text-white/85">
               Where everybody is somebody and Jesus Christ is Lord.
             </p>
           </div>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--bits-gold)]">
-            BITS · Bring In The Sheaves
-          </p>
         </div>
       </footer>
     </main>

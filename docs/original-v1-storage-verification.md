@@ -118,12 +118,32 @@ backups, provider disaster recovery, version retention, and staff/portal
 authorization remain separate and unproven. Clerk acceptance stays
 deferred. Original version 1 is not complete.
 
+## Verification (November 16, 2026)
+
+Read-only inspection. No commit, bucket, project, deploy, credential
+file, database write, or `--apply` command.
+
+| Check | Result |
+|---|---|
+| Railway CLI | Installed `@railway/cli` 5.71.0. Login succeeded. After the Hobby plan, project `bits-test` and environment `test` were created |
+| Link and bucket inventory | Linked to `bits-test` / `test`. Bucket display name `bits-statements-test`, region `iad`, S3 API name `bits-statements-test-hrqzaa`, 0 objects. `stellar-abundance` / Matrix was not changed |
+| Test overlay | Gitignored `e2e/.local/storage-test.env` has the four non-secret TEST names. Access keys are not in that file. Application bucket names remain unset |
+| `npm run statements:storage-probe` | Exit 0 after the bucket existed. `mode=preflight`, `targetKind=designated-test`. No object I/O |
+| `npm run statements:storage-probe -- --apply` | Exit 0. `executionKind=live-provider`, run `a633b294-bfbe-41fd-b336-31c3bb27cf4d`. SHA-256 matched. Unsigned request denied. Owned key absent |
+| `npm run statements:storage-restore -- --apply` | Exit 0. `executionKind=live-provider`, run `203d5e3c-f8da-4179-943c-17d8d003884f`. Fresh read matched SHA-256 and 60-byte length. Owned keys absent |
+| Bucket afterward | 0 objects, 0 B. No failed-cleanup manifest |
+
+Classification: preflight only. Not mocked, not emulator, and not
+live-provider. A same-bucket synthetic copy would still not be an
+independent durable backup.
+
 ## Outstanding blockers
 
-- Designate `BITS_STATEMENT_S3_TEST_*` (shell or gitignored
-  `e2e/.local/storage-test.env`) and run probe plus restore `--apply`.
-  Record emulator vs live-provider results separately. Do not install
-  unknown images or use the application bucket.
+- The November 16 live probe and same-bucket restore passed. Still
+  open: independent backup retention, provider-loss recovery,
+  PostgreSQL-plus-PDF restore, and an authorized application download
+  of a real statement. Do not use `stellar-abundance` or run
+  `railway config apply`.
 - Live Clerk two-tenant acceptance remains deferred by the owner.
 - Broader ledger acceptance, staff-management completeness, live
   household forms, and deployment readiness remain.

@@ -1,3 +1,4 @@
+import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 import type { Prisma } from "@/app/generated/prisma/client";
 
 import { prisma } from "@/lib/db/prisma";
@@ -314,7 +315,7 @@ export async function persistStripeTestDonation(
   }
 }
 
-export async function recordStripeTestCheckout(sessionId: string) {
+export async function recordStripeTestCheckout(sessionId: string, context: "public" | "portal" = "portal") {
   if (!STRIPE_TEST_CHECKOUT_SESSION_ID.test(sessionId)) {
     throw new Error("Invalid Stripe test checkout reference.");
   }
@@ -340,7 +341,7 @@ export async function recordStripeTestCheckout(sessionId: string) {
     throw new Error("This Stripe test checkout is not confirmed as paid.");
   }
 
-  const organization = await findPrimaryOrganization();
+  const organization = context === "public" ? await findPublicOrganization() : await findPrimaryOrganization();
   if (!organization) throw new Error("Church organization not found.");
 
   const recorded = await persistStripeTestDonation(

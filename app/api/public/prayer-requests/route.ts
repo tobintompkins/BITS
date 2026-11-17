@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { allowPublicPrayerRequest } from "@/lib/security/public-prayer-rate-limit";
 import { publicPrayerRequestSchema } from "@/lib/validation/public-prayer-request";
 import { createPrayerRequest } from "@/server/repositories/care-engagement.repository";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 
 const PUBLIC_LIFETIME_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 12_000;
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findPublicOrganization();
   if (!organization) {
     return NextResponse.json(
       { message: "Prayer requests are temporarily unavailable." },

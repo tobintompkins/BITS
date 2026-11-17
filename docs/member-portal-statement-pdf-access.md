@@ -81,6 +81,12 @@ cannot be recorded as a successful access.
 Logs must not include statement contents, storage keys, donor details, or
 filesystem paths.
 
+## Isolated SQL evidence — November 16, 2026
+
+`npm run test:isolated -- server/services/statement-coverage.integration.test.ts` passed 1 file / 1 test on `bits_e2e`. Clerk sign-in was stubbed to run-owned memberships. Statement writes used the local PDF adapter, and the test deleted those files with its organization. No remote bucket was configured or written. This is not a signed-in browser pass. The November 11 result remains the browser evidence that donor A1 could open authorized published PDFs and donor A2 could not.
+
+The SQL case kept an individual deductible total of 0.40: a 0.10 gift on January 1 and a 0.30 gift on December 31 whose allocations were 0.10 and 0.20. It excluded the prior December 31, the next January 1, anonymous gifts, and a test gift. The household total was 1.00. Membership history included the start day and the end day, and excluded the day before a start and the day after an end. Data Entry, Report Viewer, and Donor could not generate. A generated statement was not downloadable. The linked donor could download the published individual statement. Another donor, a household member who was not the preferred recipient, and a preferred recipient whose membership had ended were denied. Denied attempts wrote no access events. The two successful downloads wrote `DOWNLOADED`. Generation audits recorded the two totals. No product defect was confirmed. Durable provider recovery and Railway deployment remain open.
+
 ## Production object-storage follow-up
 
 Replace the local adapter with a private object-store bucket (S3/R2/GCS) and

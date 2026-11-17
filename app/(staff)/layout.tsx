@@ -54,6 +54,7 @@ export default async function StaffLayout({
   }
 
   const organization = await findPrimaryOrganization();
+  if (!organization) redirect("/select-organization");
   const careAccess = organization
     ? await getCareAccess(organization.id)
     : null;
@@ -86,7 +87,7 @@ export default async function StaffLayout({
   const navGroups: NavGroup[] = [
     {
       label: "Home",
-      items: [{ href: "/dashboard", label: "Leadership Home" }],
+      items: [{ href: "/dashboard", label: "Leadership Home" }, { href: "/select-organization", label: "Choose Church" }],
     },
     {
       label: "People",
@@ -344,7 +345,7 @@ export default async function StaffLayout({
           </div>
         </aside>
 
-        <main id="staff-main-content" className="min-w-0">
+        <main id="staff-main-content" tabIndex={-1} className="min-w-0">
           {children}
         </main>
       </div>

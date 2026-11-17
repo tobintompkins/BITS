@@ -120,3 +120,12 @@ npm run test:e2e:acceptance
 Preflight and Playwright fail closed. Missing identities are a blocker, not
 a skip-pass. Do not recreate, reset, or copy working `bits`. Do not send
 invitation emails or create remote users from this chat.
+
+## Church A removed — November 15, 2026
+
+Fictional Northside Chapel, the organization previously named by
+`E2E_CLERK_ORG_A_ID`, was deleted from Clerk Development and isolated
+`bits_e2e`. The active setting is now absent on purpose. Preflight must
+report that missing name and must not be treated as a skipped pass. Keep
+the two-church test code. A replacement Church A has to be created and
+recorded before the suite can run again. Church B remains.

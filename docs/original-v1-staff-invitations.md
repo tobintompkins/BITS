@@ -186,3 +186,23 @@ Bounded source review and local automated/runtime check. No new blocker was foun
 Fresh results: 219 files / 1,625 tests passed, including configured isolated-database membership/invitation concurrency. Lint, TypeScript, `git diff --check`, and production build passed. Prisma validation passed with the existing SetNull/required-field warning. Read-only local `bits` had zero pending or unresolved migrations; both membership rows matched the pre-invitation snapshot; `staff_invitations` had zero rows. A temporary production-mode local server returned 307 for unsigned Staff Access and invitation-acceptance routes and was stopped afterward.
 
 No application source was changed, no migration reapplied, no invitations sent, and no administrator grants made during this check. Original v1 remains incomplete.
+
+## Read-only reconciliation — November 13, 2026
+
+Isolated `bits_e2e` still has two local staff-invitation rows, one REVOKED and one FAILED. Both are Report Viewer. The FAILED row belongs to Church A, matches the confirmed personal Development inbox, still holds the local email lock, and has no provider invitation id. Clerk Development has zero pending, accepted, revoked, and expired invitations for Church A and Church B. The personal user has zero organization memberships. Church A allows 8 memberships and has 7. The instance default remains 7.
+
+No invitation was created, revoked, retried, or accepted during this check. The November 11 approval was already used by the refused send. Another Church A Report Viewer email still needs a separate owner approval. Original v1 remains incomplete.
+
+## One authorized send — November 13, 2026
+
+The owner approved exactly one new Church A Report Viewer attempt to the confirmed inbox. The product first revoked the failed local row. That row had no provider invitation id, so revocation did not call Clerk and did not send mail. One new product create then returned sent and stored one provider invitation id. Clerk Development shows one pending invitation for Church A and zero pending or accepted invitations for Church B. The fictional inviter was restored to `org:member`.
+
+The recipient has not accepted the invitation. Provider acceptance is not proof the email arrived. Explicit acceptance and the signed-in permission check remain open. Original v1 remains incomplete.
+
+## Northside removal — November 15, 2026
+
+The owner authorized removal of fictional Northside Chapel and revocation of its one pending invitation. The invitation was revoked before the Clerk organization was deleted. The isolated `bits_e2e` organization row, its seven memberships, three staff-invitation rows, and forty audit events were then removed. The audit rows remain in the gitignored backup taken beforehand. No user account was deleted. Southside remains. The active Church A configuration was removed, so the two-church acceptance suite now fails closed and was not run. The invitation was not accepted. Original v1 remains incomplete.
+
+## Deferred — November 16, 2026
+
+The Northside invitation test stays retired. Northside was not recreated and its records were not restored. Live invitation acceptance is deferred, not passed. The two-church test code and the November 11 historical result remain. The missing Church A setting does not block other original-roadmap work. Original v1 remains incomplete.

@@ -120,7 +120,7 @@ test.describe("original offering-type administration", () => {
   test("TREASURER can reactivate the same fund for new entry", async ({ browser }) => {
     const session = await signedInSession(browser, "treasurer");
     try {
-      const { page, manifest } = session;
+      const { page } = session;
       await page.goto(fundPath);
       await page
         .getByRole("checkbox", {

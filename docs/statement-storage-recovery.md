@@ -118,6 +118,92 @@ object versioning, lifecycle rules, or automatic snapshots
 ([Storage Buckets](https://docs.railway.com/storage-buckets)). Creating
 this bucket can incur storage charges. This workspace will not create it.
 
+### Inspection (November 16, 2026)
+
+Read-only. No bucket, project, deploy, credential file, or `--apply`
+command was created or run. `docs/bits-design-spec.md` was not edited.
+
+| Check | Result |
+|---|---|
+| Installed CLI | `@railway/cli` 5.71.0 via `node node_modules/@railway/cli/bin/railway.js`. `railway` is not on `PATH` |
+| `whoami` / `status` | Logged in after `railway login` on November 16. Account name only; no token printed |
+| Link | No project link. `.railway/railway.ts` still proposes empty project `bits-test` and environment `test`, with no bucket, and has not been applied |
+| `e2e/.local/storage-test.env` | Absent |
+| Seven `BITS_STATEMENT_S3_TEST_*` names, application bucket names, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Unset |
+| `npm run statements:storage-probe` | Exit 2. `mode=preflight`, `targetKind=unconfigured`, `executionKind=none`. No secrets printed. This is not a provider rehearsal |
+| `--apply` probe and restore | Not run |
+
+Current official pages, read November 16, 2026:
+[Storage Buckets](https://docs.railway.com/storage-buckets),
+[Storage Buckets Billing](https://docs.railway.com/storage-buckets/billing),
+and [railway bucket](https://docs.railway.com/cli/bucket).
+Buckets are private. The display name is not the S3 API name; `BUCKET`
+is the display name plus a hash. Current buckets use virtual-hosted
+URLs. The documented endpoint example is `https://t3.storageapi.dev`
+and the documented region example is `auto`. CLI bucket regions are
+`sjc`, `iad`, `ams`, and `sin`, and the region cannot be changed after
+creation. There is no object versioning, lifecycle configuration, or
+automatic snapshot. Storage is $0.015 per GB-month. A fractional
+GB-month total is rounded up to the next whole number. The billing page
+states no minimum retention and no retrieval fee. S3 API operations and
+bucket egress are free. `railway config apply` remains out of scope
+because it would also create the app service and Postgres.
+
+After the Hobby plan was active, project `bits-test`
+(`bd76fc8a-0408-443d-a2d4-7dfd2fbdde9c`) was created. Railway also
+created an empty default environment named `production`; it has no
+services and no bucket. Environment `test`
+(`6dfca267-20cf-419d-8c3a-1297737b1b86`) is the linked target. The
+private bucket display name is `bits-statements-test`, id
+`c1c5ecde-ee0c-407d-92f4-6d5cea0f054a`, region `iad`. Its S3 API name is
+`bits-statements-test-hrqzaa`. Credentials report virtual-hosted URLs,
+region `auto`, and endpoint host `t3.storageapi.dev`. Storage is 0 B
+and the object count is 0. `stellar-abundance` and its Matrix service
+were not changed. `railway config apply` was not run. Access keys were
+not written to disk or chat. Gitignored `e2e/.local/storage-test.env`
+holds only `BITS_STATEMENT_S3_TEST_TARGET`, `BUCKET`, `REGION`, and
+`ENDPOINT`. Probe `--apply` and restore `--apply` passed on November 16 as
+`live-provider` runs. See the command record below.
+
+Those three setup steps are done. Do not create a second bucket, and
+do not add this bucket to `stellar-abundance`.
+
+### Live rehearsal (November 16, 2026)
+
+Target: project `bits-test`, environment `test`, S3 API bucket
+`bits-statements-test-hrqzaa`. Access keys stayed in the process
+environment and were not printed. No real donor PDF, database write, or
+application deploy.
+
+| Command | Result |
+|---|---|
+| `npm run statements:storage-probe` | Exit 0. `mode=preflight`, `targetKind=designated-test`, `executionKind=live-provider`. No object I/O. Preflight is not the rehearsal |
+| `npm run statements:storage-probe -- --apply` | Exit 0. `mode=probe`, `executionKind=live-provider`, run `a633b294-bfbe-41fd-b336-31c3bb27cf4d`. Conditional create, rejected overwrite, SHA-256 match without using ETag, wrong checksum rejected, unsigned request denied, owned key absent after delete |
+| `npm run statements:storage-restore -- --apply` | Exit 0. `mode=restore`, `executionKind=live-provider`, run `203d5e3c-f8da-4179-943c-17d8d003884f`. Recovery copy read before source delete. Restored object matched SHA-256 and length, 60 bytes, on a fresh read. Owned keys absent |
+| Bucket after both runs | `bits-statements-test`: 0 objects, 0 B. No failed-cleanup manifest |
+
+Classification: live provider, not mock and not emulator. The restore
+copy lived in the same bucket. It is not an independent durable backup,
+scheduled retention, provider-loss recovery, or a PostgreSQL-plus-PDF
+restore. Authorized staff and portal downloads of a real statement were
+not exercised.
+
+After that bucket exists, map credentials without pasting them into
+chat or git. `npx railway bucket credentials` prints secrets; keep that
+output out of logs and reports. The probe file allowlist is only the
+seven `BITS_STATEMENT_S3_TEST_*` names. The S3 client uses the AWS SDK
+default credential chain, so `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` stay in the shell for that process and do not
+belong in `e2e/.local/storage-test.env`. Use the hashed `BUCKET` value,
+not the display name. Leave `BITS_STATEMENT_S3_TEST_FORCE_PATH_STYLE`
+unset when the credentials say the URL style is virtual.
+
+Synthetic writes stay a second approval after the hashed bucket name is
+known. The approved operation would be only
+`statements:storage-probe`, then `--apply`, then
+`statements:storage-restore -- --apply`: run-owned synthetic PDFs and
+backup copies, read/restore, and delete only that run's keys.
+
 No suitable TEST bucket is configured. These commands are proposed and
 were not run:
 
@@ -201,3 +287,54 @@ evidence, not emulator execution. Missing identities or an undesignated
 bucket are blockers, not passes. Original version 1 remains incomplete
 until live Clerk acceptance, a designated emulator or live-provider
 restore, broader financial/staff workflows, and deployment checks exist.
+
+## 7. Independent backup plan (proposal, November 17, 2026)
+
+Nothing in this section was created or enabled. It does not repeat the
+November 16 same-bucket rehearsal or the November 17 schema restore, and
+it does not mark FR-STMT-004 complete. Northside stays retired.
+Invitation acceptance stays deferred. Real church rows stay unchanged.
+
+### Already implemented
+
+Postgres.app `pg_dump` and `pg_restore` 18.7 can make a custom-format
+archive. The November 17 restore proved that an empty `bits-test-db`
+archive can be loaded into a separate local database. `age` and `gpg`
+are not installed. The statement probe and restore commands write only
+the designated TEST bucket. Railway point-in-time recovery is disabled,
+and its archive would still be a Railway bucket. The backup-readiness
+page records a staff log. It does not copy bytes.
+
+### Proposed destination
+
+One Cloudflare R2 Standard bucket, `bits-independent-backups`, in a
+Cloudflare account that is not the Railway workspace. Prefixes:
+`test/postgres/daily/`, `test/postgres/weekly/`,
+`test/statements/objects/`, and `test/statements/manifests/`. No
+production prefix. R2 is outside the Railway volume and bucket failure
+boundary. Published Standard storage is $0.015 per GB-month after 10
+GB-month, with egress free. The current TEST dump is 384,921 bytes, so
+the published free allowance covers the expected TEST volume at $0.
+Class A and Class B operations for one daily upload also stay inside
+the published free monthly allowances. No Railway plan change.
+
+### Proposed controls
+
+| Control | Proposal |
+|---|---|
+| Credentials | A bucket-scoped R2 token, stored in the owner password manager and later as GitHub Actions secrets. It is not a Railway variable, not an application `AWS_*` key, and not an entry in `e2e/.local/storage-test.env`. The Railway read token used to dump TEST is a different secret. |
+| Encryption | `age` encrypts each dump and PDF before upload. The private key stays in the password manager and one offline copy. It is not stored in Railway, GitHub, or R2. |
+| Schedule | GitHub Actions at 11:15 UTC daily, after the owner approves the workflow. The job may read only `bits-test-db`. It must refuse working `bits`. |
+| Retention | 14 daily Postgres archives and 8 weekly archives. Statement objects remain while the restored checksum is referenced, then 90 days. R2 lifecycle enforces that. Railway buckets have no lifecycle rules. |
+| Notifications | GitHub failed-workflow email to the repository owner. No new paging service. |
+| Restore | Download and decrypt with the offline key. Restore Postgres only into a new local database approved at that time. Never restore over TEST, working `bits`, `bits_e2e`, the Core 20 databases, or `bits_test_schema_recovery_2026111717161546d41ce7`. Match PDF bytes to the checksum. The first rehearsal uses the existing empty dump plus one new synthetic PDF, then deletes that synthetic object. |
+
+### Owner actions before any resource or schedule
+
+1. Confirm a Cloudflare account can open R2 without starting a paid plan.
+2. Create only the bucket `bits-independent-backups`.
+3. Create one token limited to that bucket and store it outside Railway.
+4. Install `age`, generate a key, and keep the private key offline.
+5. Turn on GitHub email for failed BITS workflows.
+6. Approve the workflow in a later change. Do not enable it before the token, key, and email are ready.
+7. Approve the synthetic rehearsal separately. It does not use real donor files.

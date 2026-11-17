@@ -67,7 +67,12 @@ const loaded = evaluate({
 if (loaded.code !== 0) {
   fail(`CLI evaluator failed to load .railway/railway.ts.\n${loaded.stderr}`);
 }
-const graph = JSON.parse(loaded.stdout).project;
+const evaluated = JSON.parse(loaded.stdout);
+const graph = evaluated.project;
+assert(
+  evaluated.partial === "bits-app",
+  "The file must stay a named partial so an apply cannot delete the unowned statement bucket.",
+);
 const service = graph.resources.find((resource: { type: string }) => resource.type === "service");
 const database = graph.resources.find((resource: { type: string }) => resource.type === "database");
 assert(graph.name === "bits-test", "Project name was not bits-test.");

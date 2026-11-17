@@ -3,7 +3,7 @@ import Link from "next/link";
 import { DisplayOptions } from "@/components/accessibility/display-options";
 import { isStripeTestModeConfigured } from "@/lib/stripe/test-mode";
 import { stripeDonationFundOptions } from "@/lib/validation/stripe-donation";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 import { advertisedStripeFunds } from "@/server/services/stripe-test-giving.service";
 
 export default async function GivePage({
@@ -17,7 +17,7 @@ export default async function GivePage({
 }) {
   const params = await searchParams;
   const configured = isStripeTestModeConfigured();
-  const organization = await findPrimaryOrganization();
+  const organization = await findPublicOrganization();
   const funds = organization
     ? await advertisedStripeFunds(organization.id, stripeDonationFundOptions)
     : [...stripeDonationFundOptions];

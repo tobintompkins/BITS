@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getStripeTestSecret } from "@/lib/stripe/test-mode";
 import { stripeDonationSchema } from "@/lib/validation/stripe-donation";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 import { isStripeFundBlockedForNewCheckout } from "@/server/services/stripe-test-giving.service";
 
 function returnToGive(request: Request, key: string, message: string) {
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findPublicOrganization();
   if (
     organization &&
     (await isStripeFundBlockedForNewCheckout(

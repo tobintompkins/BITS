@@ -14,7 +14,7 @@ describe("original v1 staff accessibility contracts", () => {
     const layout = source("app/(staff)/layout.tsx");
     expect(layout).toContain('href="#staff-main-content"');
     expect(layout).toContain("Skip to main content");
-    expect(layout).toContain('id="staff-main-content"');
+    expect(layout).toContain('id="staff-main-content" tabIndex={-1}');
     expect(layout).not.toMatch(/<h1 className="text-lg font-semibold text-white">/);
     expect(layout).toContain("staffChurchDisplayName");
     expect(layout).toContain("No church selected. Stop. Do not save.");

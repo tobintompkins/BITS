@@ -25,38 +25,43 @@ function leadershipInitials(name: string) {
     .toUpperCase();
 }
 
-export function ChurchLeadershipCard() {
+export function ChurchLeadershipCard({
+  heading = CHURCH_LEADERSHIP_HEADING,
+  names = CHURCH_LEADERSHIP_NAMES,
+  headingId = "church-leadership-heading",
+}: {
+  heading?: string;
+  names?: readonly string[];
+  headingId?: string;
+} = {}) {
   return (
     <section
-      aria-labelledby="church-leadership-heading"
-      className="border-b border-[var(--bits-border)] bg-white"
+      aria-labelledby={headingId}
+      className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8"
     >
-      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="max-w-2xl">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--bits-gold-hover)]">
-            First UPC of Saco
-          </p>
+      <div className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 sm:p-6">
+        <div className="flex items-center gap-3">
           <h2
-            id="church-leadership-heading"
-            className="mt-2 text-2xl font-semibold text-[var(--bits-navy-deep)]"
+            id={headingId}
+            className="text-lg font-semibold text-[var(--bits-navy-deep)]"
           >
-            {CHURCH_LEADERSHIP_HEADING}
+            {heading}
           </h2>
         </div>
 
-        <ul className="mt-6 grid gap-4 sm:grid-cols-2">
-          {CHURCH_LEADERSHIP_NAMES.map((name) => (
+        <ul className="mt-5 grid max-w-3xl gap-3 sm:grid-cols-2">
+          {names.map((name) => (
             <li
               key={name}
-              className="flex items-center gap-4 rounded-2xl border border-[var(--bits-border)] bg-[var(--bits-page)] px-5 py-5"
+              className="flex items-center gap-3 rounded-xl border border-[var(--bits-border)] bg-[var(--bits-page)] p-4"
             >
               <span
                 aria-hidden="true"
-                className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-2 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-lg font-semibold text-[var(--bits-gold)]"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-sm font-semibold text-[var(--bits-gold)]"
               >
                 {leadershipInitials(name)}
               </span>
-              <p className="text-lg font-semibold text-[var(--bits-navy)]">
+              <p className="min-w-0 break-words text-base font-semibold leading-snug text-[var(--bits-navy)]">
                 {name}
               </p>
             </li>

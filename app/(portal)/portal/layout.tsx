@@ -1,3 +1,4 @@
+import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 import { UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
@@ -11,6 +12,8 @@ export default async function MemberPortalLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
+  const organization = await findPrimaryOrganization();
+  if (!organization) redirect("/select-organization");
 
   return (
     <div className="min-h-screen bg-[var(--bits-page)]">
@@ -27,7 +30,7 @@ export default async function MemberPortalLayout({
               <span className="block text-xs font-bold uppercase tracking-[0.18em] text-[var(--bits-gold)]">
                 BITS · Member Portal
               </span>
-              <span className="block font-semibold">First UPC of Saco</span>
+              <span className="block font-semibold">{organization.displayName || organization.name}</span>
             </span>
           </Link>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
