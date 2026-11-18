@@ -288,12 +288,24 @@ bucket are blockers, not passes. Original version 1 remains incomplete
 until live Clerk acceptance, a designated emulator or live-provider
 restore, broader financial/staff workflows, and deployment checks exist.
 
-## 7. Independent backup plan (proposal, November 17, 2026)
+## 7. Independent backup plan (proposal, revised November 17, 2026)
 
 Nothing in this section was created or enabled. It does not repeat the
 November 16 same-bucket rehearsal or the November 17 schema restore, and
 it does not mark FR-STMT-004 complete. Northside stays retired.
 Invitation acceptance stays deferred. Real church rows stay unchanged.
+
+### What GitHub covers
+
+The public repository `tobintompkins/BITS` was read on November 17.
+`main` matches `origin/main`. The default branch has no `.github`
+directory, the Actions API reports 0 workflows and 0 runs, and there
+are 0 releases. Tracked paths do not include dumps, private keys, or
+`.env`. `.env.example` contains placeholders. Local dumps under
+`e2e/.local/` are gitignored. A Git push therefore stores source and
+history only. It does not store the live TEST database, working `bits`,
+or statement objects. Workflow artifact retention does not apply
+because no workflow has run.
 
 ### Already implemented
 
@@ -301,40 +313,377 @@ Postgres.app `pg_dump` and `pg_restore` 18.7 can make a custom-format
 archive. The November 17 restore proved that an empty `bits-test-db`
 archive can be loaded into a separate local database. `age` and `gpg`
 are not installed. The statement probe and restore commands write only
-the designated TEST bucket. Railway point-in-time recovery is disabled,
-and its archive would still be a Railway bucket. The backup-readiness
-page records a staff log. It does not copy bytes.
+the designated TEST bucket, which still has 0 objects, and the app is
+not configured to store PDFs there. Railway point-in-time recovery is
+disabled. The backup-readiness page records a staff log. It does not
+copy bytes. TEST has no `DATABASE_PUBLIC_URL`.
 
 ### Proposed destination
 
-One Cloudflare R2 Standard bucket, `bits-independent-backups`, in a
-Cloudflare account that is not the Railway workspace. Prefixes:
-`test/postgres/daily/`, `test/postgres/weekly/`,
-`test/statements/objects/`, and `test/statements/manifests/`. No
-production prefix. R2 is outside the Railway volume and bucket failure
-boundary. Published Standard storage is $0.015 per GB-month after 10
-GB-month, with egress free. The current TEST dump is 384,921 bytes, so
-the published free allowance covers the expected TEST volume at $0.
-Class A and Class B operations for one daily upload also stay inside
-the published free monthly allowances. No Railway plan change.
+One Cloudflare R2 Standard bucket, `bits-independent-backups`, in the
+owner's Cloudflare account, not in Railway. Prefixes:
+`test/postgres/daily/`, `test/postgres/weekly/`, and
+`test/statements/objects/`. No production prefix.
+
+Official requirements, reviewed November 17. The owner completed R2
+enablement; checkout was not repeated:
+
+- Checkout adds an R2 subscription. A token cannot be created until R2
+  is purchased. A primary payment method is required to purchase
+  Cloudflare services. Accepted methods include card, PayPal, Apple Pay,
+  Google Pay, Link, and UnionPay.
+- The Enable agreement is a continuous month-to-month subscription that
+  renews until canceled in the dashboard before the next billing period.
+  Cancellation is billed for that monthly period and is not refunded.
+  The published agreement includes a minimum one-month purchase
+  obligation. R2 has no separate published base monthly fee. Its invoice
+  lines are usage, billed for the previous period.
+- Included Standard usage is 10 GB-month, 1 million Class A operations,
+  and 10 million Class B operations. Above that: $0.015 per GB-month,
+  $4.50 per million Class A, and $0.36 per million Class B. Egress is
+  not charged. Usage inside the allowance is invoiced at $0.00. Sales
+  tax follows the account postal code. Infrequent Access has no included
+  allowance and is not proposed.
+- Cloudflare may place a temporary card preauthorization for usage-based
+  services. The published policy does not state the hold amount. A
+  failed payment method can suspend R2 access. If it stays invalid for
+  30 days, usage-based data may be deleted.
+- Later on November 17 the signed-in R2 overview showed the product
+  enabled: Class A 0, Class B 0, storage 0 B, and billable usage $0.00.
+  Checkout was not repeated. The only new resource is the private
+  Standard bucket `bits-independent-backups`, location Eastern North
+  America, created November 17, 2026. Public development URL is
+  disabled, no custom domain is connected, and the bucket holds 0
+  objects and 0 B. No token was created and nothing was uploaded.
+  Railway, church data, and Work Matrix were not changed.
+
+### Prepared upload bounds
+
+Size, retry, stored-total, and timeout checks are implemented in
+`lib/ops/independent-backup-guard.ts` and covered by unit tests. The
+preflight command runs the size and stored-total checks and does not
+upload. Retry and timeout run when the backup job calls them. R2 does
+not enforce the size, retry, or timeout bounds. The retention locks
+were applied later and are recorded below.
+
+| Bound | Rule |
+|---|---|
+| Postgres size | Refuse the upload if the archive is larger than 100 MiB. The current TEST dump is 384,921 bytes. |
+| Statement size | One copy run refuses more than 1,000 objects or 1 GiB. `bits-statements-test` has 0 objects today. |
+| Stored total | Do not start an upload if the objects already in `bits-independent-backups`, plus the new archive, would exceed 8 GiB. |
+| Retries | At most 3 attempts for one object. Wait 5 seconds, then 15 seconds. Then stop and exit non-zero. Do not rerun the job automatically. |
+| Retention | Applied November 17 on `bits-independent-backups` and read back after reload. Daily lock 14 days, expire after 15 days, about 15 copies. Weekly lock 56 days, expire after 57 days, about 8 or 9 copies. Statement lock 90 days, expire after 91 days. The 7-day multipart abort remains. |
+| Timeout | The job stops the whole run at 120 seconds, aborts the dump, encryption, and network calls, and does not start another attempt. That code is in deployment `cfb015f5-dab0-47fe-8fa0-0e9c88f60987`. The November 18 runs finished in about 3 seconds, so they did not exercise the timeout. |
+
+### Spending alert
+
+Cloudflare budget alerts email when account-wide usage-based spend
+crosses a dollar threshold. Official behavior: the alert is
+informational, it does not pause a product or cap the invoice, and
+usage is processed about once a day. A $1 alert named
+`BITS $1 spend warning` was saved for the account email already on the
+form. The list shows 0% of a $1.00 budget. Cloudflare's separate
+auto-created $10 alert was left in place. This is not the backup-job
+failure email, and no failure email has been delivered.
 
 ### Proposed controls
 
 | Control | Proposal |
 |---|---|
-| Credentials | A bucket-scoped R2 token, stored in the owner password manager and later as GitHub Actions secrets. It is not a Railway variable, not an application `AWS_*` key, and not an entry in `e2e/.local/storage-test.env`. The Railway read token used to dump TEST is a different secret. |
-| Encryption | `age` encrypts each dump and PDF before upload. The private key stays in the password manager and one offline copy. It is not stored in Railway, GitHub, or R2. |
-| Schedule | GitHub Actions at 11:15 UTC daily, after the owner approves the workflow. The job may read only `bits-test-db`. It must refuse working `bits`. |
-| Retention | 14 daily Postgres archives and 8 weekly archives. Statement objects remain while the restored checksum is referenced, then 90 days. R2 lifecycle enforces that. Railway buckets have no lifecycle rules. |
-| Notifications | GitHub failed-workflow email to the repository owner. No new paging service. |
-| Restore | Download and decrypt with the offline key. Restore Postgres only into a new local database approved at that time. Never restore over TEST, working `bits`, `bits_e2e`, the Core 20 databases, or `bits_test_schema_recovery_2026111717161546d41ce7`. Match PDF bytes to the checksum. The first rehearsal uses the existing empty dump plus one new synthetic PDF, then deletes that synthetic object. |
+| Runner | A later Railway cron in `bits-test` / `test`, on the private network. It can read `bits-test-db` without a public database port. A GitHub-hosted runner cannot reach `railway.internal`, and the Mac SSH tunnel is not an unattended path. The cron stops if Railway stops. Copies already stored in R2 remain. |
+| Upload credential | Created November 17: account token `bits-independent-backups-upload`, Object Read & Write, scoped only to `bits-independent-backups`. It is not Admin and does not apply to all buckets. Official object permission can delete objects in that bucket. The secret is in the macOS login keychain under service `bits-independent-backups-upload` and account `r2-object-read-write`. It is not in Git or chat. |
+| Deletion protection | Applied and read back: 14 days on `test/postgres/daily/`, 56 days on `test/postgres/weekly/`, and 90 days on `test/statements/`. Each lock blocks overwrite and delete, including by lifecycle, until its age is met. No whole-bucket or indefinite lock was saved. |
+| Restore credential | A second token, Object Read only, for the same bucket. It is used from the owner machine at restore time. The cron does not receive it. |
+| Encryption | November 17: `age` v1.3.2 was installed from the official FiloSottile release after the published SHA-256 matched. Homebrew and MacPorts were not installed. The setup script created one identity outside the repository at `~/Library/Application Support/BITS/independent-backup/age-identity.txt`, mode `0600`, directory mode `0700`. A second run left that file unchanged. The public recipient is `age1x3n3tp6nryyhtavnr3eppkav0pc47vfeps9qqf30afkc7w9yc9dq8265jm`. The private key was not printed. A 46-byte synthetic file encrypted to that recipient and decrypted with the local identity; the bytes matched. The ciphertext did not contain the plaintext. No upload ran. |
+| Key custody | The owner deferred the offline recovery-key copy. It is incomplete and not verified. The Mac holds the only confirmed private-key copy. The private key is not in Git, chat, Railway, or the upload job. |
+| Schedule and retention | The retention ages are saved. Recurring execution stays off. A daily run, after a later approval, would be 11:15 UTC. The 15-day expiration holds about 15 daily archives. The 57-day expiration holds about 8 or 9 weekly archives. The upload token does not edit these rules. |
+| Statements | Copy only objects that exist in `bits-statements-test`. There are 0 today, and the app writer is unset. Do not give the cron a statement-bucket delete credential. |
+| Notification | A non-zero cron exit is the failure signal. Hobby keeps deployment logs for 7 days. No email or paging notifier is configured, and none is claimed. |
+| Restore | Download with the read-only token, decrypt with the offline private key, and restore only into a new local database approved at that time. Never restore over TEST, working `bits`, `bits_e2e`, the Core 20 databases, or `bits_test_schema_recovery_2026111717161546d41ce7`. |
 
-### Owner actions before any resource or schedule
+The local synthetic encrypt-and-decrypt check passed. One manual upload
+rehearsal ran on November 17 and was deleted afterward. The recurring
+cron is not authorized.
 
-1. Confirm a Cloudflare account can open R2 without starting a paid plan.
-2. Create only the bucket `bits-independent-backups`.
-3. Create one token limited to that bucket and store it outside Railway.
-4. Install `age`, generate a key, and keep the private key offline.
-5. Turn on GitHub email for failed BITS workflows.
-6. Approve the workflow in a later change. Do not enable it before the token, key, and email are ready.
-7. Approve the synthetic rehearsal separately. It does not use real donor files.
+### Manual rehearsal, November 17, 2026
+
+One approved run uploaded two encrypted files to `bits-independent-backups`
+under `test/rehearsal/manual-20261117/`, downloaded them, decrypted them
+locally, and compared checksums. The bucket was empty beforehand. The
+size guard ran against that empty total. Each network call and `age`
+invocation used the 3-attempt retry guard and the 120-second timeout.
+This run finished on the first attempt, so the retry waits and timeout
+abort were not triggered. No database was changed and no church record
+was used.
+
+| File | Plaintext bytes | SHA-256 | Encrypted bytes | After decrypt |
+|---|---:|---|---:|---|
+| Existing empty TEST dump `bits-test-db.dump` | 384,921 | `9429863446c929ef21d5151c916ed85cfe7cc1a2f8fa3fecdd75749e4fa9e50f` | 385,201 | Same SHA-256 |
+| Synthetic PDF, text “BITS synthetic backup rehearsal. No church records.” | 626 | `d06a6707450986a06cf38f7605412a4ed5b9b89dd700bbeb058746d1ff71f323` | 826 | Same SHA-256 |
+
+After the checksums matched, only those two objects were deleted. A
+following list showed 0 objects. Recurring backups stayed off. The
+offline recovery-key copy stays incomplete and not verified. The bucket
+lock is still unset, so this token can still delete objects. The
+failure email was not exercised. This is not a database restore and it
+does not complete recovery-key resilience, FR-STMT-004, or the original
+roadmap.
+
+### Retention rules, applied and read back
+
+These rules were saved on November 17 and were still present after the
+settings page was reloaded. A bucket lock blocks overwrite and deletion,
+including deletion by a lifecycle rule, until its age is met. Official
+R2 behavior: the strictest matching lock wins, a blocked delete returns
+HTTP 409 `ObjectLockedByBucketPolicy`, and lifecycle removal usually
+follows within 24 hours after the object is eligible. A lock does not
+stop a new object with a different key. Reusing one key would fail after
+the first upload, so each run needs its own date in the key.
+
+The expiration is one day after the lock so the lock can end and the
+object can then be deleted instead of remaining forever. The existing
+7-day abort of unfinished multipart uploads stays. No lock covers the
+whole bucket, and none is indefinite. The object token cannot edit these
+rules. A later dashboard delete of a rule is possible for someone who
+can edit bucket configuration. A bucket cannot be emptied while any
+lock rule exists. The read-back showed no whole-bucket lock and no
+indefinite lock.
+
+| Rule | Prefix | Lock | Lifecycle delete |
+|---|---|---:|---:|
+| `lock-test-postgres-daily` | `test/postgres/daily/` | 14 days (1,209,600 seconds) | 15 days (1,296,000 seconds) |
+| `lock-test-postgres-weekly` | `test/postgres/weekly/` | 56 days (4,838,400 seconds) | 57 days (4,924,800 seconds) |
+| `lock-test-statements` | `test/statements/` | 90 days (7,776,000 seconds) | 91 days (7,862,400 seconds) |
+
+These durations are ages, not object counts. A daily run writes one
+object per day, so the 15-day expiration holds about 15 daily archives.
+A weekly run would write one object per week, so the 57-day expiration
+would hold about 8 or 9 weekly archives. `scheduledBackupKeys` still
+calculates a Sunday weekly key, and the Railway job does not call it.
+The deployed job and the prepared daily job write only
+`test/postgres/daily/`. They do not write `test/postgres/weekly/` or
+`test/statements/`. Statement copies stay absent while
+`bits-statements-test` has 0 objects and the app writer is unset. The saved read-back
+is: daily lock 14 days and delete after 15; weekly lock 56 days and
+delete after 57; statement lock 90 days and delete after 91. The
+7-day multipart abort remains enabled with no prefix. Public access,
+CORS, and Standard storage were left as they were.
+
+### Manual failure test, schedule removed
+
+Service `bits-test-backup` (`0f68511a-a35d-4d0a-af5c-48b9a0e93265`) exists
+only in project `bits-test`, environment `test`. Production has no
+instance. The image is `node:24-alpine`. The start command is
+`node -e "process.exit(1)"`. The restart policy is Never, with zero
+retries. The service has no database URL, upload token, or private key.
+
+One manual cron run, `574e0e9e-2548-481f-8e88-b1dc09ec2e50`, was created
+at `2026-11-17T20:31:14.883Z` and finished at `2026-11-17T20:31:16.874Z`.
+Its status is `CRASHED` and its duration is 1 second. The deployment
+`edad5603-33ab-4511-b553-6705b535c30a` is also `CRASHED`, and its one
+instance is `CRASHED`. The cron schedule was then cleared.
+At that point `nextCronRunAt` was null and recurring execution was off. The web service
+`bits` deployment `7953e76b-25fe-41dd-b42e-34fcb3cf2747` remains
+`SUCCESS` with its instance `RUNNING`.
+
+The upload command `npm run backup:scheduled-plan` prints the dated key
+and refuses `--apply`. It was not used for this failure run, and the
+completed encrypted rehearsal was not repeated.
+
+Railway's published cron page describes a nonzero run as `CRASHED` and
+a run skipped because the previous one is still active as `SKIPPED`.
+It does not say either status sends mail. Railway also does not stop a
+cron that is still running, so the next scheduled run is skipped.
+The deployment-actions page says emails and webhooks go to project
+members when a deployment reaches `Crashed` after its restart policy is
+exhausted. That is a deployment-status event. It is not documented for
+a skipped cron or for a job that never starts. Restart Never with zero
+retries makes the first nonzero exit the exhausted limit.
+
+The notification-delivery query returned Not Authorized. The readable
+notification-rule query returned no workspace or project rules, and no
+webhook field was available on the project. Account defaults were not
+readable. Delivery of the November 17 crash is unknown. It is not
+recorded as received or missed.
+
+### R2-to-database restore, November 17, 2026
+
+This is empty-schema recovery. The source dump has no church rows, so
+the restore does not prove recovery of real church records or
+provider-wide disaster recovery.
+
+The earlier encrypted rehearsal compared checksums and deleted its
+objects. It did not restore a database. This run added that missing
+step. The object key was `test/rehearsal/r2-restore-20261117/bits-test-db.dump.age`.
+That prefix matches none of the saved locks, so the completed object was
+not kept for 14, 56, or 90 days. The 7-day unfinished-multipart abort
+still applies to incomplete uploads. The object was deleted after
+verification, and the bucket was empty again.
+
+| Item | Result |
+|---|---|
+| Source dump | Existing empty TEST dump, 384,921 bytes, SHA-256 `9429863446c929ef21d5151c916ed85cfe7cc1a2f8fa3fecdd75749e4fa9e50f` |
+| Decrypted SHA-256 | Same value |
+| Restore database | New local `bits_test_r2_restore_202611172052c4e1` on Postgres.app 18.7, `127.0.0.1:5432`, from `template0` |
+| Restore flags | `pg_restore --no-owner --no-acl --exit-on-error --single-transaction` |
+| Schema | 52 finished migrations, name checksum `dc676b85734b59076d5fe6bb2fce265efdfd92ae40d89bb435083f871cf2caef`, file checksums match `prisma/migrations`, 75 public tables |
+| Constraints | Both recovery indexes and the six checked foreign keys are present |
+| Rows | organizations, memberships, donors, donations, batches, audits, invitations, and role types are 0 |
+| Left unchanged | `bits` stayed 3/3/4/`187.00`/0/338. `bits_e2e`, both Core 20 databases, and `bits_test_schema_recovery_2026111717161546d41ce7` remain |
+
+Recurring backups stayed off. Failure-email verification stayed pending.
+The offline recovery-key copy stayed deferred.
+
+### Manual successful backup, November 17, 2026
+
+One manual run of `bits-test-backup` dumped `bits-test-db`, encrypted
+the archive with the public age recipient, and uploaded one object.
+The private age key was not given to Railway. Recurring scheduling
+stayed off. The earlier restore rehearsals were not repeated.
+
+| Item | Result |
+|---|---|
+| Deployment | `1bcbe000-77ba-4562-954f-9a16c1858c37`, `SUCCESS`, instance `EXITED`, deployment stopped |
+| Object | `test/postgres/daily/2026-11-17/bits-test-db-20261117T210100Z.dump.age` |
+| Plain archive | 384,906 bytes, SHA-256 `75df0275d8b27b5dd62e96aeb96491b20b34bdce668e8e883368215eaf133505` |
+| Encrypted object | 385,186 bytes, SHA-256 `dc49ce105125e0249e9f227f7fa45d9103e9c0ad2c1db8f3f856769f0a691722` |
+| Independent read-back | One object in the bucket, same key, 385,186 bytes, same ciphertext SHA-256 |
+| Retention | Locked for 14 days. Eligible for expiration after 15 days. It was not deleted |
+| Left unchanged | Working `bits` stayed `3\|3\|4\|187.00\|0\|338`. Web deployment `7953e76b-25fe-41dd-b42e-34fcb3cf2747` stayed `SUCCESS`. Production has no backup instance |
+
+The service image is Alpine 3.23 with Node.js 24.22.3, `pg_dump` 18.7,
+and `age` 1.2.1. At the end of that run the start command ran
+`node /app/backup-once.cjs` only when that file was present. The restart
+policy was Never, with zero retries. `cronSchedule` and `nextCronRunAt`
+were null. The service variables were the private `bits-test-db` URL
+reference, the public age recipient, and the existing Object Read & Write
+credential for `bits-independent-backups` only. No age identity variable
+was set.
+
+The container removed its temporary dump and ciphertext before it
+reported success. No local copy of this run's dump was kept. This
+archive was not decrypted and was not restored.
+
+### Failure check before the schedule, November 18, 2026
+
+Before the schedule was enabled, `DATABASE_URL` and the four R2
+variables were removed from `bits-test-backup`. The public age recipient
+stayed. The start command was `node -e "process.exit(1)"`, cron was
+null, and the restart policy was Never with zero retries.
+
+Deployment `e2f2a188-0a2c-447a-8202-042b5da5cc01` was created at
+`2026-11-17T22:06:29.793Z`. Railway recorded the deployment as
+`SUCCESS` and stopped. Its instance `d5b61c9b-1022-4cb0-b65a-7c638eec5438`
+is `CRASHED`. The command did not use the database or R2. A later
+removed deployment, `24e10512-cfc3-413a-ad18-e1ffc6656e7b`, also had that
+exit-1 command. Its instance status is no longer readable. The service
+was then returned to `node -e "process.exit(0)"` on deployment
+`9edb9ad4-35c7-484a-ab09-d84c1d131024`, which exited without uploading.
+The five credential variables were restored with deploys skipped.
+
+This check does not establish a Deployment Crashed email. Railway's
+deployment-actions page sends that mail when the deployment status is
+`Crashed`. This deployment status is `SUCCESS`. `notificationDeliveries`
+again returned Not Authorized. Delivery is unknown.
+
+### Daily TEST schedule enabled, November 18, 2026
+
+The owner approved the updated job and `15 11 * * *` UTC. UTC is
+authoritative: 11:15 UTC is 06:15 Eastern standard time and 07:15
+Eastern daylight time. Railway can start a few minutes off that minute.
+If a previous run is still active at the next 11:15 UTC, Railway skips
+the new run and does not stop the old one. The 120-second job timeout
+is what turns a hung dump, encryption, or upload into a nonzero exit.
+A skipped run, or a run that never starts, is outside that path.
+
+| Item | Result |
+|---|---|
+| Service | `bits-test-backup`, `0f68511a-a35d-4d0a-af5c-48b9a0e93265`, instance `09a61b84-ed53-4952-89ad-5d7d3086c857`, environment `test` |
+| Deployment | `cfb015f5-dab0-47fe-8fa0-0e9c88f60987`, Dockerfile image `sha256:78227e08171c318cb70f50533b96720fe1341de1d26a96c7060394afdc349684` |
+| Command | `node /app/backup-once.cjs` |
+| Schedule | `15 11 * * *`. `nextCronRunAt` is `2026-11-19T11:15:00.000Z` |
+| Restart | Never. The service instance maximum retries are 0. The deployment snapshot leaves that field null |
+| Scope | Daily TEST Postgres only. No weekly key and no statement object |
+
+The deployed job chooses one new daily key per run, refuses the
+November 17 protected key and any existing key, and does not delete.
+Both runs below exited 0. The second run was an extra execution after
+the first object was already stored. Both objects remain. The prefix
+lock prevents deleting either one for 14 days.
+
+| Run | Object | Plain archive | Ciphertext |
+|---|---|---|---|
+| `d2c84073-059e-4c35-bb09-6aac2200d1c9`, 16:22:49–16:22:52 UTC | `test/postgres/daily/2026-11-18/bits-test-db-20261118T162250Z.dump.age` | 384,906 bytes, SHA-256 `822ac323c4eee5067c457a87d8f70bdcf08dd0142f4a2486bea9f6b0bcca930e` | 385,186 bytes, SHA-256 `643dcbbd10b0ade2e24a52100c615ca095e5dc327c28cc9dcb0e461c8335e6ae` |
+| `107e005a-eb01-4987-b7ec-52feb4967930`, 17:24:00–17:24:03 UTC | `test/postgres/daily/2026-11-18/bits-test-db-20261118T172400Z.dump.age` | 384,906 bytes, SHA-256 `fbb7f46fff3eccdb7520ac696b87322d06c0cee2c1b661b1dd3b15fa6a988039` | 385,186 bytes, SHA-256 `9a4dfdc3c1ce3dc2a647b0ff709153e98d38182e4b73cd5476874f9e0d837b1a` |
+
+An independent read found three objects. The November 17 object is
+unchanged at 385,186 bytes with ciphertext SHA-256
+`dc49ce105125e0249e9f227f7fa45d9103e9c0ad2c1db8f3f856769f0a691722`.
+Each new object's metadata SHA-256 matches its ciphertext hash. None of
+the three was decrypted or restored. No `test/postgres/weekly/` or
+`test/statements/` object was written. Working `bits` stayed
+`3|3|4|187.00|0|338`. Web deployment
+`7953e76b-25fe-41dd-b42e-34fcb3cf2747` stayed `SUCCESS`. Production has
+no backup instance.
+
+One measured successful run lasts about 2 to 3 seconds. Actual CPU and
+memory were not read. At the published Hobby rates of $0.000463 per
+vCPU-minute and $0.000231 per GB-minute, an assumption of 1 vCPU and 1
+GB for 3 seconds is about $0.001 per month. The same assumption for the
+full 120-second cap, every day, is about $0.04 per month. About 15
+daily objects of 385 KiB remain inside the 10 GB Standard allowance, so
+the storage line is $0.00 before tax. Two objects exist for November 18,
+so the bucket holds one extra daily archive until the 15-day lifecycle
+can remove the older daily objects. Egress of that ciphertext is under
+$0.001 per month at $0.05 per GB. This is incremental usage inside the
+existing Hobby $5 credit until the web service and database volume
+consume that credit. The $1 Cloudflare alert does not cap the invoice.
+
+### Backup watch enabled, delivery not observed
+
+Railway deployment status is not the alert. A successful deployment can
+still hide a crashed instance, and a backup that never starts creates
+no deployment event. The prepared check is a separate read-only look for
+a completed object under `test/postgres/daily/YYYY-MM-DD/`. It does not
+upload, delete, or change the `15 11 * * *` backup schedule.
+
+The check is due at 11:45 UTC, 30 minutes after the backup. UTC is
+authoritative. If the check starts after midnight, it evaluates the
+latest day whose 11:45 UTC deadline has passed. A completed object has
+the daily key pattern, a non-zero size within the archive limit, and a
+64-character SHA-256 metadata value. The November 17 protected object
+does not satisfy a later day. No weekly or statement object counts.
+
+| Evidence | Result |
+|---|---|
+| Unit tests | A failed run with no archive alerts as `failed`. No runs, or only a skipped run, alerts as `never-started`. An archive without a checksum does not count. Before 11:45 UTC the day stays `pending` unless a run has already failed |
+| Live read on November 18 | Current bucket: `ok`, no alert, both November 18 daily keys. A read-only drill for November 16, which has no object, alerted `never-started` with `--runs=none` and `failed` with `--runs=failed`. Exit 1 stayed on this machine |
+| Notification | `notificationSent` is false. No email or external service was used |
+
+The workflow is `.github/workflows/bits-test-backup-watch.yml`. Its
+runner is `ubuntu-slim`. Standard GitHub-hosted runners are free on this
+public repository. One list and a few object heads per day stay inside
+the R2 Class B allowance, so that line is $0.00 before tax. The workflow
+uses a new account token, `bits-independent-backups-read`, with Object
+Read only on `bits-independent-backups`. A local check allowed list and
+head, and denied put and delete. Its secret is in the macOS login
+keychain under service `bits-independent-backups-read` and account
+`r2-object-read`. The same endpoint and S3 keys are GitHub Actions
+secrets. The older token can delete objects and is not in GitHub.
+
+GitHub sends a scheduled-workflow notification to the user who adds the
+workflow to the default branch, and only when that user has Actions
+notifications enabled. GitHub can delay or drop a scheduled run during
+high load without sending mail. It does email the owner if inactivity
+disables the schedule after 60 days. A dropped check is not itself
+detected. No paid monitor is proposed.
+
+### Still open
+
+Failure-email delivery stays unknown. The November 17 crash and the
+November 18 exit-1 deployment do not have inbox or provider delivery
+evidence. The backup watch is enabled for 11:45 UTC. Its first scheduled run is
+`2026-11-19T11:45:00.000Z`. No notification has been delivered. The offline recovery-key copy stays deferred, incomplete,
+and not verified. Statement-copy scheduling stays separate because
+`bits-statements-test` has no application writer and no objects.
+Production scheduling stays open. Original v1 stays unfinished.

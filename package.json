@@ -40,7 +40,13 @@
     "staff:first-admin-bootstrap": "npx tsx scripts/staff-first-admin-bootstrap.ts",
     "ledger:review-schema-setup": "npx tsx scripts/ledger-review-schema-setup.ts",
     "ledger:review-local-migrate": "npx tsx scripts/ledger-review-local-migrate.ts",
-    "recovery:local-database": "npx tsx scripts/original-v1-local-database-recovery.ts"
+    "recovery:local-database": "npx tsx scripts/original-v1-local-database-recovery.ts",
+    "backup:preflight": "npx tsx scripts/independent-backup-preflight.ts",
+    "backup:encryption-setup": "npx tsx scripts/independent-backup-encryption-setup.ts",
+    "backup:rehearsal": "npx tsx scripts/independent-backup-rehearsal.ts",
+    "backup:scheduled-plan": "npx tsx scripts/independent-backup-scheduled.ts",
+    "backup:watch": "npx tsx scripts/independent-backup-watch.ts",
+    "backup:r2-restore": "npx tsx scripts/independent-backup-r2-restore.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",

@@ -1,0 +1,29 @@
+# Prepared GitHub Actions check. It does not run from this path.
+# Approval still required before copying it to .github/workflows/ on main.
+name: TEST database backup watch
+
+on:
+  schedule:
+    - cron: "45 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/independent-backup-watch.ts
+        env:
+          BITS_BACKUP_R2_BUCKET: bits-independent-backups
+          BITS_BACKUP_R2_ENDPOINT: ${{ secrets.BITS_BACKUP_R2_ENDPOINT }}
+          BITS_BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.BITS_BACKUP_R2_ACCESS_KEY_ID }}
+          BITS_BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BITS_BACKUP_R2_SECRET_ACCESS_KEY }}
