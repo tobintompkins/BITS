@@ -678,12 +678,66 @@ high load without sending mail. It does email the owner if inactivity
 disables the schedule after 60 days. A dropped check is not itself
 detected. No paid monitor is proposed.
 
+### Missing-archive drill, November 18, 2026
+
+Checked at about 18:24 UTC. `bits-test-backup` still has cron
+`15 11 * * *` UTC and its next run is `2026-11-19T11:15:00.000Z`. The
+two November 18 executions remain the earlier manual runs. No scheduled
+backup has come due.
+
+The watch has no `schedule` run. Its only earlier run is manual success
+`44367211750` at `2026-11-18T18:12:50Z`. The first scheduled watch remains
+`2026-11-19T11:45:00.000Z` and is not yet due.
+
+The workflow input `missing_archive_drill` is manual only and defaults
+to false. A scheduled run does not pass it. The drill lists
+`test/postgres/daily/` with the read-only token, then assesses synthetic
+day `1900-01-01` from an injected empty result. It does not delete,
+rename, download, or decrypt an archive.
+
+One approved dispatch created run
+`https://github.com/tobintompkins/BITS/actions/runs/44370727249` at
+`2026-11-18T18:31:56Z`. The actor was GitHub account `tobintompkins`,
+the head was `083660dd0557520b89ca968c6868fcdb79be3f2b`, and the
+conclusion was `failure`. The normal check was skipped. The drill step
+failed. Its log says `dueDay` `1900-01-01`, `reason` `missing`, `drill`
+`missing-archive`, `injectedEmpty` true, `deletes` false, and
+`notificationSent` false. The log showed no private key or credential.
+This failure is the drill. The BITS app, the backup schedule, and the
+stored archives were unchanged.
+
+Local tests cover a present archive, an absent archive, this manual
+drill, a drill rejected from the schedule, bad configuration, and
+redacted credential text. A local read-only check returned `ok` for both
+November 18 keys. The same local drill exited 1. A fake credential
+exited 1 without printing the fake key.
+
+GitHub's notification list has one on-site item for this run, reason
+`ci_activity`, updated `2026-11-18T18:35:20Z`, titled "TEST database
+backup watch workflow run failed for main branch". The Actions email
+preference was not readable. That on-site item does not establish inbox
+delivery. Email delivery is pending one owner check of this run and
+time.
+
+A manual run notifies the GitHub account that triggers it when that
+account has Actions notifications enabled. A later scheduled failure
+notifies the account that created the workflow, `tobintompkins`, unless
+another account edits the cron or re-enables the workflow. The control
+is Notification settings, System, Actions. Choose Email there for the
+inbox, and optionally "Only notify for failed workflows." Other
+notification categories were not changed.
+
+GitHub can delay or drop the scheduled run during high load and send no
+mail for a run it never starts. This watch cannot detect that GitHub
+skipped the watch. The check is not infallible.
+
 ### Still open
 
-Failure-email delivery stays unknown. The November 17 crash and the
-November 18 exit-1 deployment do not have inbox or provider delivery
-evidence. The backup watch is enabled for 11:45 UTC. Its first scheduled run is
-`2026-11-19T11:45:00.000Z`. No notification has been delivered. The offline recovery-key copy stays deferred, incomplete,
-and not verified. Statement-copy scheduling stays separate because
-`bits-statements-test` has no application writer and no objects.
-Production scheduling stays open. Original v1 stays unfinished.
+Failure-email delivery for the November 17 crash and the November 18
+exit-1 deployment stays unknown. The drill's inbox delivery is pending
+the owner check above, so this alert check stays open. The offline
+recovery-key copy stays deferred, incomplete, and not verified.
+Statement-copy scheduling stays separate because `bits-statements-test`
+has no application writer and no objects. Production scheduling stays
+open. Hosted signed-in acceptance stays deferred. Original v1 stays
+unfinished.
