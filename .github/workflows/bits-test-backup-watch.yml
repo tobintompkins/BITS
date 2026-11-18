@@ -1,11 +1,17 @@
-# Prepared GitHub Actions check. It does not run from this path.
-# Approval still required before copying it to .github/workflows/ on main.
+# Read-only check for the TEST daily database backup.
+# The missing-archive drill is manual only and defaults off. It does not change stored backups.
 name: TEST database backup watch
 
 on:
   schedule:
     - cron: "45 11 * * *"
   workflow_dispatch:
+    inputs:
+      missing_archive_drill:
+        description: "Manual drill only. Fail because the synthetic day 1900-01-01 has no archive. Does not change stored backups."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -21,7 +27,17 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx tsx scripts/independent-backup-watch.ts
+      - name: Check the daily TEST backup
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.missing_archive_drill != 'true' }}
+        run: npx tsx scripts/independent-backup-watch.ts
+        env:
+          BITS_BACKUP_R2_BUCKET: bits-independent-backups
+          BITS_BACKUP_R2_ENDPOINT: ${{ secrets.BITS_BACKUP_R2_ENDPOINT }}
+          BITS_BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.BITS_BACKUP_R2_ACCESS_KEY_ID }}
+          BITS_BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BITS_BACKUP_R2_SECRET_ACCESS_KEY }}
+      - name: Manual missing-archive drill
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.missing_archive_drill == 'true' }}
+        run: npx tsx scripts/independent-backup-watch.ts --drill=missing-archive
         env:
           BITS_BACKUP_R2_BUCKET: bits-independent-backups
           BITS_BACKUP_R2_ENDPOINT: ${{ secrets.BITS_BACKUP_R2_ENDPOINT }}

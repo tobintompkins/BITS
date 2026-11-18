@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 
+import { BackupGuardError } from "./independent-backup-guard";
 import { protectedBackupObjectKey } from "./independent-backup-railway-once";
-import { assessDailyBackup, dueDailyBackup } from "./independent-backup-watch";
+import {
+  assessDailyBackup,
+  assessWatch,
+  assertWatchCredentials,
+  backupRunsFromArgument,
+  dueDailyBackup,
+  missingArchiveDrillDay,
+  missingArchiveDrillLabel,
+  redactWatchError,
+  resolveWatchInvocation,
+} from "./independent-backup-watch";
 
 const checksum = "a".repeat(64);
 const november18 = {
@@ -95,5 +106,95 @@ describe("daily backup watch", () => {
     });
     expect(waiting).toMatchObject({ alert: false, reason: "pending" });
     expect(failedEarly).toMatchObject({ alert: true, reason: "failed" });
+  });
+
+  it("keeps a normal check successful when today's archive is present", () => {
+    const invocation = resolveWatchInvocation([], { now: new Date("2026-11-18T12:00:00.000Z") });
+    const report = assessWatch({ invocation, objects: [november18] });
+    expect(report).toMatchObject({
+      alert: false,
+      reason: "ok",
+      dueDay: "2026-11-18",
+      drill: false,
+      injectedEmpty: false,
+      notificationSent: false,
+    });
+  });
+
+  it("alerts when the due archive is absent", () => {
+    const invocation = resolveWatchInvocation(["--now=2026-11-18T12:00:00.000Z"]);
+    const report = assessWatch({
+      invocation,
+      objects: [{ key: protectedBackupObjectKey, size: 385_186, sha256: checksum }],
+    });
+    expect(report).toMatchObject({
+      alert: true,
+      reason: "missing",
+      dueDay: "2026-11-18",
+      matchingKeys: [],
+      drill: false,
+    });
+  });
+
+  it("uses an empty result for the manual drill even when real archives exist", () => {
+    const invocation = resolveWatchInvocation(["--drill=missing-archive"], {
+      eventName: "workflow_dispatch",
+    });
+    const report = assessWatch({ invocation, objects: [november18] });
+    expect(invocation).toMatchObject({ drill: "missing-archive", day: missingArchiveDrillDay });
+    expect(report).toMatchObject({
+      alert: true,
+      reason: "missing",
+      dueDay: missingArchiveDrillDay,
+      matchingKeys: [],
+      drill: "missing-archive",
+      injectedEmpty: true,
+      label: missingArchiveDrillLabel,
+      deletes: false,
+      notificationSent: false,
+    });
+  });
+
+  it("rejects a drill from the schedule, a bad drill, and a drill aimed at another date", () => {
+    expect(() =>
+      resolveWatchInvocation(["--drill=missing-archive"], { eventName: "schedule" }),
+    ).toThrow(BackupGuardError);
+    expect(() => resolveWatchInvocation(["--drill=today"])).toThrow(
+      "The drill argument must be missing-archive.",
+    );
+    expect(() =>
+      resolveWatchInvocation(["--drill=missing-archive", "--now=2026-11-18T12:00:00.000Z"]),
+    ).toThrow("does not accept another date");
+    expect(() => backupRunsFromArgument("deleted")).toThrow(BackupGuardError);
+  });
+
+  it("fails closed on bad configuration and redacts credential text", () => {
+    const endpoint = "https://example.r2.cloudflarestorage.com";
+    const accessKeyId = "EXAMPLEACCESSKEY";
+    const secretAccessKey = "EXAMPLESECRETKEY";
+    expect(() =>
+      assertWatchCredentials({
+        BITS_BACKUP_R2_BUCKET: "bits-independent-backups",
+        BITS_BACKUP_R2_ENDPOINT: endpoint,
+        BITS_BACKUP_R2_ACCESS_KEY_ID: accessKeyId,
+      }),
+    ).toThrow("The object read credential is incomplete.");
+    expect(() =>
+      assertWatchCredentials({
+        BITS_BACKUP_R2_BUCKET: "bits-independent-backups",
+        BITS_BACKUP_R2_ENDPOINT: endpoint,
+        BITS_BACKUP_R2_ACCESS_KEY_ID: accessKeyId,
+        BITS_BACKUP_R2_SECRET_ACCESS_KEY: secretAccessKey,
+        AGE_SECRET_KEY: "present",
+      }),
+    ).toThrow("age private-key");
+    const redacted = redactWatchError(
+      new Error(`AccessDenied for ${accessKeyId} ${secretAccessKey} at ${endpoint}`),
+      [accessKeyId, secretAccessKey, endpoint],
+    );
+    expect(redacted).not.toContain(accessKeyId);
+    expect(redacted).not.toContain(secretAccessKey);
+    expect(redacted).not.toContain(endpoint);
+    expect(redacted).toContain("[redacted]");
   });
 });

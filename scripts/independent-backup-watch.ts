@@ -1,50 +1,18 @@
 import { HeadObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 
 import { BackupGuardError, independentBackupBucket } from "../lib/ops/independent-backup-guard";
-import { redactBackupError } from "../lib/ops/independent-backup-railway-once";
-import { assessDailyBackup, type BackupRunRecord } from "../lib/ops/independent-backup-watch";
-
-const privateKeyVariableNames = ["AGE_IDENTITY", "AGE_SECRET_KEY", "BITS_BACKUP_AGE_IDENTITY"];
+import {
+  assertWatchCredentials,
+  assessWatch,
+  backupRunsFromArgument,
+  redactWatchError,
+  resolveWatchInvocation,
+} from "../lib/ops/independent-backup-watch";
 
 function argumentValue(name: string) {
   const prefix = `--${name}=`;
   const argument = process.argv.find((value) => value.startsWith(prefix));
   return argument?.slice(prefix.length);
-}
-
-function watchEnvironment(env: Record<string, string | undefined>) {
-  for (const name of privateKeyVariableNames) {
-    if (env[name]) {
-      throw new BackupGuardError("Refusing to watch with an age private-key variable set.");
-    }
-  }
-  for (const value of Object.values(env)) {
-    if (value?.includes("AGE-SECRET-KEY-")) {
-      throw new BackupGuardError("Refusing to watch with an age private key in the environment.");
-    }
-  }
-  if (env.BITS_BACKUP_R2_BUCKET !== independentBackupBucket) {
-    throw new BackupGuardError("The watch bucket is not bits-independent-backups.");
-  }
-  const endpoint = env.BITS_BACKUP_R2_ENDPOINT?.trim() ?? "";
-  if (!endpoint.startsWith("https://") || !endpoint.endsWith(".r2.cloudflarestorage.com")) {
-    throw new BackupGuardError("The R2 endpoint is not the approved Cloudflare endpoint.");
-  }
-  const accessKeyId = env.BITS_BACKUP_R2_ACCESS_KEY_ID?.trim() ?? "";
-  const secretAccessKey = env.BITS_BACKUP_R2_SECRET_ACCESS_KEY?.trim() ?? "";
-  if (!accessKeyId || !secretAccessKey) {
-    throw new BackupGuardError("The object read credential is incomplete.");
-  }
-  return { endpoint, accessKeyId, secretAccessKey };
-}
-
-function runsFromArgument(value: string | undefined): BackupRunRecord[] | undefined {
-  if (value === undefined) return undefined;
-  if (value === "none") return [];
-  if (value === "failed" || value === "skipped" || value === "succeeded" || value === "running") {
-    return [{ status: value }];
-  }
-  throw new BackupGuardError("The runs argument must be none, failed, skipped, succeeded, or running.");
 }
 
 async function listDailyObjects(client: S3Client) {
@@ -70,12 +38,10 @@ async function listDailyObjects(client: S3Client) {
 }
 
 async function main() {
-  if (process.argv.includes("--apply") || process.argv.includes("--delete")) {
-    throw new BackupGuardError("The backup watch is read-only.");
-  }
-  const env = watchEnvironment(process.env);
-  const nowValue = argumentValue("now");
-  const now = nowValue ? new Date(nowValue) : new Date();
+  const invocation = resolveWatchInvocation(process.argv.slice(2), {
+    eventName: process.env.GITHUB_EVENT_NAME,
+  });
+  const env = assertWatchCredentials(process.env);
   const client = new S3Client({
     region: "auto",
     endpoint: env.endpoint,
@@ -99,19 +65,24 @@ async function main() {
         sha256: head.Metadata?.sha256,
       });
     }
-    const assessment = assessDailyBackup({
-      now,
+    const report = assessWatch({
+      invocation,
       objects,
-      runs: runsFromArgument(argumentValue("runs")),
+      runs: invocation.drill ? undefined : backupRunsFromArgument(argumentValue("runs")),
     });
-    process.stdout.write(`${JSON.stringify(assessment)}\n`);
-    if (assessment.alert) process.exitCode = 1;
+    process.stdout.write(`${JSON.stringify(report)}\n`);
+    if (report.alert) process.exitCode = 1;
   } finally {
     client.destroy();
   }
 }
 
 main().catch((error) => {
-  process.stderr.write(`${redactBackupError(error)}\n`);
+  const secrets = [
+    process.env.BITS_BACKUP_R2_ACCESS_KEY_ID,
+    process.env.BITS_BACKUP_R2_SECRET_ACCESS_KEY,
+    process.env.BITS_BACKUP_R2_ENDPOINT,
+  ].filter((value): value is string => Boolean(value));
+  process.stderr.write(`${redactWatchError(error, secrets)}\n`);
   process.exit(1);
 });
