@@ -782,7 +782,32 @@ overwritten. An empty source reports `0 PDFs present` and is not
 recovery proof. The 1,000-object, 1 GiB, and 8 GiB guards, three
 attempts, and the 120-second timeout are the existing backup guards.
 
-The proposed application bucket, not created:
+The unused placeholder is project bucket
+`ecf962b3-3df6-4f3c-bef9-7d6e2a8f2cd2`, display name
+`bits-statements-app-test`, created `2026-11-19T16:34:47.294Z`. It never
+received a TEST instance. On November 19 the canvas in `bits-test` /
+`test` was opened after a recheck showed no usable application instance.
+Choosing Bucket created a second record, `8956a91b-b518-4edb-af2d-f04fb9bfc740`,
+with Railway's generated name `preserved-barrow` and staged region `iad`.
+Renaming it to `bits-statements-app-test` was rejected because that name
+already belonged to `ecf962b3`. The staged add was discarded and was not
+deployed. After that discard, the project bucket list contains only
+`bits-statements-test`. Both `ecf962b3` and `8956a91b` are absent, and
+instance lookups for them return Not Authorized. No application S3
+endpoint exists. The rehearsal bucket remains the only configured TEST
+bucket. Production still has no buckets. No statement variable was set
+and nothing was uploaded.
+
+The TEST web service was rechecked rather than assumed. Before the
+canvas step, deployment `da2d1e36-1167-43e0-974b-5564632f103b` was
+SUCCESS, the service domain was `firstupcsaco.up.railway.app`, and
+`APP_BASE_URL` was `https://firstupcsaco.up.railway.app`. A later
+deployment, `b134eb8d-1451-4435-b81f-6fcabd45eed4`, reached SUCCESS from
+commit `5bcaebd4c02e5cff55d26f7c095739b603257fda` on `main`. The backup
+deployment remains `cfb015f5-dab0-47fe-8fa0-0e9c88f60987` with cron
+`15 11 * * *`. Production was not changed.
+
+The intended bucket, once Railway provides the instance:
 
 | Item | Value |
 |---|---|
