@@ -731,13 +731,96 @@ GitHub can delay or drop the scheduled run during high load and send no
 mail for a run it never starts. This watch cannot detect that GitHub
 skipped the watch. The check is not infallible.
 
+### TEST application statement storage, prepared November 18, 2026
+
+Read-only check of Railway project `bits-test`, environment `test`.
+Service `bits` is still deployment `7953e76b-25fe-41dd-b42e-34fcb3cf2747`,
+start command `npm start`. Its stored variables include no
+`BITS_STATEMENT_*` name and no `AWS_ACCESS_KEY_ID` or
+`AWS_SECRET_ACCESS_KEY`. New statement writes on that production-mode
+start therefore stay fail-closed. `BITS_STATEMENT_ALLOW_LOCAL_PRODUCTION`
+is not set.
+
+The project has one bucket, display name `bits-statements-test`, id
+`c1c5ecde-ee0c-407d-92f4-6d5cea0f054a`. Its test instance API name is
+`bits-statements-test-hrqzaa`: virtual-hosted, region `auto`, endpoint
+`https://t3.storageapi.dev`, 0 objects, 0 bytes. The production
+environment has no instance of that bucket. There is no
+`bits-statements-app-test` bucket. The rehearsal bucket is not the
+application backend. `bits-independent-backups` remains the backup
+bucket. Official Railway bucket documentation, read November 18, 2026,
+says buckets are private, the API name is the display name plus a hash,
+the region cannot be changed later, current buckets use virtual-hosted
+URLs at `https://t3.storageapi.dev`, and object lock, lifecycle, and
+versioning are not supported. Storage is $0.015 per GB-month, and a
+fractional GB-month rounds up to the next whole GB-month, so the first
+stored bytes can bill as 1 GB-month ($0.015). Bucket API operations and
+bucket egress are free. Egress from a Railway service is $0.05 per GB.
+A 58-byte synthetic PDF is below one billable GB of service egress.
+That cost sits inside the existing Hobby credit. It is not a new plan,
+and the $1 Cloudflare alert does not cap it.
+
+`bits-test-backup` is unchanged: cron `15 11 * * *` UTC, next run
+`2026-11-19T11:15:00.000Z`, start `node /app/backup-once.cjs`. That job
+does not copy statements. Weekly database copies are not implemented.
+Statement-copy scheduling is off. The backup-watch email remains
+pending and was not drilled again.
+
+The local command `npm run backup:statements` plans a copy and exits 2
+until the application bucket and its read credentials exist. It does
+not upload, delete, or enable a schedule. `--apply` is refused unless
+`--rehearsal` is also present, and the rehearsal accepts only the
+synthetic key below. Source credentials are a separate pair from the
+independent-backup upload credential. Railway's bucket credential is
+the bucket's normal S3 key, not a read-only token; the copy client is
+limited to listing `private/statements/` and getting those objects. The
+GitHub read token is not given this bucket. Encryption uses the public
+age recipient only. The command refuses an age private key. Unchanged
+PDFs are not copied again. A changed PDF gets a new key. A missing
+source does not delete a backup. An existing locked key is not
+overwritten. An empty source reports `0 PDFs present` and is not
+recovery proof. The 1,000-object, 1 GiB, and 8 GiB guards, three
+attempts, and the 120-second timeout are the existing backup guards.
+
+The proposed application bucket, not created:
+
+| Item | Value |
+|---|---|
+| Project / environment | `bits-test` / `test` only |
+| Display name | `bits-statements-app-test` |
+| API name | Assigned at creation. The copy command accepts only `bits-statements-app-test-` plus the Railway hash |
+| App variables, after creation | `BITS_STATEMENT_PDF_BACKEND=s3`, `BITS_STATEMENT_S3_BUCKET`, `BITS_STATEMENT_S3_REGION`, and `BITS_STATEMENT_S3_ENDPOINT` reference the bucket. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` reference its access key. `BITS_STATEMENT_S3_FORCE_PATH_STYLE` and `BITS_STATEMENT_ALLOW_LOCAL_PRODUCTION` stay unset |
+| Not used as the app bucket | `bits-statements-test-hrqzaa` and `bits-independent-backups` |
+
+The proposed one-time rehearsal, not run, uses no church row and the
+reserved probe organization. Its PDF is 58 bytes, SHA-256
+`fb1d88e0743b7ffa71eab6093f1c44e3645bbc6ae5125898489eb5e5da415393`.
+
+| Step | Key |
+|---|---|
+| App source upload | `private/statements/00000000-0000-4000-8000-00000000f00d/00000000-0000-4000-8000-00000000a104/probe.pdf` |
+| Encrypted independent copy | `test/statements/objects/2026-11-18/20261118T193000Z/cb06af38fa80b5668b2ed280db159da78460dd32b92087951260cfbcef94a8d3.pdf.age` |
+| Encrypted manifest | `test/statements/manifests/2026-11-18/20261118T193000Z.json.age` |
+| Distinct app restore | `private/statements/00000000-0000-4000-8000-00000000f00d/00000000-0000-4000-8000-00000000a104/restored.pdf` |
+
+The two independent objects fall under the existing `test/statements/`
+lock: 90 days, then eligible for expiration after 91. They cannot be
+deleted immediately. The two Railway app objects have no object lock
+and can be deleted after the checksum and `%PDF-` check. Decryption
+stays on this Mac. The private key is not sent to Railway, GitHub, or
+the object store. This rehearsal would be storage evidence only. It is
+not signed-in staff or portal acceptance. No Saco organization, donor,
+gift, or Northside fixture is part of it. Approval is still required
+before creating the bucket, setting variables, redeploying, or running
+it.
+
 ### Still open
 
 Failure-email delivery for the November 17 crash and the November 18
 exit-1 deployment stays unknown. The drill's inbox delivery is pending
-the owner check above, so this alert check stays open. The offline
-recovery-key copy stays deferred, incomplete, and not verified.
-Statement-copy scheduling stays separate because `bits-statements-test`
-has no application writer and no objects. Production scheduling stays
-open. Hosted signed-in acceptance stays deferred. Original v1 stays
-unfinished.
+the owner check above, so this alert check stays open. The application
+statement bucket and the independent statement copy are prepared and
+not run. Statement-copy scheduling stays off. The offline recovery-key
+copy stays deferred, incomplete, and not verified. Production scheduling
+stays open. Hosted signed-in acceptance stays deferred. Original v1
+stays unfinished.

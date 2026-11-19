@@ -46,7 +46,8 @@
     "backup:rehearsal": "npx tsx scripts/independent-backup-rehearsal.ts",
     "backup:scheduled-plan": "npx tsx scripts/independent-backup-scheduled.ts",
     "backup:watch": "npx tsx scripts/independent-backup-watch.ts",
-    "backup:r2-restore": "npx tsx scripts/independent-backup-r2-restore.ts"
+    "backup:r2-restore": "npx tsx scripts/independent-backup-r2-restore.ts",
+    "backup:statements": "npx tsx scripts/independent-statement-copy.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",
