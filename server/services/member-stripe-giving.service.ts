@@ -1,12 +1,18 @@
+import { randomUUID } from "node:crypto";
+
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { prisma } from "@/lib/db/prisma";
+import {
+  buildStripeTestCheckoutBody,
+  hashCheckoutBinding,
+} from "@/lib/stripe/test-checkout-session";
 import { getStripeTestSecret } from "@/lib/stripe/test-mode";
 import {
   isAllowedCheckoutRequestOrigin,
   memberStripeGivingSchema,
 } from "@/lib/validation/member-stripe-giving";
 import { memberStripeDonationFundOptions } from "@/lib/validation/stripe-donation";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 import {
   advertisedStripeFunds,
   isStripeFundBlockedForNewCheckout,
@@ -49,11 +55,76 @@ const donorSelect = {
   email: true,
 } as const;
 
+function isUniqueConstraintError(error: unknown) {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2002",
+  );
+}
+
+function accountDonorName(account: { displayName?: string | null; primaryEmail: string }) {
+  const parts = (account.displayName ?? "").trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || "Member",
+    lastName: parts.slice(1).join(" ") || "Donor",
+  };
+}
+
+async function ensureAccountDonor(
+  organization: { id: string },
+  account: { id: string; displayName?: string | null; primaryEmail: string },
+) {
+  const existing = await prisma.donor.findFirst({
+    where: {
+      organizationId: organization.id,
+      userAccountId: account.id,
+      active: true,
+    },
+    select: donorSelect,
+  });
+  if (existing) return existing;
+
+  const name = accountDonorName(account);
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO donors (
+        id, "organizationId", "userAccountId", "firstName", "lastName", email,
+        active, "createdAt", "updatedAt"
+      )
+      VALUES (
+        ${randomUUID()}::uuid,
+        ${organization.id}::uuid,
+        ${account.id}::uuid,
+        ${name.firstName},
+        ${name.lastName},
+        ${account.primaryEmail},
+        true,
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT ("organizationId", "userAccountId") DO NOTHING
+    `;
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+  }
+
+  return prisma.donor.findFirst({
+    where: {
+      organizationId: organization.id,
+      userAccountId: account.id,
+      active: true,
+    },
+    select: donorSelect,
+  });
+}
+
 async function resolveLinkedDonorAccess() {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   return {
@@ -71,14 +142,7 @@ export async function getMemberStripeGiving(): Promise<MemberStripeGivingView> {
   const access = await resolveLinkedDonorAccess();
   if (access.status !== "LINKED") return access;
 
-  const donor = await prisma.donor.findFirst({
-    where: {
-      organizationId: access.organization.id,
-      userAccountId: access.userAccount.id,
-      active: true,
-    },
-    select: donorSelect,
-  });
+  const donor = await ensureAccountDonor(access.organization, access.userAccount);
   if (!donor) {
     return {
       status: "CONNECTION_PENDING",
@@ -114,14 +178,7 @@ export async function createMemberStripeCheckout(
   const access = await resolveLinkedDonorAccess();
   if (access.status !== "LINKED") return access;
 
-  const donor = await prisma.donor.findFirst({
-    where: {
-      organizationId: access.organization.id,
-      userAccountId: access.userAccount.id,
-      active: true,
-    },
-    select: donorSelect,
-  });
+  const donor = await ensureAccountDonor(access.organization, access.userAccount);
   if (!donor) {
     return {
       status: "CONNECTION_PENDING",
@@ -142,31 +199,38 @@ export async function createMemberStripeCheckout(
   }
 
   const requestUrl = new URL(request.url);
+  const receiptEmail = donor.email ?? access.userAccount.primaryEmail;
+  const attribution = await prisma.checkoutAttribution.create({
+    data: {
+      organizationId: access.organization.id,
+      kind: "MEMBER",
+      donorId: donor.id,
+      emailHash: hashCheckoutBinding(`${access.organization.id}\n${receiptEmail ?? ""}`),
+      contact: {
+        firstName: donor.firstName,
+        lastName: donor.lastName,
+        email: receiptEmail,
+      },
+      amountCents: parsed.data.amount,
+      fund: parsed.data.fund,
+      tokenHash: hashCheckoutBinding(randomUUID()),
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+    },
+    select: { id: true },
+  });
   const metadata = {
     environment: "BITS_TEST",
     fund: parsed.data.fund,
-    bits_source: "member",
-    bits_organization_id: access.organization.id,
-    bits_donor_id: donor.id,
+    bits_attribution_id: attribution.id,
   };
-  const receiptEmail = donor.email ?? access.userAccount.primaryEmail;
-  const parameters = new URLSearchParams({
-    mode: "payment",
-    ...(receiptEmail ? { customer_email: receiptEmail } : {}),
-    client_reference_id: `${access.organization.id}:${donor.id}`,
-    "line_items[0][quantity]": "1",
-    "line_items[0][price_data][currency]": "usd",
-    "line_items[0][price_data][unit_amount]": String(parsed.data.amount),
-    "line_items[0][price_data][product_data][name]": parsed.data.fund,
-    "line_items[0][price_data][product_data][description]":
-      "Member test gift through BITS",
-    "metadata[environment]": metadata.environment,
-    "metadata[fund]": metadata.fund,
-    "metadata[bits_source]": metadata.bits_source,
-    "metadata[bits_organization_id]": metadata.bits_organization_id,
-    "metadata[bits_donor_id]": metadata.bits_donor_id,
-    success_url: `${requestUrl.origin}/portal/give/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${requestUrl.origin}/portal/give?cancelled=1`,
+  const parameters = buildStripeTestCheckoutBody({
+    amountCents: parsed.data.amount,
+    fund: parsed.data.fund,
+    receiptEmail: receiptEmail ?? "",
+    attributionId: attribution.id,
+    description: "Member test gift through BITS",
+    successUrl: `${requestUrl.origin}/portal/give/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${requestUrl.origin}/portal/give?cancelled=1`,
   });
 
   const stripeResponse = await fetch(

@@ -1,5 +1,12 @@
+import { randomUUID } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
+import { prisma } from "@/lib/db/prisma";
+import {
+  buildStripeTestCheckoutBody,
+  hashCheckoutBinding,
+} from "@/lib/stripe/test-checkout-session";
 import { getStripeTestSecret } from "@/lib/stripe/test-mode";
 import { stripeDonationSchema } from "@/lib/validation/stripe-donation";
 import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
@@ -9,6 +16,32 @@ function returnToGive(request: Request, key: string, message: string) {
   const url = new URL("/give", request.url);
   url.searchParams.set(key, message);
   return NextResponse.redirect(url, 303);
+}
+
+function contactFrom(data: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  mailingAddressLine1: string | null;
+  mailingAddressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  country: string | null;
+}) {
+  return {
+    firstName: data.firstName,
+    lastName: data.lastName,
+    email: data.email,
+    phone: data.phone,
+    mailingAddressLine1: data.mailingAddressLine1,
+    mailingAddressLine2: data.mailingAddressLine2,
+    city: data.city,
+    state: data.state,
+    postalCode: data.postalCode,
+    country: data.country,
+  };
 }
 
 export async function POST(request: Request) {
@@ -32,6 +65,13 @@ export async function POST(request: Request) {
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
     email: formData.get("email"),
+    phone: formData.get("phone"),
+    mailingAddressLine1: formData.get("mailingAddressLine1"),
+    mailingAddressLine2: formData.get("mailingAddressLine2"),
+    city: formData.get("city"),
+    state: formData.get("state"),
+    postalCode: formData.get("postalCode"),
+    country: formData.get("country"),
     fund: formData.get("fund"),
     amount: formData.get("amount"),
   });
@@ -44,13 +84,14 @@ export async function POST(request: Request) {
   }
 
   const organization = await findPublicOrganization();
-  if (
-    organization &&
-    (await isStripeFundBlockedForNewCheckout(
-      organization.id,
-      parsed.data.fund,
-    ))
-  ) {
+  if (!organization) {
+    return returnToGive(
+      request,
+      "setup",
+      "Online giving is not configured for a church yet.",
+    );
+  }
+  if (await isStripeFundBlockedForNewCheckout(organization.id, parsed.data.fund)) {
     return returnToGive(
       request,
       "error",
@@ -58,23 +99,29 @@ export async function POST(request: Request) {
     );
   }
 
-  const donorName = `${parsed.data.firstName} ${parsed.data.lastName}`;
-  const parameters = new URLSearchParams({
-    mode: "payment",
-    customer_email: parsed.data.email,
-    "line_items[0][quantity]": "1",
-    "line_items[0][price_data][currency]": "usd",
-    "line_items[0][price_data][unit_amount]": String(parsed.data.amount),
-    "line_items[0][price_data][product_data][name]": parsed.data.fund,
-    "line_items[0][price_data][product_data][description]":
-      "Test gift to First UPC of Saco",
-    "metadata[fund]": parsed.data.fund,
-    "metadata[donor_name]": donorName,
-    "metadata[environment]": "BITS_TEST",
-    success_url: `${requestUrl.origin}/give/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${requestUrl.origin}/give?cancelled=1`,
+  const attribution = await prisma.checkoutAttribution.create({
+    data: {
+      organizationId: organization.id,
+      kind: "UNVERIFIED_GUEST",
+      emailHash: hashCheckoutBinding(`${organization.id}\n${parsed.data.email}`),
+      contact: contactFrom(parsed.data),
+      amountCents: parsed.data.amount,
+      fund: parsed.data.fund,
+      tokenHash: hashCheckoutBinding(randomUUID()),
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+    },
+    select: { id: true },
   });
 
+  const parameters = buildStripeTestCheckoutBody({
+    amountCents: parsed.data.amount,
+    fund: parsed.data.fund,
+    receiptEmail: parsed.data.email,
+    attributionId: attribution.id,
+    description: "Test gift to First UPC of Saco",
+    successUrl: `${requestUrl.origin}/give/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${requestUrl.origin}/give?cancelled=1`,
+  });
   const stripeResponse = await fetch(
     "https://api.stripe.com/v1/checkout/sessions",
     {
@@ -88,6 +135,7 @@ export async function POST(request: Request) {
     },
   );
   const stripeResult = (await stripeResponse.json()) as {
+    id?: string;
     url?: string;
     error?: { message?: string };
   };
@@ -95,9 +143,14 @@ export async function POST(request: Request) {
     return returnToGive(
       request,
       "error",
-      stripeResult.error?.message ?? "Stripe could not start test checkout.",
+      "Stripe could not start test checkout.",
     );
   }
-
+  if (stripeResult.id) {
+    await prisma.checkoutAttribution.update({
+      where: { id: attribution.id },
+      data: { stripeCheckoutSessionId: stripeResult.id },
+    });
+  }
   return NextResponse.redirect(stripeResult.url, 303);
 }

@@ -1,4 +1,4 @@
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 import { UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
@@ -12,7 +12,7 @@ export default async function MemberPortalLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) redirect("/select-organization");
 
   return (

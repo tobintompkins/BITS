@@ -682,6 +682,7 @@ model Organization {
   volunteerSubstituteRequests    VolunteerSubstituteRequest[]
   volunteerTrainingRecords       VolunteerTrainingRecord[]
   ministryResources              MinistryResource[]
+  checkoutAttributions           CheckoutAttribution[]
 
   @@map("organizations")
 }
@@ -879,6 +880,32 @@ model Donor {
   @@index([organizationId, active])
   @@index([organizationId, lastName, firstName])
   @@map("donors")
+}
+
+enum CheckoutAttributionKind {
+  MEMBER
+  UNVERIFIED_GUEST
+}
+
+model CheckoutAttribution {
+  id                      String                   @id @default(uuid()) @db.Uuid
+  organizationId          String                   @db.Uuid
+  kind                    CheckoutAttributionKind
+  donorId                 String?                  @db.Uuid
+  emailHash               String
+  contact                 Json
+  amountCents             Int
+  fund                    String
+  tokenHash               String                   @unique
+  stripeCheckoutSessionId String?                  @unique
+  expiresAt               DateTime
+  consumedAt              DateTime?
+  createdAt               DateTime                 @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, emailHash])
+  @@map("checkout_attributions")
 }
 
 model Household {

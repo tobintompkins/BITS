@@ -54,10 +54,24 @@ export function isAllowedStripeDonationAmountCents(cents: number) {
   );
 }
 
+function optionalContact(max: number) {
+  return z.preprocess(
+    (value) => (typeof value === "string" ? value.trim() : ""),
+    z.string().max(max).transform((value) => value || null),
+  );
+}
+
 export const stripeDonationSchema = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
-  email: z.string().trim().email().max(320),
+  email: z.string().trim().email().max(320).transform((value) => value.toLowerCase()),
+  phone: optionalContact(50),
+  mailingAddressLine1: optionalContact(200),
+  mailingAddressLine2: optionalContact(200),
+  city: optionalContact(100),
+  state: optionalContact(100),
+  postalCode: optionalContact(30),
+  country: optionalContact(100),
   fund: z.enum(stripeDonationFundOptions),
   amount: z
     .string()

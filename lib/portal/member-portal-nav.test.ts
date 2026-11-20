@@ -151,12 +151,19 @@ describe("church leadership public card", () => {
     expect(CHURCH_LEADERSHIP_NAMES).toEqual([
       "Pastor Jeff Legere",
       "Marry Legere",
+      "Casey Helmuth",
+      "Shelia Helmuth",
     ]);
 
     const html = renderToStaticMarkup(createElement(ChurchLeadershipCard));
     expect(html).toContain("Church Leadership");
     expect(html).toContain("Pastor Jeff Legere");
     expect(html).toContain("Marry Legere");
+    expect(html).toContain("Casey Helmuth");
+    expect(html).toContain("Shelia Helmuth");
+    expect(html).not.toContain("Terry Tompkins");
+    expect(html).not.toContain("Tami Tompkins");
+    expect(html).not.toContain("Tobin Tompkins");
     expect(html).not.toContain("bio");
     expect(html).not.toContain("http");
   });

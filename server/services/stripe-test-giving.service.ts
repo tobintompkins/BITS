@@ -166,23 +166,53 @@ export async function advertisedStripeFunds<T extends string>(
   return blocked.filter(([, isBlocked]) => !isBlocked).map(([fund]) => fund);
 }
 
-export function readMemberCheckoutAttribution(
-  metadata: Record<string, string> | null | undefined,
+type StoredContact = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string | null;
+  mailingAddressLine1?: string | null;
+  mailingAddressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+};
+
+function readAttributionId(metadata: Record<string, string>) {
+  const value = metadata.bits_attribution_id?.trim() ?? "";
+  return UUID_PATTERN.test(value) ? value : null;
+}
+
+function contactEmail(contact: StoredContact | null) {
+  const email = contact?.email?.trim().toLowerCase() ?? "";
+  return email.includes("@") ? email : null;
+}
+
+async function createGuestDonor(
+  db: DonationWriter,
+  organizationId: string,
+  contact: StoredContact,
 ) {
-  const source = metadata?.bits_source?.trim() ?? "";
-  const donorId = metadata?.bits_donor_id?.trim() ?? "";
-  const organizationId = metadata?.bits_organization_id?.trim() ?? "";
-  if (source !== "member" && !donorId && !organizationId) {
-    return null;
-  }
-  return {
-    donorId,
-    organizationId,
-    valid:
-      source === "member" &&
-      UUID_PATTERN.test(donorId) &&
-      UUID_PATTERN.test(organizationId),
-  };
+  const created = await db.donor.create({
+    data: {
+      organizationId,
+      userAccountId: null,
+      firstName: contact.firstName?.trim() || "Guest",
+      lastName: contact.lastName?.trim() || "Donor",
+      email: contactEmail(contact),
+      phone: contact.phone ?? null,
+      mailingAddressLine1: contact.mailingAddressLine1 ?? null,
+      mailingAddressLine2: contact.mailingAddressLine2 ?? null,
+      city: contact.city ?? null,
+      state: contact.state ?? null,
+      postalCode: contact.postalCode ?? null,
+      country: contact.country ?? null,
+      active: true,
+    },
+    select: { id: true },
+  });
+  return created.id;
 }
 
 async function resolveDonationDonor(
@@ -190,32 +220,54 @@ async function resolveDonationDonor(
   organizationId: string,
   db: DonationWriter,
 ) {
-  const attribution = readMemberCheckoutAttribution(checkout.metadata);
-  if (attribution) {
-    if (!attribution.valid || attribution.organizationId !== organizationId) {
-      return null;
-    }
-    const donor = await db.donor.findFirst({
-      where: {
-        id: attribution.donorId,
-        organizationId,
-        active: true,
-      },
-      select: { id: true },
-    });
-    return donor?.id ?? null;
+  const attributionId = readAttributionId(checkout.metadata);
+  if (!attributionId || !("checkoutAttribution" in db)) return null;
+  const attribution = await db.checkoutAttribution.findFirst({
+    where: { id: attributionId, organizationId },
+  });
+  if (!attribution) return null;
+  if (
+    attribution.consumedAt &&
+    attribution.stripeCheckoutSessionId &&
+    attribution.stripeCheckoutSessionId !== checkout.id
+  ) {
+    return null;
   }
 
-  if (!checkout.email) return null;
-  const donor = await db.donor.findFirst({
-    where: {
-      organizationId,
-      email: { equals: checkout.email, mode: "insensitive" },
-      active: true,
-    },
-    select: { id: true },
-  });
-  return donor?.id ?? null;
+  const contact = attribution.contact as StoredContact;
+  let donorId: string | null = null;
+  if (attribution.kind === "MEMBER") {
+    if (attribution.donorId) {
+      const donor = await db.donor.findFirst({
+        where: {
+          id: attribution.donorId,
+          organizationId,
+          active: true,
+          userAccountId: { not: null },
+        },
+        select: { id: true },
+      });
+      donorId = donor?.id ?? null;
+    }
+  } else if (attribution.kind === "UNVERIFIED_GUEST") {
+    donorId =
+      attribution.donorId ??
+      (await createGuestDonor(db, organizationId, contact));
+  } else {
+    return null;
+  }
+
+  if (!attribution.consumedAt) {
+    await db.checkoutAttribution.update({
+      where: { id: attribution.id },
+      data: {
+        donorId,
+        consumedAt: new Date(),
+        stripeCheckoutSessionId: checkout.id,
+      },
+    });
+  }
+  return donorId;
 }
 
 export async function persistStripeTestDonation(

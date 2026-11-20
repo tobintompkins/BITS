@@ -51,7 +51,8 @@ export default async function GivePage({
             <strong>Stripe sandbox test mode</strong>
             <p className="mt-1">
               This page is for testing only. No real donation will be charged
-              or deposited.
+              or deposited. A guest gift is not connected to an earlier donor
+              record, and a Stripe receipt does not add it to an account.
             </p>
           </div>
 
@@ -89,6 +90,30 @@ export default async function GivePage({
             <label className="space-y-1 text-sm sm:col-span-2">
               <span className="font-medium">Email</span>
               <input name="email" type="email" required autoComplete="email" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            </label>
+            <label className="space-y-1 text-sm sm:col-span-2">
+              <span className="font-medium">Phone <span className="font-normal text-[var(--bits-muted)]">(optional)</span></span>
+              <input name="phone" type="tel" autoComplete="tel" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            </label>
+            <label className="space-y-1 text-sm sm:col-span-2">
+              <span className="font-medium">Mailing address <span className="font-normal text-[var(--bits-muted)]">(optional)</span></span>
+              <input name="mailingAddressLine1" autoComplete="address-line1" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            </label>
+            <label className="space-y-1 text-sm sm:col-span-2">
+              <span className="sr-only">Address line 2</span>
+              <input name="mailingAddressLine2" autoComplete="address-line2" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="font-medium">City</span>
+              <input name="city" autoComplete="address-level2" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="font-medium">State</span>
+              <input name="state" autoComplete="address-level1" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="font-medium">Postal code</span>
+              <input name="postalCode" autoComplete="postal-code" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
             </label>
             <label className="space-y-1 text-sm">
               <span className="font-medium">Giving fund</span>

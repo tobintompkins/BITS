@@ -27,7 +27,10 @@ vi.mock("@/lib/db/prisma", () => ({
   },
 }));
 
-import { findPrimaryOrganization } from "./organization.repository";
+import {
+  findMemberPortalOrganization,
+  findPrimaryOrganization,
+} from "./organization.repository";
 
 const ORG_A = { id: "00000000-0000-4000-8000-00000000a001", active: true };
 const ORG_B = { id: "00000000-0000-4000-8000-00000000a002", active: true };
@@ -122,5 +125,51 @@ describe("findPrimaryOrganization", () => {
       Object.assign(new Error("Unknown argument"), { code: "P2009" }),
     );
     await expect(findPrimaryOrganization()).rejects.toThrow("Unknown argument");
+  });
+});
+
+describe("findMemberPortalOrganization", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.stubEnv("BITS_PUBLIC_ORGANIZATION_SLUG", "public-church");
+    mocks.auth.mockResolvedValue({ userId: null, orgId: null });
+  });
+
+  it("uses the public church for a signed-in account with no membership", async () => {
+    mocks.auth.mockResolvedValue({ userId: "user-1", orgId: null });
+    mocks.userAccountFindUnique.mockResolvedValue({ id: "account-1" });
+    mocks.memberships.mockResolvedValue([]);
+    mocks.findFirst.mockResolvedValue(ORG_A);
+    await expect(findMemberPortalOrganization()).resolves.toEqual(ORG_A);
+    expect(mocks.findFirst).toHaveBeenCalledWith({
+      where: { slug: "public-church", active: true },
+    });
+  });
+
+  it("does not use the public church when the selected Clerk organization is unknown", async () => {
+    mocks.auth.mockResolvedValue({ userId: "user-1", orgId: "missing-org" });
+    mocks.findFirst.mockResolvedValue(null);
+    await expect(findMemberPortalOrganization()).resolves.toBeNull();
+    expect(mocks.memberships).not.toHaveBeenCalled();
+  });
+
+  it("does not use the public church when memberships are ambiguous", async () => {
+    mocks.auth.mockResolvedValue({ userId: "user-1", orgId: null });
+    mocks.userAccountFindUnique.mockResolvedValue({ id: "account-1" });
+    mocks.memberships.mockResolvedValue([
+      { organization: ORG_A },
+      { organization: ORG_B },
+    ]);
+    await expect(findMemberPortalOrganization()).resolves.toBeNull();
+    expect(mocks.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("keeps the staff resolver closed for the same membership-less account", async () => {
+    mocks.auth.mockResolvedValue({ userId: "user-1", orgId: null });
+    mocks.userAccountFindUnique.mockResolvedValue({ id: "account-1" });
+    mocks.memberships.mockResolvedValue([]);
+    mocks.findFirst.mockResolvedValue(ORG_A);
+    await expect(findPrimaryOrganization()).resolves.toBeNull();
+    await expect(findMemberPortalOrganization()).resolves.toEqual(ORG_A);
   });
 });

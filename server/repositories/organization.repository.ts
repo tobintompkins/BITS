@@ -72,6 +72,46 @@ export async function findPrimaryOrganization() {
   }
 }
 
+/**
+ * Portal church for a signed-in account.
+ * An unknown Clerk organization or more than one membership fails closed.
+ * The public church is used only when the account has no active membership.
+ */
+export async function findMemberPortalOrganization() {
+  try {
+    const { userId, orgId } = await auth();
+    if (!userId) return await findPublicOrganization();
+
+    if (orgId) {
+      return await prisma.organization.findFirst({
+        where: { active: true, clerkOrganizationId: orgId },
+      });
+    }
+
+    const account = await prisma.userAccount.findUnique({
+      where: { clerkUserId: userId },
+      select: { id: true },
+    });
+    if (!account) return null;
+
+    const memberships = await prisma.organizationMembership.findMany({
+      where: {
+        userAccountId: account.id,
+        active: true,
+        organization: { active: true },
+      },
+      include: { organization: true },
+      take: 2,
+    });
+    if (memberships.length > 1) return null;
+    if (memberships.length === 1) return memberships[0].organization;
+    return await findPublicOrganization();
+  } catch (error) {
+    if (!isDatabaseUnavailableError(error)) throw error;
+    return null;
+  }
+}
+
 export async function findOrganizationBySlug(
   slug: string,
   db: OrganizationDb = prisma,

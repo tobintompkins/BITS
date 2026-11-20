@@ -2,7 +2,7 @@ import { RoleCode } from "@/app/generated/prisma/client";
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { isDatabaseUnavailableError } from "@/lib/db/database-unavailable";
 import { prisma } from "@/lib/db/prisma";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 import {
   findAuthorizedHouseholdIdsForStatementRecipient,
   portalPublishedStatementAccessWhere,
@@ -32,7 +32,7 @@ async function loadMemberPortalDashboard() {
     return { status: "SIGNED_OUT" as const };
   }
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) {
     return { status: "NO_ORGANIZATION" as const };
   }
@@ -149,7 +149,7 @@ export async function getMemberPortalStatements(requestedYear?: number) {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   const donor = await prisma.donor.findFirst({

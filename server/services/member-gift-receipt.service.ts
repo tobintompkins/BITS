@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { parseMemberGiftId } from "@/lib/validation/member-gift-receipt";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 /**
  * Member-facing gift receipt for one owned donation.
@@ -12,7 +12,7 @@ export async function getMemberGiftReceipt(giftId: string | undefined) {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   const donor = await prisma.donor.findFirst({

@@ -15,8 +15,15 @@ const valid = {
 };
 
 describe("Stripe test donation validation", () => {
-  it("converts dollars to cents", () => {
-    expect(stripeDonationSchema.parse(valid).amount).toBe(2550);
+  it("converts dollars to cents and ignores a guest verification flag", () => {
+    const parsed = stripeDonationSchema.parse({
+      ...valid,
+      verifyContinuity: "on",
+      phone: " 207-555-0100 ",
+    });
+    expect(parsed.amount).toBe(2550);
+    expect(parsed.phone).toBe("207-555-0100");
+    expect(parsed).not.toHaveProperty("verifyContinuity");
   });
 
   it("rejects invalid funds", () => {

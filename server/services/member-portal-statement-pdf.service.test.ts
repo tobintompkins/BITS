@@ -13,8 +13,8 @@ vi.mock("@/lib/auth/user-account", () => ({
   getOrCreateUserAccount: mocks.getOrCreateUserAccount,
 }));
 
-vi.mock("@/lib/auth/current-organization", () => ({
-  findCurrentOrganizationForUser: mocks.findCurrentOrganizationForUser,
+vi.mock("@/server/repositories/organization.repository", () => ({
+  findMemberPortalOrganization: mocks.findCurrentOrganizationForUser,
 }));
 
 vi.mock("@/lib/db/prisma", () => ({

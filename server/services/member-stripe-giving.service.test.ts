@@ -40,7 +40,17 @@ const store = vi.hoisted(() => ({
   lastDonorWhere: null as unknown,
   lastDonationCreate: null as unknown,
   lastOfferingTypeCreate: null as unknown,
+  createdGuests: [] as Array<{ id: string; userAccountId: string | null; email: string | null }>,
   fetchBodies: [] as string[],
+  attribution: null as null | {
+    id: string;
+    organizationId: string;
+    kind: "MEMBER" | "UNVERIFIED_GUEST";
+    donorId: string | null;
+    contact: { email?: string; firstName?: string; lastName?: string };
+    consumedAt: Date | null;
+    stripeCheckoutSessionId: string | null;
+  },
 }));
 
 const mocks = vi.hoisted(() => ({
@@ -55,6 +65,7 @@ vi.mock("@/lib/auth/user-account", () => ({
 
 vi.mock("@/server/repositories/organization.repository", () => ({
   findPrimaryOrganization: mocks.findPrimaryOrganization,
+  findMemberPortalOrganization: mocks.findPrimaryOrganization,
 }));
 
 vi.mock("@/lib/stripe/test-mode", () => ({
@@ -81,7 +92,9 @@ vi.mock("@/lib/db/prisma", () => ({
             if (donor.organizationId !== where.organizationId) return false;
             if (donor.active !== where.active) return false;
             if (where.id && donor.id !== where.id) return false;
-            if (
+            if (where.userAccountId && typeof where.userAccountId === "object") {
+              if (!donor.userAccountId) return false;
+            } else if (
               where.userAccountId &&
               donor.userAccountId !== where.userAccountId
             ) {
@@ -93,9 +106,22 @@ vi.mock("@/lib/db/prisma", () => ({
             ) {
               return false;
             }
-            return true;
-          }) ?? null
+        return true;
+      }) ?? null
         );
+      },
+      create: async ({
+        data,
+      }: {
+        data: { userAccountId: string | null; email: string | null };
+      }) => {
+        const row = {
+          id: `guest-${store.createdGuests.length + 1}`,
+          userAccountId: data.userAccountId,
+          email: data.email,
+        };
+        store.createdGuests.push(row);
+        return { id: row.id };
       },
     },
     donation: {
@@ -168,6 +194,12 @@ vi.mock("@/lib/db/prisma", () => ({
         throw new Error("existing offering types must not be overwritten");
       },
     },
+    checkoutAttribution: {
+      create: async () => ({ id: "00000000-0000-4000-8000-00000000e001" }),
+      findFirst: async () => store.attribution,
+      update: async () => store.attribution,
+    },
+    $executeRaw: async () => 0,
   },
 }));
 
@@ -213,7 +245,9 @@ function seed() {
   store.lastDonorWhere = null;
   store.lastDonationCreate = null;
   store.lastOfferingTypeCreate = null;
+  store.createdGuests = [];
   store.fetchBodies = [];
+  store.attribution = null;
 }
 
 function sameOriginRequest() {
@@ -343,12 +377,12 @@ describe("member stripe giving", () => {
     expect(allowed.metadata).toEqual({
       environment: "BITS_TEST",
       fund: "Home Building Fund",
-      bits_source: "member",
-      bits_organization_id: ORG_ID,
-      bits_donor_id: DONOR_ID,
+      bits_attribution_id: "00000000-0000-4000-8000-00000000e001",
     });
     const checkoutBody = decodeURIComponent(store.fetchBodies[0] ?? "");
-    expect(checkoutBody).toContain(`metadata[bits_donor_id]=${DONOR_ID}`);
+    expect(checkoutBody).toContain("metadata[bits_attribution_id]=");
+    expect(checkoutBody).toContain("payment_intent_data[receipt_email]=");
+    expect(checkoutBody).not.toContain("metadata[bits_donor_id]");
     expect(checkoutBody).not.toContain(OTHER_DONOR);
     expect(checkoutBody).not.toContain(OTHER_ORG);
   });
@@ -403,18 +437,27 @@ describe("member stripe giving", () => {
     expect(payload).not.toContain("4242");
     expect(body).not.toContain("Ann Adams");
     expect(body).not.toContain("donor_name");
-    expect(body).toContain("metadata[bits_source]=member");
+    expect(body).toContain("metadata[bits_attribution_id]=");
+    expect(body).toContain("payment_intent_data[receipt_email]=");
+    expect(body).not.toContain("metadata[bits_donor_id]");
     expect(body).toContain("metadata[environment]=BITS_TEST");
   });
 
   it("persists an attributed donation to the linked donor", async () => {
+    store.attribution = {
+      id: "00000000-0000-4000-8000-00000000e001",
+      organizationId: ORG_ID,
+      kind: "MEMBER",
+      donorId: DONOR_ID,
+      contact: { email: OWN_EMAIL, firstName: "Ann", lastName: "Adams" },
+      consumedAt: null,
+      stripeCheckoutSessionId: null,
+    };
     const validated = validateStripeTestCheckoutSession(
       paidCheckout({
         environment: "BITS_TEST",
         fund: "Home Building Fund",
-        bits_source: "member",
-        bits_organization_id: ORG_ID,
-        bits_donor_id: DONOR_ID,
+        bits_attribution_id: "00000000-0000-4000-8000-00000000e001",
       }),
     );
     expect(validated.ok).toBe(true);
@@ -432,6 +475,7 @@ describe("member stripe giving", () => {
       id: DONOR_ID,
       organizationId: ORG_ID,
       active: true,
+      userAccountId: { not: null },
     });
   });
 
@@ -474,19 +518,50 @@ describe("member stripe giving", () => {
     expect(JSON.stringify(store.lastDonationCreate)).not.toContain(OTHER_DONOR);
   });
 
-  it("keeps guest email matching when no member attribution is present", async () => {
+  it("creates a separate unlinked donor for a repeat guest email", async () => {
+    store.attribution = {
+      id: "00000000-0000-4000-8000-00000000e002",
+      organizationId: ORG_ID,
+      kind: "UNVERIFIED_GUEST",
+      donorId: null,
+      contact: { email: OWN_EMAIL, firstName: "Ann", lastName: "Guest" },
+      consumedAt: null,
+      stripeCheckoutSessionId: null,
+    };
+    const validated = validateStripeTestCheckoutSession(
+      paidCheckout({
+        environment: "BITS_TEST",
+        fund: "Building Fund",
+        bits_attribution_id: "00000000-0000-4000-8000-00000000e002",
+      }),
+    );
+    expect(validated.ok).toBe(true);
+    if (!validated.ok) return;
+
+    const recorded = await persistStripeTestDonation(validated.checkout, ORG_ID);
+    expect(recorded.donation.donorId).toBe("guest-1");
+    expect(recorded.donation.donorId).not.toBe(DONOR_ID);
+    expect(store.createdGuests).toEqual([
+      { id: "guest-1", userAccountId: null, email: OWN_EMAIL },
+    ]);
+    expect(JSON.stringify(store.lastDonorWhere ?? {})).not.toContain("email");
+    expect(store.donors.map((donor) => donor.userAccountId)).not.toContain(null);
+
+    const replay = await persistStripeTestDonation(validated.checkout, ORG_ID);
+    expect(replay.alreadyRecorded).toBe(true);
+    expect(store.createdGuests).toHaveLength(1);
+    expect(store.donations).toHaveLength(1);
+  });
+
+  it("does not claim a guest gift by email when no server attribution is present", async () => {
     const guest = validateStripeTestCheckoutSession(
       paidCheckout({ environment: "BITS_TEST", fund: "Building Fund" }),
     );
     expect(guest.ok).toBe(true);
     if (!guest.ok) return;
     const recorded = await persistStripeTestDonation(guest.checkout, ORG_ID);
-    expect(recorded.donation.donorId).toBe(DONOR_ID);
-    expect(store.lastDonorWhere).toEqual({
-      organizationId: ORG_ID,
-      email: { equals: OWN_EMAIL, mode: "insensitive" },
-      active: true,
-    });
+    expect(recorded.donation.donorId).toBeNull();
+    expect(JSON.stringify(store.lastDonorWhere)).not.toContain("email");
   });
 
   it("does not create a second gift for the same checkout session", async () => {

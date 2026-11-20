@@ -111,7 +111,7 @@ describe("persistStripeTestDonation", () => {
     });
   });
 
-  it("stores a test donation once and matches donors only in the current organization", async () => {
+  it("stores a test donation once and does not match a donor by email", async () => {
     const validated = validateStripeTestCheckoutSession(paidCheckout());
     expect(validated.ok).toBe(true);
     if (!validated.ok) return;
@@ -119,17 +119,7 @@ describe("persistStripeTestDonation", () => {
     const first = await persistStripeTestDonation(validated.checkout, ORG_ID);
     expect(first.alreadyRecorded).toBe(false);
     expect(first.donation.isTest).toBe(true);
-    expect(mocks.donorFindFirst).toHaveBeenCalledWith({
-      where: {
-        organizationId: ORG_ID,
-        email: { equals: "donor@example.com", mode: "insensitive" },
-        active: true,
-      },
-      select: { id: true },
-    });
-    expect(mocks.donorFindFirst.mock.calls[0]?.[0].where.organizationId).not.toBe(
-      OTHER_ORG,
-    );
+    expect(mocks.donorFindFirst).not.toHaveBeenCalled();
     expect(mocks.donationCreate.mock.calls[0]?.[0].data).toMatchObject({
       organizationId: ORG_ID,
       isTest: true,

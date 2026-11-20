@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { findCurrentOrganizationForUser } from "@/lib/auth/current-organization";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { prisma } from "@/lib/db/prisma";
 
@@ -143,7 +143,7 @@ export async function authorizePortalStatementPdf(
     return { status: "SIGNED_OUT" };
   }
 
-  const organization = await findCurrentOrganizationForUser(userAccount.id);
+  const organization = await findMemberPortalOrganization();
   if (!organization) {
     return { status: "NOT_AVAILABLE" };
   }
