@@ -12,8 +12,8 @@ import { PrayerWall } from "@/components/home/prayer-wall";
 import { findPublicPrayerWallRequests } from "@/server/repositories/care-engagement.repository";
 import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 import { getPublicChurchServiceAlert } from "@/server/services/church-service-alert.service";
-
-const churchPhotos: ChurchPhoto[] = [];
+import { HomepagePhotoEditor } from "@/components/home/homepage-photo-editor";
+import { optionalHomepagePhotoAdmin, publicHomepagePhoto } from "@/server/services/homepage-photo.service";
 
 const guestOptions = [
   {
@@ -61,6 +61,12 @@ const guestOptions = [
 
 export default async function Home() {
   await connection();
+  const [homepagePhoto, photoAdmin] = await Promise.all([
+    publicHomepagePhoto(), optionalHomepagePhotoAdmin(),
+  ]);
+  const churchPhotos: ChurchPhoto[] = homepagePhoto
+    ? [{ src: `/api/homepage-photo?v=${homepagePhoto.version}`, alt: homepagePhoto.alt }]
+    : [];
   const organization = await findPublicOrganization().catch(() => null);
   const publicPrayerRequests = organization
     ? await findPublicPrayerWallRequests(organization.id).catch(() => [])
@@ -135,8 +141,9 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-xl">
-            <ChurchPhotoCarousel photos={churchPhotos} />
+          <div className="flex flex-col overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-xl">
+            <div className="min-h-48 flex-1"><ChurchPhotoCarousel photos={churchPhotos} /></div>
+            {photoAdmin ? <HomepagePhotoEditor version={homepagePhoto?.version ?? 0} description={homepagePhoto?.alt ?? ""} /> : null}
           </div>
         </div>
       </section>

@@ -66,6 +66,7 @@ export function ChurchPhotoCarousel({
         >
           <Image
             src={photo.src}
+            unoptimized={photo.src.startsWith("/api/homepage-photo")}
             alt={photo.alt}
             fill
             sizes="(min-width: 1024px) 38vw, 100vw"
