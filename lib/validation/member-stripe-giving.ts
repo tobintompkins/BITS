@@ -35,8 +35,23 @@ export const memberStripeGivingSchema = z
 
 export type MemberStripeGivingInput = z.infer<typeof memberStripeGivingSchema>;
 
+function configuredPublicOrigin() {
+  const appBase = process.env.APP_BASE_URL?.trim();
+  if (!appBase) return null;
+  try {
+    return new URL(appBase).origin;
+  } catch {
+    return null;
+  }
+}
+
+export function checkoutAppOrigin(request: Request) {
+  return configuredPublicOrigin() ?? new URL(request.url).origin;
+}
+
 export function isAllowedCheckoutRequestOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
-  return origin === new URL(request.url).origin;
+  const requestOrigin = new URL(request.url).origin;
+  return origin === requestOrigin || origin === configuredPublicOrigin();
 }

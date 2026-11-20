@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 
+import { checkoutAppOrigin } from "@/lib/validation/member-stripe-giving";
 import { createMemberStripeCheckout } from "@/server/services/member-stripe-giving.service";
 
 function returnToPortalGive(request: Request, key: string, message?: string) {
-  const url = new URL("/portal/give", request.url);
+  const url = new URL("/portal/give", checkoutAppOrigin(request));
   url.searchParams.set(key, message ?? "1");
   return NextResponse.redirect(url, 303);
 }
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     return new NextResponse("Invalid request origin.", { status: 403 });
   }
   if (result.status === "SIGNED_OUT") {
-    return NextResponse.redirect(new URL("/sign-in", request.url), 303);
+    return NextResponse.redirect(new URL("/sign-in", checkoutAppOrigin(request)), 303);
   }
   if (result.status === "NO_ORGANIZATION") {
     return returnToPortalGive(

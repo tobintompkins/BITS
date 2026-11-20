@@ -8,12 +8,16 @@ import {
   hashCheckoutBinding,
 } from "@/lib/stripe/test-checkout-session";
 import { getStripeTestSecret } from "@/lib/stripe/test-mode";
+import {
+  checkoutAppOrigin,
+  isAllowedCheckoutRequestOrigin,
+} from "@/lib/validation/member-stripe-giving";
 import { stripeDonationSchema } from "@/lib/validation/stripe-donation";
 import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 import { isStripeFundBlockedForNewCheckout } from "@/server/services/stripe-test-giving.service";
 
 function returnToGive(request: Request, key: string, message: string) {
-  const url = new URL("/give", request.url);
+  const url = new URL("/give", checkoutAppOrigin(request));
   url.searchParams.set(key, message);
   return NextResponse.redirect(url, 303);
 }
@@ -45,9 +49,7 @@ function contactFrom(data: {
 }
 
 export async function POST(request: Request) {
-  const requestUrl = new URL(request.url);
-  const origin = request.headers.get("origin");
-  if (origin && origin !== requestUrl.origin) {
+  if (!isAllowedCheckoutRequestOrigin(request)) {
     return new NextResponse("Invalid request origin.", { status: 403 });
   }
 
@@ -119,8 +121,8 @@ export async function POST(request: Request) {
     receiptEmail: parsed.data.email,
     attributionId: attribution.id,
     description: "Test gift to First UPC of Saco",
-    successUrl: `${requestUrl.origin}/give/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancelUrl: `${requestUrl.origin}/give?cancelled=1`,
+    successUrl: `${checkoutAppOrigin(request)}/give/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${checkoutAppOrigin(request)}/give?cancelled=1`,
   });
   const stripeResponse = await fetch(
     "https://api.stripe.com/v1/checkout/sessions",

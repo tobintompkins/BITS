@@ -8,6 +8,7 @@ import {
 } from "@/lib/stripe/test-checkout-session";
 import { getStripeTestSecret } from "@/lib/stripe/test-mode";
 import {
+  checkoutAppOrigin,
   isAllowedCheckoutRequestOrigin,
   memberStripeGivingSchema,
 } from "@/lib/validation/member-stripe-giving";
@@ -198,7 +199,7 @@ export async function createMemberStripeCheckout(
     return { status: "FUND_UNAVAILABLE" };
   }
 
-  const requestUrl = new URL(request.url);
+  const appOrigin = checkoutAppOrigin(request);
   const receiptEmail = donor.email ?? access.userAccount.primaryEmail;
   const attribution = await prisma.checkoutAttribution.create({
     data: {
@@ -229,8 +230,8 @@ export async function createMemberStripeCheckout(
     receiptEmail: receiptEmail ?? "",
     attributionId: attribution.id,
     description: "Member test gift through BITS",
-    successUrl: `${requestUrl.origin}/portal/give/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancelUrl: `${requestUrl.origin}/portal/give?cancelled=1`,
+    successUrl: `${appOrigin}/portal/give/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${appOrigin}/portal/give?cancelled=1`,
   });
 
   const stripeResponse = await fetch(

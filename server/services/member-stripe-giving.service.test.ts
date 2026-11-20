@@ -407,6 +407,21 @@ describe("member stripe giving", () => {
     ).toBe(false);
   });
 
+  it("accepts the configured public origin when the request host is internal", () => {
+    vi.stubEnv("APP_BASE_URL", "https://firstupcsaco.up.railway.app");
+    const request = new Request("http://127.0.0.1:8080/api/portal/stripe/checkout", {
+      method: "POST",
+      headers: { origin: "https://firstupcsaco.up.railway.app" },
+    });
+    expect(isAllowedCheckoutRequestOrigin(request)).toBe(true);
+    const foreign = new Request("http://127.0.0.1:8080/api/portal/stripe/checkout", {
+      method: "POST",
+      headers: { origin: "https://evil.example" },
+    });
+    expect(isAllowedCheckoutRequestOrigin(foreign)).toBe(false);
+    vi.unstubAllEnvs();
+  });
+
   it("rejects a mismatched request origin", async () => {
     const request = new Request(
       "http://localhost:3001/api/portal/stripe/checkout",
