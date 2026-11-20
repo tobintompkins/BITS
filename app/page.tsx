@@ -1,5 +1,6 @@
 import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
+import { connection } from "next/server";
 
 import { DisplayOptions } from "@/components/accessibility/display-options";
 import { ChurchServiceAlertBanner } from "@/components/home/church-service-alert-banner";
@@ -59,6 +60,7 @@ const guestOptions = [
 ];
 
 export default async function Home() {
+  await connection();
   const organization = await findPublicOrganization().catch(() => null);
   const publicPrayerRequests = organization
     ? await findPublicPrayerWallRequests(organization.id).catch(() => [])

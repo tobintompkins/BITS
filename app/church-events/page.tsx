@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { connection } from "next/server";
 
 import { DisplayOptions } from "@/components/accessibility/display-options";
 import { findEvents } from "@/server/repositories/event.repository";
 import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 
 export default async function PublicChurchEventsPage() {
+  await connection();
   const organization = await findPublicOrganization();
   const events = organization
     ? (
