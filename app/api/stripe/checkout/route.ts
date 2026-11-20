@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 import {
   buildStripeTestCheckoutBody,
   hashCheckoutBinding,
+  isStripeHostedCheckoutUrl,
 } from "@/lib/stripe/test-checkout-session";
 import { getStripeTestSecret } from "@/lib/stripe/test-mode";
 import {
@@ -141,7 +142,11 @@ export async function POST(request: Request) {
     url?: string;
     error?: { message?: string };
   };
-  if (!stripeResponse.ok || !stripeResult.url) {
+  if (
+    !stripeResponse.ok ||
+    !stripeResult.url ||
+    !isStripeHostedCheckoutUrl(stripeResult.url)
+  ) {
     return returnToGive(
       request,
       "error",

@@ -179,6 +179,15 @@ type StoredContact = {
   country?: string | null;
 };
 
+export class StripeCheckoutOwnershipError extends Error {
+  readonly code = "CHECKOUT_ORGANIZATION_MISMATCH";
+
+  constructor() {
+    super("This Stripe test checkout belongs to another church.");
+    this.name = "StripeCheckoutOwnershipError";
+  }
+}
+
 function readAttributionId(metadata: Record<string, string>) {
   const value = metadata.bits_attribution_id?.trim() ?? "";
   return UUID_PATTERN.test(value) ? value : null;
@@ -270,6 +279,25 @@ async function resolveDonationDonor(
   return donorId;
 }
 
+async function assertCheckoutAttributionForOrganization(
+  checkout: NormalizedStripeTestCheckout,
+  organizationId: string,
+  db: DonationWriter,
+) {
+  const attributionId = readAttributionId(checkout.metadata);
+  if (!attributionId) return;
+  const attribution = await db.checkoutAttribution.findFirst({
+    where: { id: attributionId, organizationId },
+  });
+  if (
+    !attribution ||
+    attribution.amountCents !== checkout.amountTotalCents ||
+    attribution.fund !== checkout.fund
+  ) {
+    throw new StripeCheckoutOwnershipError();
+  }
+}
+
 export async function persistStripeTestDonation(
   checkout: NormalizedStripeTestCheckout,
   organizationId: string,
@@ -282,9 +310,16 @@ export async function persistStripeTestDonation(
     },
   });
   if (existing) {
+    const recordedOrganizationId = (
+      existing as { organizationId: string }
+    ).organizationId;
+    if (recordedOrganizationId !== organizationId) {
+      throw new StripeCheckoutOwnershipError();
+    }
     return { donation: existing, alreadyRecorded: true };
   }
 
+  await assertCheckoutAttributionForOrganization(checkout, organizationId, db);
   const donorId = await resolveDonationDonor(checkout, organizationId, db);
 
   const amount = (checkout.amountTotalCents / 100).toFixed(2);

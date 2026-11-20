@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildStripeTestCheckoutBody, hashCheckoutBinding } from "./test-checkout-session";
+import {
+  buildStripeTestCheckoutBody,
+  hashCheckoutBinding,
+  isStripeHostedCheckoutUrl,
+} from "./test-checkout-session";
 
 describe("Stripe test checkout body", () => {
   it("puts the receipt address on the payment intent and keeps donor identity out of metadata", () => {
@@ -22,5 +26,24 @@ describe("Stripe test checkout body", () => {
     expect(decoded).toContain("metadata[environment]=BITS_TEST");
     expect(hashCheckoutBinding("same")).toBe(hashCheckoutBinding("same"));
     expect(hashCheckoutBinding("same")).not.toBe("same");
+  });
+});
+
+describe("isStripeHostedCheckoutUrl", () => {
+  it("allows only https checkout.stripe.com", () => {
+    expect(
+      isStripeHostedCheckoutUrl(
+        "https://checkout.stripe.com/c/pay/cs_test_checkout",
+      ),
+    ).toBe(true);
+    expect(isStripeHostedCheckoutUrl("http://checkout.stripe.com/pay")).toBe(
+      false,
+    );
+    expect(isStripeHostedCheckoutUrl("https://evil.example/checkout")).toBe(
+      false,
+    );
+    expect(
+      isStripeHostedCheckoutUrl("https://checkout.stripe.com.evil.example/pay"),
+    ).toBe(false);
   });
 });

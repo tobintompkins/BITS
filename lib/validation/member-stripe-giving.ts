@@ -52,6 +52,9 @@ export function checkoutAppOrigin(request: Request) {
 export function isAllowedCheckoutRequestOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
-  const requestOrigin = new URL(request.url).origin;
-  return origin === requestOrigin || origin === configuredPublicOrigin();
+  // A configured public origin is the only allowed browser origin. The
+  // request URL and forwarded host headers are not a second allow-list,
+  // because a proxy can build that URL from a caller-supplied host.
+  const allowed = configuredPublicOrigin() ?? new URL(request.url).origin;
+  return origin === allowed;
 }

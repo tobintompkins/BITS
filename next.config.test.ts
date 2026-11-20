@@ -12,5 +12,9 @@ describe("next.config workspace root", () => {
     expect(source).toContain("turbopack:");
     expect(source).toContain("root: appRoot");
     expect(source).toContain("import.meta.dirname");
+    expect(source).toContain("poweredByHeader: false");
+    expect(source).toContain("X-Content-Type-Options");
+    expect(source).toContain("X-Frame-Options");
+    expect(source).toContain("Strict-Transport-Security");
   });
 });

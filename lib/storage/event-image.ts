@@ -75,29 +75,28 @@ export async function saveEventFeaturedImage(
   return { storageKey, publicUrl: storageKey };
 }
 
+const FEATURED_IMAGE_KEY =
+  /^(?:private|\/uploads)\/events\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/featured\.(?:jpg|jpeg|png|webp)$/i;
+
 export async function removeEventFeaturedImage(fileKey: string | null | undefined) {
-  if (!fileKey) return;
-  const candidates = [
-    path.join(process.cwd(), "storage", fileKey.replace(/^private\//, "private/")),
-    path.join(
-      process.cwd(),
-      "public",
-      fileKey.startsWith("/") ? fileKey.slice(1) : fileKey,
-    ),
-  ];
-  for (const absolute of candidates) {
-    try {
-      await unlink(absolute);
-    } catch {
-      // ignore missing
-    }
+  const absolute = fileKey ? resolveEventImageAbsolutePath(fileKey) : null;
+  if (!absolute) return;
+  try {
+    await unlink(absolute);
+  } catch {
+    // ignore missing
   }
 }
 
 export function resolveEventImageAbsolutePath(fileKey: string) {
-  if (fileKey.startsWith("private/")) {
-    return path.join(process.cwd(), "storage", fileKey);
-  }
-  const relative = fileKey.startsWith("/") ? fileKey.slice(1) : fileKey;
-  return path.join(process.cwd(), "public", relative);
+  const key = fileKey.replace(/\\/g, "/");
+  if (!FEATURED_IMAGE_KEY.test(key)) return null;
+  const relative = key.startsWith("/") ? key.slice(1) : key;
+  const root = key.startsWith("private/")
+    ? path.resolve(process.cwd(), "storage")
+    : path.resolve(process.cwd(), "public");
+  const absolute = path.resolve(root, relative);
+  const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  if (!absolute.startsWith(prefix)) return null;
+  return absolute;
 }

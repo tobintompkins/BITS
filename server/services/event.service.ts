@@ -1144,6 +1144,7 @@ export async function getProtectedEventImage(eventId: string) {
   if (!event.featuredImageKey) throw new Error("No featured image.");
 
   const absolutePath = resolveEventImageAbsolutePath(event.featuredImageKey);
+  if (!absolutePath) throw new Error("File not found.");
   const fileName = event.featuredImageKey.split("/").pop() || "featured.jpg";
   const ext = fileName.split(".").pop()?.toLowerCase();
   const mimeType =

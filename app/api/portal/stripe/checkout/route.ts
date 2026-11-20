@@ -57,7 +57,11 @@ export async function POST(request: Request) {
     );
   }
   if (result.status === "STRIPE_ERROR") {
-    return returnToPortalGive(request, "error", result.message);
+    return returnToPortalGive(
+      request,
+      "error",
+      "Stripe could not start test checkout.",
+    );
   }
 
   return NextResponse.redirect(result.checkoutUrl, 303);

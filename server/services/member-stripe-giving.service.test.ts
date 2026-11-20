@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  checkoutAppOrigin,
   isAllowedCheckoutRequestOrigin,
   memberStripeGivingSchema,
 } from "@/lib/validation/member-stripe-giving";
@@ -47,6 +48,8 @@ const store = vi.hoisted(() => ({
     organizationId: string;
     kind: "MEMBER" | "UNVERIFIED_GUEST";
     donorId: string | null;
+    amountCents: number;
+    fund: string;
     contact: { email?: string; firstName?: string; lastName?: string };
     consumedAt: Date | null;
     stripeCheckoutSessionId: string | null;
@@ -419,7 +422,36 @@ describe("member stripe giving", () => {
       headers: { origin: "https://evil.example" },
     });
     expect(isAllowedCheckoutRequestOrigin(foreign)).toBe(false);
+    const spoofed = new Request("https://evil.example/api/portal/stripe/checkout", {
+      method: "POST",
+      headers: {
+        origin: "https://evil.example",
+        "x-forwarded-host": "evil.example",
+        "x-forwarded-proto": "https",
+      },
+    });
+    expect(isAllowedCheckoutRequestOrigin(spoofed)).toBe(false);
+    expect(checkoutAppOrigin(spoofed)).toBe("https://firstupcsaco.up.railway.app");
     vi.unstubAllEnvs();
+  });
+
+  it("does not follow a checkout URL outside Stripe", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ url: "https://evil.example/steal" }),
+      })),
+    );
+    await expect(
+      createMemberStripeCheckout(
+        { fund: "Tithes", amount: "25.00" },
+        sameOriginRequest(),
+      ),
+    ).resolves.toEqual({
+      status: "STRIPE_ERROR",
+      message: "Stripe could not start test checkout.",
+    });
   });
 
   it("rejects a mismatched request origin", async () => {
@@ -464,6 +496,8 @@ describe("member stripe giving", () => {
       organizationId: ORG_ID,
       kind: "MEMBER",
       donorId: DONOR_ID,
+      amountCents: 2500,
+      fund: "Home Building Fund",
       contact: { email: OWN_EMAIL, firstName: "Ann", lastName: "Adams" },
       consumedAt: null,
       stripeCheckoutSessionId: null,
@@ -539,6 +573,8 @@ describe("member stripe giving", () => {
       organizationId: ORG_ID,
       kind: "UNVERIFIED_GUEST",
       donorId: null,
+      amountCents: 2500,
+      fund: "Building Fund",
       contact: { email: OWN_EMAIL, firstName: "Ann", lastName: "Guest" },
       consumedAt: null,
       stripeCheckoutSessionId: null,

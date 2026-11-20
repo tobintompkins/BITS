@@ -1,5 +1,16 @@
 import { createHash } from "node:crypto";
 
+const STRIPE_CHECKOUT_HOST = "checkout.stripe.com";
+
+export function isStripeHostedCheckoutUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === STRIPE_CHECKOUT_HOST;
+  } catch {
+    return false;
+  }
+}
+
 export function hashCheckoutBinding(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }

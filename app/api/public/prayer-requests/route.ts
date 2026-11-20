@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { allowPublicPrayerRequest } from "@/lib/security/public-prayer-rate-limit";
+import { isAllowedCheckoutRequestOrigin } from "@/lib/validation/member-stripe-giving";
 import { publicPrayerRequestSchema } from "@/lib/validation/public-prayer-request";
 import { createPrayerRequest } from "@/server/repositories/care-engagement.repository";
 import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
@@ -9,8 +10,7 @@ const PUBLIC_LIFETIME_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 12_000;
 
 export async function POST(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin) {
+  if (!isAllowedCheckoutRequestOrigin(request)) {
     return NextResponse.json({ message: "Request not allowed." }, { status: 403 });
   }
 

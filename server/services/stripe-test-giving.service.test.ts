@@ -32,6 +32,7 @@ vi.mock("@/lib/db/prisma", () => ({
 import {
   isStripeFundBlockedForNewCheckout,
   persistStripeTestDonation,
+  StripeCheckoutOwnershipError,
   validateStripeTestCheckoutSession,
 } from "./stripe-test-giving.service";
 
@@ -105,6 +106,7 @@ describe("persistStripeTestDonation", () => {
     mocks.donationFindUnique.mockResolvedValue(null);
     mocks.donationCreate.mockResolvedValue({
       id: "don-1",
+      organizationId: ORG_ID,
       stripeCheckoutSessionId: "cs_test_abc123",
       isTest: true,
       allocations: [],
@@ -142,6 +144,7 @@ describe("persistStripeTestDonation", () => {
     if (!validated.ok) return;
     const existing = {
       id: "don-1",
+      organizationId: ORG_ID,
       stripeCheckoutSessionId: "cs_test_abc123",
       isTest: true,
       allocations: [],
@@ -176,6 +179,46 @@ describe("persistStripeTestDonation", () => {
     expect(mocks.donationCreate.mock.calls[0]?.[0].data.note).toContain(
       "staff review",
     );
+  });
+
+  it("does not record a paid session onto a different church", async () => {
+    const validated = validateStripeTestCheckoutSession({
+      ...paidCheckout(),
+      metadata: {
+        environment: "BITS_TEST",
+        fund: "Tithes",
+        bits_attribution_id: "00000000-0000-4000-8000-00000000e001",
+      },
+    });
+    if (!validated.ok) return;
+    const findFirst = vi.fn(async () => null);
+    const db = {
+      donation: {
+        findUnique: mocks.donationFindUnique,
+        create: mocks.donationCreate,
+      },
+      donor: { findFirst: mocks.donorFindFirst },
+      offeringType: {
+        findFirst: mocks.offeringTypeFindFirst,
+        create: mocks.offeringTypeCreate,
+      },
+      checkoutAttribution: { findFirst },
+    };
+
+    await expect(
+      persistStripeTestDonation(
+        validated.checkout,
+        OTHER_ORG,
+        db as never,
+      ),
+    ).rejects.toBeInstanceOf(StripeCheckoutOwnershipError);
+    expect(mocks.donationCreate).not.toHaveBeenCalled();
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        id: "00000000-0000-4000-8000-00000000e001",
+        organizationId: OTHER_ORG,
+      },
+    });
   });
 
   it("blocks new checkout when the matching fund is inactive or online-disabled", async () => {

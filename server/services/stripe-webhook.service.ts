@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 import {
   persistStripeTestDonation,
+  StripeCheckoutOwnershipError,
   validateStripeTestCheckoutSession,
   type StripeCheckoutSessionInput,
 } from "@/server/services/stripe-test-giving.service";
@@ -185,7 +186,19 @@ export async function processVerifiedStripeWebhookEvent(
     });
 
     return { httpStatus: 200, received: true };
-  } catch {
+  } catch (error) {
+    if (error instanceof StripeCheckoutOwnershipError) {
+      try {
+        await markWebhookEvent(event.id, "IGNORED", error.code);
+      } catch {
+        return {
+          httpStatus: 500,
+          received: false,
+          errorCode: "WEBHOOK_CLAIM_FAILED",
+        };
+      }
+      return { httpStatus: 200, received: true };
+    }
     try {
       await markWebhookEvent(event.id, "FAILED", "DONATION_PERSISTENCE_FAILED");
     } catch {

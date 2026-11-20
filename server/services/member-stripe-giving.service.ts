@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import {
   buildStripeTestCheckoutBody,
   hashCheckoutBinding,
+  isStripeHostedCheckoutUrl,
 } from "@/lib/stripe/test-checkout-session";
 import { getStripeTestSecret } from "@/lib/stripe/test-mode";
 import {
@@ -250,11 +251,14 @@ export async function createMemberStripeCheckout(
     url?: string;
     error?: { message?: string };
   };
-  if (!stripeResponse.ok || !stripeResult.url) {
+  if (
+    !stripeResponse.ok ||
+    !stripeResult.url ||
+    !isStripeHostedCheckoutUrl(stripeResult.url)
+  ) {
     return {
       status: "STRIPE_ERROR",
-      message:
-        stripeResult.error?.message ?? "Stripe could not start test checkout.",
+      message: "Stripe could not start test checkout.",
     };
   }
 
