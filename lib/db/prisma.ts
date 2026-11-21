@@ -40,6 +40,7 @@ const REQUIRED_DELEGATES = [
   "dataRetentionPolicy",
   "backupReadinessLog",
   "churchServiceAlert",
+  "homepageSlideshowPhoto",
   "memberApprovedPickup",
   "childPickupCheckoutVerification",
 ] as const;

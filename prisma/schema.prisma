@@ -621,6 +621,7 @@ model Organization {
   updatedAt           DateTime @updatedAt
 
   homepagePhoto             HomepagePhoto?
+  homepageSlideshowPhotos   HomepageSlideshowPhoto[]
   memberships               OrganizationMembership[]
   households                Household[]
   donors                    Donor[]
@@ -2849,4 +2850,18 @@ model HomepagePhoto {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("homepage_photos")
+}
+
+model HomepageSlideshowPhoto {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  image          Bytes
+  alt            String
+  sortOrder      Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, sortOrder])
+  @@map("homepage_slideshow_photos")
 }

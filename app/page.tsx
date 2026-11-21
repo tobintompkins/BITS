@@ -1,19 +1,19 @@
 import { Show, SignInButton, UserButton } from "@clerk/nextjs";
+import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
 
 import { DisplayOptions } from "@/components/accessibility/display-options";
+import { ChurchFamilySlideshow } from "@/components/home/church-family-slideshow";
 import { ChurchServiceAlertBanner } from "@/components/home/church-service-alert-banner";
-import {
-  ChurchPhotoCarousel,
-  type ChurchPhoto,
-} from "@/components/home/church-photo-carousel";
+import { HomepageSlideshowManager } from "@/components/home/homepage-slideshow-manager";
 import { PrayerWall } from "@/components/home/prayer-wall";
 import { findPublicPrayerWallRequests } from "@/server/repositories/care-engagement.repository";
 import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
 import { getPublicChurchServiceAlert } from "@/server/services/church-service-alert.service";
 import { HomepagePhotoEditor } from "@/components/home/homepage-photo-editor";
 import { optionalHomepagePhotoAdmin, publicHomepagePhoto } from "@/server/services/homepage-photo.service";
+import { publicHomepageSlideshow } from "@/server/services/homepage-slideshow.service";
 
 const guestOptions = [
   {
@@ -61,12 +61,14 @@ const guestOptions = [
 
 export default async function Home() {
   await connection();
-  const [homepagePhoto, photoAdmin] = await Promise.all([
-    publicHomepagePhoto(), optionalHomepagePhotoAdmin(),
+  const [homepagePhoto, photoAdmin, slideshow] = await Promise.all([
+    publicHomepagePhoto(), optionalHomepagePhotoAdmin(), publicHomepageSlideshow(),
   ]);
-  const churchPhotos: ChurchPhoto[] = homepagePhoto
-    ? [{ src: `/api/homepage-photo?v=${homepagePhoto.version}`, alt: homepagePhoto.alt }]
-    : [];
+  const slideshowSlides = slideshow.map((photo) => ({
+    src: `/api/homepage-slideshow/${photo.id}`,
+    alt: photo.alt,
+  }));
+  const showSlideshow = slideshowSlides.length > 0 || Boolean(photoAdmin);
   const organization = await findPublicOrganization().catch(() => null);
   const publicPrayerRequests = organization
     ? await findPublicPrayerWallRequests(organization.id).catch(() => [])
@@ -125,8 +127,8 @@ export default async function Home() {
           aria-hidden="true"
           className="absolute -right-24 -top-32 h-96 w-96 rounded-full border-[70px] border-white/5"
         />
-        <div className="relative mx-auto grid w-full max-w-7xl items-stretch gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:px-8 lg:py-6">
-          <div className="flex items-center gap-4 py-1 sm:gap-6">
+        <div className={`relative mx-auto grid w-full max-w-7xl items-start gap-5 px-4 py-5 sm:px-6 lg:px-8 lg:py-6 ${showSlideshow ? "lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]"}`}>
+          <div className="flex min-w-0 items-center py-1 lg:min-h-full">
             <div>
               <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
                 Welcome Home
@@ -141,14 +143,43 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="flex flex-col overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-xl">
-            <div className="relative aspect-[16/9] w-full overflow-hidden">
-              <div className="absolute inset-0">
-                <ChurchPhotoCarousel photos={churchPhotos} />
-              </div>
+          <figure className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-xl">
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--bits-navy)]">
+              {homepagePhoto ? (
+                <Image
+                  src={`/api/homepage-photo?v=${homepagePhoto.version}`}
+                  alt={homepagePhoto.alt}
+                  fill
+                  unoptimized
+                  sizes="(min-width: 1024px) 34vw, 100vw"
+                  className="object-cover"
+                  priority
+                />
+              ) : (
+                <div className="grid h-full place-items-center p-4 text-center text-sm text-white/80">
+                  Pastor photo coming soon.
+                </div>
+              )}
             </div>
+            <figcaption className="px-3 py-2 text-sm font-semibold text-[var(--bits-gold)]">Meet Our Pastor</figcaption>
             {photoAdmin ? <HomepagePhotoEditor version={homepagePhoto?.version ?? 0} description={homepagePhoto?.alt ?? ""} /> : null}
-          </div>
+          </figure>
+
+          {showSlideshow ? (
+            <div className="min-w-0">
+              {slideshowSlides.length > 0 ? (
+                <ChurchFamilySlideshow photos={slideshowSlides} />
+              ) : (
+                <div className="overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-xl">
+                  <div className="grid aspect-[16/9] place-items-center bg-[var(--bits-navy)] p-4 text-center">
+                    <p className="text-sm text-white/80">Add a church family photo to start the slideshow. Visitors will not see this space until a photo is saved.</p>
+                  </div>
+                  <p className="px-3 py-2 text-sm font-semibold text-[var(--bits-gold)]">Our Church Family</p>
+                </div>
+              )}
+              {photoAdmin ? <HomepageSlideshowManager photos={slideshow} /> : null}
+            </div>
+          ) : null}
         </div>
       </section>
 
