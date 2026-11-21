@@ -782,21 +782,28 @@ overwritten. An empty source reports `0 PDFs present` and is not
 recovery proof. The 1,000-object, 1 GiB, and 8 GiB guards, three
 attempts, and the 120-second timeout are the existing backup guards.
 
-The unused placeholder is project bucket
-`ecf962b3-3df6-4f3c-bef9-7d6e2a8f2cd2`, display name
-`bits-statements-app-test`, created `2026-11-19T16:34:47.294Z`. It never
-received a TEST instance. On November 19 the canvas in `bits-test` /
-`test` was opened after a recheck showed no usable application instance.
-Choosing Bucket created a second record, `8956a91b-b518-4edb-af2d-f04fb9bfc740`,
-with Railway's generated name `preserved-barrow` and staged region `iad`.
-Renaming it to `bits-statements-app-test` was rejected because that name
-already belonged to `ecf962b3`. The staged add was discarded and was not
-deployed. After that discard, the project bucket list contains only
-`bits-statements-test`. Both `ecf962b3` and `8956a91b` are absent, and
-instance lookups for them return Not Authorized. No application S3
-endpoint exists. The rehearsal bucket remains the only configured TEST
-bucket. Production still has no buckets. No statement variable was set
-and nothing was uploaded.
+The name `bits-statements-app-test` was free on the later November 19
+recheck. The canvas in `bits-test` / `test` then created one bucket,
+`31020b3c-e1e9-4824-a2e9-02cff9118648`, and that change was deployed at
+`2026-11-19T17:40:48.364Z` with region `iad`. Its TEST instance is empty:
+0 objects and 0 bytes. The S3 API name is
+`bits-statements-app-test-zxau99`, the endpoint is
+`https://t3.storageapi.dev`, the credential region is `auto`, and the
+URL style is virtual-hosted. Production has no instance of this bucket.
+The earlier placeholder `ecf962b3-3df6-4f3c-bef9-7d6e2a8f2cd2` and the
+discarded draft `8956a91b-b518-4edb-af2d-f04fb9bfc740` remain absent.
+`bits-statements-test` remains the rehearsal bucket. The TEST web service now points at this bucket. Deployment
+`658ba2eb-6e2f-4a3c-8522-e9ec28ac57ef` is SUCCESS.
+`BITS_STATEMENT_PDF_BACKEND` is `s3`. `BITS_STATEMENT_S3_BUCKET` references
+`bits-statements-app-test.BUCKET` and resolves to
+`bits-statements-app-test-zxau99`. `BITS_STATEMENT_S3_ENDPOINT` references
+the bucket endpoint and resolves to `https://t3.storageapi.dev`.
+`BITS_STATEMENT_S3_REGION` is the literal credential region `auto`,
+because the bucket's `REGION` reference resolved to `iad`.
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` reference that bucket's
+own keys. `BITS_STATEMENT_S3_FORCE_PATH_STYLE` is unset, so writes use
+virtual-hosted URLs. No rehearsal or backup bucket is configured as the
+app backend. Nothing was uploaded, and no PDF was generated.
 
 The TEST web service was rechecked rather than assumed. Before the
 canvas step, deployment `da2d1e36-1167-43e0-974b-5564632f103b` was

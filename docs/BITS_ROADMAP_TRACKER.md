@@ -7,6 +7,18 @@
 **Prior handoff:** Live acceptance against isolated `bits_e2e` passed on November 11, 2026: `npm run test:e2e:acceptance` reported 33 passed in 6.5 minutes, including setup and cleanup. Later the same day, one authorized Church A Report Viewer invitation was submitted to Clerk Development from isolated `bits_e2e`. Clerk returned Forbidden and stored no invitation. No email was sent, received, or accepted. Church A’s own membership limit was then raised from 7 to 8; the instance default remains 7, all seven users remain, and no further invitation was sent. The live invitation server on port 3017 was stopped after the refusal. Core 29 then ran offering-type and batch-lock browser cases on a new isolated server: 10 passed in 2.7 minutes, including setup. That count does not include the earlier 33. Owned fixture rows were cleaned afterward, that server was stopped, and the working app on port 3000 was left running. Working-database fingerprints were unchanged. On November 13, 2026 the owner approved one new attempt. The failed local row was revoked through the product first; that revoke had no provider id and did not email. One Church A Report Viewer invitation was then submitted. Clerk Development has one pending invitation for Church A and none for Church B. The recipient has not accepted it. Local Railway TEST preparation is still written and not applied. Storage recovery has not been run. Original v1 is incomplete and is not launch-ready.
 **Status basis:** Source and Git on November 16, 2026; HEAD `8621a9d` plus the existing uncommitted work. This update reconciles recorded evidence only. It did not rerun the Core 20 restore, the November 11 33-test suite, the Core 29 browser suite, the November 16 SQL tests, or the storage probe. `docs/bits-design-spec.md` was not edited. Requirement rows are in `docs/original-v1-requirement-closeout.md`.
 
+## Security review before Pastor’s preview — November 20, 2026
+
+This is a focused review of the current code and the deployed Railway TEST app. It does not make BITS breach-proof, and it does not complete original v1 or Phase 10.
+
+Checked without a broad scan, load test, payment, or email: staff and portal routes, statement and report downloads, Stripe test-mode and webhook handling, the checkout origin repair in commit `e66e0cf`, statement storage keys, and the published dependency advisories. Unsigned `/dashboard` redirected to sign-in. Unsigned statement and contribution-report requests were denied. An unsigned Stripe webhook was rejected. The hidden acceptance probe returned not found. A foreign checkout origin, including a spoofed forwarded host, was rejected. The TEST database host is internal, no public database URL is set, Stripe is test-mode only, and the app is served over HTTPS. Railway’s response did not show a separate firewall or web-application firewall, and none was added.
+
+Creating an account still creates only a user record. Staff access still requires an active church membership or an accepted staff invitation. Clerk public metadata can grant a super-admin path, and that metadata is not set by signup.
+
+Local repairs, not yet deployed: Next.js moved from 16.2.10 to 16.4.6 and Zod to 4.6.6 for the advisories that apply to those packages. Checkout and prayer requests now allow only the configured public origin when it is set. A paid Stripe session is not recorded for a church that does not own its server attribution, and the recorded amount and fund must match that attribution. Checkout redirects stay on `https://checkout.stripe.com`. Stripe’s own error text is not copied into the member giving URL. Event image reads and deletes stay inside the generated featured-image key. Responses now set nosniff, frame denial, referrer, permissions, and HTTPS headers, and hide the Next.js powered-by header. Focused tests: 11 files, 48 tests passed. These repairs are not on `https://firstupcsaco.up.railway.app` until a reviewed push of `main`.
+
+Still open, and not treated as a completed launch review: Prisma’s packaged MySQL driver and related tooling advisories are not on the Postgres request path and were not upgraded. Prayer-request limiting is per server process; a short TEST probe did not bypass it by inventing forwarding addresses, and no prayer was stored. No second non-staff account was created to recheck the live staff pages. Production, backups, and Work Matrix were not changed.
+
 ## First UPC of Saco setup — November 15, 2026
 
 Owner-confirmed clean church setup has been applied: a new First UPC of Saco organization, existing owner ORG_ADMIN membership, and Clerk Development mapping. All pre-existing records remain unchanged. Public church identity is explicitly configured; unresolved staff/portal sessions can choose their Clerk-linked church at `/select-organization`. The November 16 check confirmed the stored mapping and stopped at the unsigned Clerk sign-in screen. Railway was not changed. See `docs/first-upc-of-saco-setup.md`. This is not completion of original v1.
@@ -23,7 +35,13 @@ Stripe’s current receipt documentation says test payments do not trigger autom
 
 The public leadership card already shows Pastor Jeff Legere, Marry Legere, Casey Helmuth, and Shelia Helmuth. The failing test still expected only the first two names. That expectation was updated. No displayed name was changed. On November 20, before the web deploy, a fresh custom dump of TEST database `railway` was inspected with `pg_restore -l` and not restored. It had no checkout-attribution objects. The only pending migration was `20261119190000_add_checkout_attributions`, and `npm run db:migrate` applied that migration only. TEST still has 1 organization, 1 donor, 1 membership, and 0 donations. `checkout_attributions` is empty. Donor columns were not added. Working `bits` was not written.
 
-Hosted TEST First UPC of Saco still has one empty active donor linked to the verified owner account, zero gifts, and zero statements. The owner’s `ORG_ADMIN` membership was reused. Official statements still exclude `isTest` gifts. The next original-roadmap task is the queued synthetic statement generation and private-download check. Stripe test-payment execution remains a separate later approval. Do not push this cleanup until the checkout-attribution migration is reviewed; pushing `main` deploys Railway TEST.
+Hosted TEST First UPC of Saco still has one empty active donor linked to the verified owner account, zero gifts, and zero statements. The owner’s `ORG_ADMIN` membership was reused. Official statements still exclude `isTest` gifts. Commit `482201d` is deployed as Railway TEST deployment `406b6c89-4cb8-4b8b-a611-194087ea23ad`.
+
+The corrected synthetic statement check is prepared and not run. It does not use the earlier 58-byte storage probe. The product generator needs a church footer, a donor address, and one official gift; it excludes test and anonymous gifts. The proposed records are a temporary footer, one unlinked donor named Synthetic Statement Check, one offline fund, and one $0.01 `OTHER` gift dated January 15, 2026. The owner donor is not used. After generation, the check is a staff opening of the generated PDF, a signed-out 401, and a portal 404. A published member download remains blocked because TEST has one statement manager and publishing requires a second person. Synthetic rows and the bucket object are removed afterward, and the footer returns to empty. The two audit events stay.
+
+Stripe TEST checkout is not configured. The web service has no `STRIPE_SECRET_KEY`, no `STRIPE_WEBHOOK_SECRET`, and no `BITS_PUBLIC_ORGANIZATION_SLUG`. The local key is an existing test key, and that sandbox account has live charges disabled and no webhook endpoints. No Railway variable was changed and no payment was run. The exact changes remain pending approval.
+
+Signed-in TEST acceptance is blocked on a sign-in. `/dashboard` and `/portal` redirected to `/sign-in`. That redirect is not a broken login and is not signed-in acceptance.
 
 ## Saco access verification — November 16, 2026
 
@@ -968,7 +986,7 @@ role-protected leadership data.
 ### Phase 10 — Launch readiness
 
 1. Pastor and board review.
-2. Financial, privacy, security, and accessibility review.
+2. Financial, privacy, security, and accessibility review. A focused security review was recorded on November 20, 2026. That review does not close this item or original v1.
 3. Production hosting, domain, email, and database configuration.
 4. Staging environment and test accounts.
 5. Backup and rollback rehearsal.

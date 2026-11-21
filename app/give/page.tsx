@@ -17,7 +17,7 @@ export default async function GivePage({
 }) {
   const params = await searchParams;
   const configured = isStripeTestModeConfigured();
-  const organization = await findPublicOrganization();
+  const organization = await findPublicOrganization().catch(() => null);
   const funds = organization
     ? await advertisedStripeFunds(organization.id, stripeDonationFundOptions)
     : [...stripeDonationFundOptions];
