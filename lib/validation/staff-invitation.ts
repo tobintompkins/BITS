@@ -6,11 +6,17 @@ import {
   type StaffAccessDirectoryRoleCode,
 } from "@/lib/validation/staff-access-directory";
 
-export const STAFF_INVITATION_ROLE_CODES = STAFF_ACCESS_DIRECTORY_ROLE_CODES;
+export const STAFF_INVITATION_ROLE_CODES = [
+  ...STAFF_ACCESS_DIRECTORY_ROLE_CODES,
+  "DONOR",
+] as const;
 
 export type StaffInvitationRoleCode = StaffAccessDirectoryRoleCode;
 
-export const STAFF_INVITATION_ROLE_LABELS = STAFF_ACCESS_DIRECTORY_ROLE_LABELS;
+export const STAFF_INVITATION_ROLE_LABELS = {
+  ...STAFF_ACCESS_DIRECTORY_ROLE_LABELS,
+  DONOR: "Basic user",
+} as const;
 
 export const STAFF_INVITATION_PAGE_SIZE = 25;
 export const STAFF_INVITATION_QUERY_MAX = 100;
@@ -50,7 +56,7 @@ export const STAFF_INVITATION_STATUS_LABELS: Record<string, string> = {
 };
 
 export const STAFF_INVITATION_CONFIRM_COPY =
-  "I confirm inviting this person to this church with the selected staff role.";
+  "I confirm inviting this person to this church with the selected access.";
 
 export const STAFF_INVITATION_ADMIN_CONFIRM_COPY =
   "I confirm granting organization administrator privileges to this invited person.";
@@ -59,13 +65,10 @@ export const STAFF_INVITATION_REAPPROVE_COPY =
   "The original inviter is no longer an authorized administrator. I reapprove this invitation.";
 
 export const STAFF_INVITATION_EXISTING_MEMBER_COPY =
-  "That person already has a staff membership in this church. Use the existing membership controls instead of inviting again.";
+  "That person already has access in this church. Change, suspend, or restore it from their membership. A removed person can be invited again.";
 
 export const STAFF_INVITATION_DUPLICATE_COPY =
   "An active invitation already exists for that email in this church.";
-
-export const STAFF_INVITATION_DONOR_COPY =
-  "Donor accounts are not invited from Staff Access.";
 
 export const STAFF_INVITATION_NOT_FOUND_COPY =
   "That staff invitation is not available in this church.";

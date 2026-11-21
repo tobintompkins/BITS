@@ -5,8 +5,19 @@ import {
   type StaffAccessDirectoryRoleCode,
 } from "@/lib/validation/staff-access-directory";
 
-export const STAFF_MEMBERSHIP_ADMIN_ROLE_CODES =
-  STAFF_ACCESS_DIRECTORY_ROLE_CODES;
+export const STAFF_MEMBERSHIP_ADMIN_ROLE_CODES = [
+  ...STAFF_ACCESS_DIRECTORY_ROLE_CODES,
+  "DONOR",
+] as const;
+
+export const STAFF_MEMBERSHIP_INTENTS = [
+  "change-access",
+  "suspend",
+  "restore",
+  "remove",
+] as const;
+
+export type StaffMembershipIntent = (typeof STAFF_MEMBERSHIP_INTENTS)[number];
 
 export const STAFF_MEMBERSHIP_CONFIRM_FIELD = "confirm";
 
@@ -14,10 +25,16 @@ export const STAFF_MEMBERSHIP_ROLE_CONFIRM_COPY =
   "I confirm this role change for this existing staff membership.";
 
 export const STAFF_MEMBERSHIP_DEACTIVATE_CONFIRM_COPY =
-  "I confirm deactivating this staff membership. They lose Leadership Portal access on their next protected request.";
+  "I confirm suspending this person's access to this church. They can still sign in, but this church's staff and personal features stay closed until access is restored.";
 
 export const STAFF_MEMBERSHIP_REACTIVATE_CONFIRM_COPY =
-  "I confirm reactivating this staff membership.";
+  "I confirm restoring this person's access to this church.";
+
+export const STAFF_MEMBERSHIP_REMOVE_CONFIRM_COPY =
+  "I confirm removing this person's access to this church. Their sign-in, giving records, statements, and audit history stay. This does not change another church.";
+
+export const STAFF_MEMBERSHIP_BASIC_CONFIRM_COPY =
+  "I confirm changing this person to a basic user. They can sign in and use personal features, and they no longer have staff access.";
 
 export const STAFF_MEMBERSHIP_ADMIN_GRANT_COPY =
   "This grants organization administrator privileges for this church.";
@@ -53,6 +70,7 @@ export const staffMembershipUpdateSchema = z.object({
   expectedUpdatedAt: z.string().datetime(),
   roleCode: z.enum(STAFF_MEMBERSHIP_ADMIN_ROLE_CODES),
   active: z.boolean(),
+  intent: z.enum(STAFF_MEMBERSHIP_INTENTS).optional(),
   confirm: z.literal(true, {
     error: "Confirm this change before continuing.",
   }),
@@ -80,6 +98,7 @@ export function staffMembershipFormFromUnknown(
       activeValue === "true" ||
       activeValue === "ACTIVE" ||
       activeValue === "on",
+    intent: typeof data.intent === "string" ? data.intent : undefined,
     confirm: data.confirm === true || data.confirm === "on",
   };
 }
@@ -88,6 +107,17 @@ export function staffMembershipRoleIsManaged(code: string) {
   return (STAFF_MEMBERSHIP_ADMIN_ROLE_CODES as readonly string[]).includes(
     code,
   );
+}
+
+export function churchPersonStatusLabel(input: {
+  roleCode: string;
+  active: boolean;
+  churchAccess?: string | null;
+}) {
+  if (input.churchAccess === "REMOVED") return "Removed";
+  if (!input.active || input.churchAccess === "SUSPENDED") return "Suspended";
+  if (input.roleCode === "DONOR") return "Basic user";
+  return "Active";
 }
 
 export function intendedStaffMembershipSummary(input: {

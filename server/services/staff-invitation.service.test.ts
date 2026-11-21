@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RoleCode, StaffInvitationStatus } from "@/app/generated/prisma/client";
 import {
   STAFF_INVITATION_ADMIN_CONFIRM_COPY,
-  STAFF_INVITATION_DONOR_COPY,
   STAFF_INVITATION_DUPLICATE_COPY,
   STAFF_INVITATION_EXISTING_MEMBER_COPY,
   STAFF_INVITATION_NOT_FOUND_COPY,
@@ -28,6 +27,7 @@ type Membership = {
   userAccountId: string;
   roleCode: RoleCode;
   active: boolean;
+  churchAccess?: "ACTIVE" | "SUSPENDED" | "REMOVED";
 };
 type Invitation = {
   id: string;
@@ -170,6 +170,7 @@ const prismaMock = vi.hoisted(() => {
               return {
                 id: row.id,
                 active: row.active,
+                churchAccess: row.churchAccess ?? (row.active ? "ACTIVE" : "SUSPENDED"),
                 userAccount: {
                   id: account.id,
                   primaryEmail: account.primaryEmail,
@@ -465,19 +466,40 @@ describe("createStaffInvitation", () => {
     expect(mocks.providerCreate).not.toHaveBeenCalled();
   });
 
-  it("rejects donor roles, missing admin confirm, and already-member emails", async () => {
-    await expect(
-      createStaffInvitation({
-        email: "new@church.test",
-        roleCode: "DONOR",
-        confirm: "on",
-      }),
-    ).resolves.toMatchObject({
-      ok: false,
-      code: "INVALID",
+  it("invites a basic user and lets a removed person be invited again", async () => {
+    const basic = await createStaffInvitation({
+      email: "new@church.test",
+      roleCode: "DONOR",
+      confirm: "on",
     });
-    expect(STAFF_INVITATION_DONOR_COPY).toContain("Donor");
+    expect(basic.ok).toBe(true);
+    expect(store.invitations[0]?.roleCode).toBe(RoleCode.DONOR);
 
+    store.accounts.push({
+      id: "00000000-0000-4000-8000-00000000c099",
+      clerkUserId: "user_removed",
+      primaryEmail: "removed@church.test",
+      active: true,
+    });
+    store.memberships.push({
+      id: "mem-removed",
+      organizationId: ORG_A,
+      userAccountId: "00000000-0000-4000-8000-00000000c099",
+      roleCode: RoleCode.DONOR,
+      active: false,
+      churchAccess: "REMOVED",
+    });
+    store.invitations = [];
+    const again = await createStaffInvitation({
+      email: "removed@church.test",
+      roleCode: "TREASURER",
+      confirm: "on",
+    });
+    expect(again.ok).toBe(true);
+    expect(store.invitations[0]?.emailNormalized).toBe("removed@church.test");
+  });
+
+  it("rejects missing admin confirm and already-member emails", async () => {
     await expect(
       createStaffInvitation({
         email: "new@church.test",

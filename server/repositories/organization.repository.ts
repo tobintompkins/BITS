@@ -39,9 +39,18 @@ export async function findPrimaryOrganization() {
     const { userId, orgId } = await auth();
 
     if (orgId) {
-      return await prisma.organization.findFirst({
+      const organization = await prisma.organization.findFirst({
         where: { active: true, clerkOrganizationId: orgId },
       });
+      if (!organization || !userId) return organization;
+      const account = await prisma.userAccount.findUnique({
+        where: { clerkUserId: userId },
+        select: { id: true },
+      });
+      if (account && (await membershipClosesChurch(organization.id, account.id))) {
+        return null;
+      }
+      return organization;
     }
 
     if (userId) {
@@ -57,6 +66,7 @@ export async function findPrimaryOrganization() {
         where: {
           userAccountId: account.id,
           active: true,
+          churchAccess: "ACTIVE",
           organization: { active: true },
         },
         include: { organization: true },
@@ -83,9 +93,18 @@ export async function findMemberPortalOrganization() {
     if (!userId) return await findPublicOrganization();
 
     if (orgId) {
-      return await prisma.organization.findFirst({
+      const organization = await prisma.organization.findFirst({
         where: { active: true, clerkOrganizationId: orgId },
       });
+      if (!organization) return null;
+      const account = await prisma.userAccount.findUnique({
+        where: { clerkUserId: userId },
+        select: { id: true },
+      });
+      if (account && (await membershipClosesChurch(organization.id, account.id))) {
+        return null;
+      }
+      return organization;
     }
 
     const account = await prisma.userAccount.findUnique({
@@ -98,6 +117,7 @@ export async function findMemberPortalOrganization() {
       where: {
         userAccountId: account.id,
         active: true,
+        churchAccess: "ACTIVE",
         organization: { active: true },
       },
       include: { organization: true },
@@ -105,7 +125,54 @@ export async function findMemberPortalOrganization() {
     });
     if (memberships.length > 1) return null;
     if (memberships.length === 1) return memberships[0].organization;
-    return await findPublicOrganization();
+    return await closedChurchOrPublic(account.id);
+  } catch (error) {
+    if (!isDatabaseUnavailableError(error)) throw error;
+    return null;
+  }
+}
+
+async function membershipClosesChurch(organizationId: string, userAccountId: string) {
+  const membership = await prisma.organizationMembership.findFirst({
+    where: { organizationId, userAccountId },
+    select: { active: true, churchAccess: true },
+  });
+  if (!membership) return false;
+  return !membership.active || membership.churchAccess === "SUSPENDED" || membership.churchAccess === "REMOVED";
+}
+
+async function closedChurchOrPublic(userAccountId: string) {
+  const organization = await findPublicOrganization();
+  if (!organization) return null;
+  if (await membershipClosesChurch(organization.id, userAccountId)) return null;
+  return organization;
+}
+
+export async function describeChurchPortalBlock() {
+  try {
+    const { userId } = await auth();
+    if (!userId) return null;
+    const account = await prisma.userAccount.findUnique({
+      where: { clerkUserId: userId },
+      select: { id: true },
+    });
+    if (!account) return null;
+    const memberships = await prisma.organizationMembership.findMany({
+      where: { userAccountId: account.id, organization: { active: true } },
+      select: {
+        active: true,
+        churchAccess: true,
+        organization: { select: { displayName: true, name: true } },
+      },
+    });
+    const open = memberships.some((row) => row.active && row.churchAccess === "ACTIVE");
+    if (open) return null;
+    const blocked = memberships.find((row) => !row.active || row.churchAccess !== "ACTIVE");
+    if (!blocked) return null;
+    return {
+      churchAccess: blocked.churchAccess === "REMOVED" ? "REMOVED" as const : "SUSPENDED" as const,
+      organizationName: blocked.organization.displayName || blocked.organization.name,
+    };
   } catch (error) {
     if (!isDatabaseUnavailableError(error)) throw error;
     return null;

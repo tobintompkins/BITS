@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import {
+  ChurchAccessStatus,
   RoleCode,
   StaffInvitationStatus,
   type Prisma,
@@ -262,6 +263,7 @@ async function findExistingMemberByEmail(
     select: {
       id: true,
       active: true,
+      churchAccess: true,
       userAccount: {
         select: { id: true, primaryEmail: true, active: true },
       },
@@ -380,7 +382,7 @@ async function persistAuthorizedIntent(input: {
       input.organizationId,
       input.emailNormalized,
     );
-    if (existingMember) {
+    if (existingMember && existingMember.churchAccess !== ChurchAccessStatus.REMOVED) {
       return fail("EXISTING_MEMBER", STAFF_INVITATION_EXISTING_MEMBER_COPY);
     }
 

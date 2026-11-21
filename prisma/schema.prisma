@@ -23,6 +23,12 @@ enum RoleCode {
   DONOR
 }
 
+enum ChurchAccessStatus {
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
 enum StaffInvitationStatus {
   AUTHORIZED
   SENT
@@ -795,6 +801,7 @@ model OrganizationMembership {
   userAccountId  String   @db.Uuid
   roleTypeId     String   @db.Uuid
   active         Boolean  @default(true)
+  churchAccess   ChurchAccessStatus @default(ACTIVE)
   version        Int      @default(1)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

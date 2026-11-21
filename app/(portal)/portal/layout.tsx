@@ -1,4 +1,7 @@
-import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
+import {
+  describeChurchPortalBlock,
+  findMemberPortalOrganization,
+} from "@/server/repositories/organization.repository";
 import { UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
@@ -12,6 +15,23 @@ export default async function MemberPortalLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
+  const block = await describeChurchPortalBlock();
+  if (block) {
+    const title = block.churchAccess === "REMOVED" ? "Removed" : "Suspended";
+    const detail =
+      block.churchAccess === "REMOVED"
+        ? `${block.organizationName} has removed your access to this church. Your sign-in remains, and another church is not affected.`
+        : `${block.organizationName} has suspended your access. You can still sign in, and this church stays closed until an administrator restores it.`;
+    return (
+      <div className="min-h-screen bg-[var(--bits-page)]">
+        <main className="mx-auto w-full max-w-xl px-4 py-16">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--bits-gold)]">{title}</p>
+          <h1 className="mt-2 text-2xl font-semibold text-[var(--bits-navy)]">{block.organizationName}</h1>
+          <p className="mt-4 text-sm text-[var(--bits-navy)]">{detail}</p>
+        </main>
+      </div>
+    );
+  }
   const organization = await findMemberPortalOrganization();
   if (!organization) redirect("/select-organization");
 

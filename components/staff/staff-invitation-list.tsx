@@ -6,7 +6,10 @@ import {
   retryStaffInvitationAction,
   revokeStaffInvitationAction,
 } from "@/app/(staff)/administration/staff-access/actions";
-import { STAFF_INVITATION_REAPPROVE_COPY } from "@/lib/validation/staff-invitation";
+import {
+  STAFF_INVITATION_REAPPROVE_COPY,
+  STAFF_INVITATION_ROLE_LABELS,
+} from "@/lib/validation/staff-invitation";
 import type { StaffInvitationDirectoryRow } from "@/server/services/staff-invitation.service";
 
 const buttonClass =
@@ -88,11 +91,16 @@ export function StaffInvitationList({
         >
           <p className="font-semibold text-[var(--bits-navy)]">{row.email}</p>
           <p className="mt-1 text-sm text-[var(--bits-muted)]">
-            {row.roleCode} · {row.statusLabel}
+            {(STAFF_INVITATION_ROLE_LABELS as Record<string, string>)[row.roleCode] ?? row.roleCode} · {row.statusLabel}
           </p>
           <p className="mt-1 text-sm text-[var(--bits-muted)]">
             Invited {row.createdOnLabel} · Expires {row.expiresOnLabel}
           </p>
+          {row.status !== "ACCEPTED" && row.status !== "REVOKED" && row.status !== "EXPIRED" ? (
+            <p className="mt-1 text-sm text-[var(--bits-navy)]">
+              Acceptance link: /staff-invitations/accept?intent={row.invitationId}
+            </p>
+          ) : null}
           {row.lastProviderErrorRedacted ? (
             <p className="mt-1 text-sm text-rose-800">
               Provider: {row.lastProviderErrorRedacted}

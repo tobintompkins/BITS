@@ -32,7 +32,7 @@ export const STAFF_ACCESS_DIRECTORY_FILTER_LABELS: Record<
   string
 > = {
   ACTIVE: "Active",
-  INACTIVE: "Inactive",
+  INACTIVE: "Closed",
 };
 
 export const STAFF_ACCESS_DIRECTORY_STATUS_LABELS: Record<
@@ -44,7 +44,7 @@ export const STAFF_ACCESS_DIRECTORY_PAGE_SIZE = 25;
 export const STAFF_ACCESS_DIRECTORY_QUERY_MAX = 100;
 
 export const STAFF_ACCESS_DIRECTORY_NOTICE =
-  "This directory lists existing Leadership Portal staff memberships. An active organization administrator can invite original staff roles, change another existing original staff role, or deactivate that membership. It does not change Clerk organization roles or assign the first administrator.";
+  "Invite people and choose their access from this page. Basic user means they can sign in and use personal features, with no staff access. Suspended means this church is closed to them until you restore it. Removing a person ends their access to this church only and keeps their sign-in, giving records, statements, and audit history.";
 
 export const STAFF_ACCESS_DIRECTORY_INVITATION_GAP =
   "First-administrator bootstrap remains a restricted operator tool. A church without an authorized administrator cannot be repaired from this page.";

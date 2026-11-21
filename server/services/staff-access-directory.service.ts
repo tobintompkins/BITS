@@ -5,9 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import {
   STAFF_ACCESS_DIRECTORY_INVITATION_GAP,
   STAFF_ACCESS_DIRECTORY_PAGE_SIZE,
-  STAFF_ACCESS_DIRECTORY_STATUS_LABELS,
   formatStaffAccessDirectoryDate,
-  isStaffAccessDirectoryRoleCode,
   parseStaffAccessDirectoryQuery,
   type StaffAccessDirectoryFilter,
   type StaffAccessDirectoryRow,
@@ -15,6 +13,8 @@ import {
 import {
   STAFF_MEMBERSHIP_SELF_COPY,
   STAFF_MEMBERSHIP_UNSUPPORTED_COPY,
+  churchPersonStatusLabel,
+  staffMembershipRoleIsManaged,
 } from "@/lib/validation/staff-membership-admin";
 import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
 
@@ -39,6 +39,7 @@ const membershipSelect = {
   id: true,
   userAccountId: true,
   active: true,
+  churchAccess: true,
   version: true,
   createdAt: true,
   updatedAt: true,
@@ -62,6 +63,7 @@ function toStaffAccessRow(
     id: string;
     userAccountId: string;
     active: boolean;
+    churchAccess?: string | null;
     version: number;
     createdAt: Date;
     updatedAt: Date;
@@ -76,10 +78,13 @@ function toStaffAccessRow(
 ): StaffAccessDirectoryRow {
   const primaryEmail = row.userAccount.primaryEmail.trim();
   const displayName = row.userAccount.displayName?.trim() || primaryEmail;
-  const membershipStatusLabel = row.active
-    ? STAFF_ACCESS_DIRECTORY_STATUS_LABELS.ACTIVE
-    : STAFF_ACCESS_DIRECTORY_STATUS_LABELS.INACTIVE;
-  const managementSupported = isStaffAccessDirectoryRoleCode(row.roleType.code);
+  const membershipStatusLabel = churchPersonStatusLabel({
+    roleCode: row.roleType.code,
+    active: row.active,
+    churchAccess: row.churchAccess,
+  });
+  const managementSupported = staffMembershipRoleIsManaged(row.roleType.code);
+  const roleName = row.roleType.code === RoleCode.DONOR ? "Basic user" : row.roleType.name;
   const isSelf = row.userAccountId === actor.userAccountId;
   let managementNote: string | null = null;
   if (!managementSupported) {
@@ -91,7 +96,7 @@ function toStaffAccessRow(
     membershipId: row.id,
     displayName,
     primaryEmail,
-    roleName: row.roleType.name,
+    roleName,
     roleCode: row.roleType.code,
     membershipActive: row.active,
     membershipStatusLabel,
@@ -144,9 +149,6 @@ export async function getStaffAccessDirectory(
   const searchTerms = parsed.data.query.split(/\s+/).filter(Boolean);
   const where = {
     organizationId: organization.id,
-    roleType: {
-      code: { not: RoleCode.DONOR },
-    },
     ...(parsed.data.status === "ACTIVE" ? { active: true } : {}),
     ...(parsed.data.status === "INACTIVE" ? { active: false } : {}),
     ...(searchTerms.length

@@ -1,10 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
-import { RoleCode, type Prisma } from "@/app/generated/prisma/client";
+import { ChurchAccessStatus, RoleCode, type Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import {
-  STAFF_ACCESS_DIRECTORY_ROLE_CODES,
-  isStaffAccessDirectoryRoleCode,
-} from "@/lib/validation/staff-access-directory";
 import {
   STAFF_MEMBERSHIP_CONFLICT_COPY,
   STAFF_MEMBERSHIP_INACTIVE_ACCOUNT_COPY,
@@ -13,6 +9,7 @@ import {
   STAFF_MEMBERSHIP_SELF_COPY,
   STAFF_MEMBERSHIP_UNSUPPORTED_COPY,
   staffMembershipFormFromUnknown,
+  staffMembershipRoleIsManaged,
   staffMembershipUpdateSchema,
   type StaffMembershipUpdateInput,
 } from "@/lib/validation/staff-membership-admin";
@@ -74,6 +71,7 @@ type MembershipLockRow = {
   version: number;
   updatedAt: Date;
   roleCode: RoleCode;
+  churchAccess: ChurchAccessStatus;
   userAccountActive: boolean;
 };
 
@@ -119,6 +117,7 @@ async function lockMembership(
             m.version,
             m."updatedAt",
             r.code AS "roleCode",
+            m."churchAccess",
             u.active AS "userAccountActive"
           FROM organization_memberships m
           INNER JOIN role_types r ON r.id = m."roleTypeId"
@@ -137,6 +136,7 @@ async function lockMembership(
             m.version,
             m."updatedAt",
             r.code AS "roleCode",
+            m."churchAccess",
             u.active AS "userAccountActive"
           FROM organization_memberships m
           INNER JOIN role_types r ON r.id = m."roleTypeId"
@@ -147,7 +147,13 @@ async function lockMembership(
         `;
   const row = rows[0];
   if (!row) return null;
-  return { ...row, updatedAt: asDate(row.updatedAt) };
+  return {
+    ...row,
+    updatedAt: asDate(row.updatedAt),
+    churchAccess:
+      row.churchAccess ??
+      (row.active ? ChurchAccessStatus.ACTIVE : ChurchAccessStatus.SUSPENDED),
+  };
 }
 
 async function countUsableAdmins(db: AdminDb, organizationId: string) {
@@ -169,7 +175,58 @@ function isUsableAdmin(row: MembershipLockRow) {
   );
 }
 
-function auditAction(before: MembershipLockRow, next: StaffMembershipUpdateInput) {
+function nextMembershipState(
+  before: MembershipLockRow,
+  update: StaffMembershipUpdateInput,
+) {
+  if (update.intent === "suspend") {
+    return {
+      roleCode: before.roleCode,
+      active: false,
+      churchAccess: ChurchAccessStatus.SUSPENDED,
+    };
+  }
+  if (update.intent === "restore") {
+    return {
+      roleCode: before.roleCode,
+      active: true,
+      churchAccess: ChurchAccessStatus.ACTIVE,
+    };
+  }
+  if (update.intent === "remove") {
+    return {
+      roleCode: RoleCode.DONOR,
+      active: false,
+      churchAccess: ChurchAccessStatus.REMOVED,
+    };
+  }
+  if (update.intent === "change-access") {
+    return {
+      roleCode: update.roleCode,
+      active: true,
+      churchAccess: ChurchAccessStatus.ACTIVE,
+    };
+  }
+  return {
+    roleCode: update.roleCode,
+    active: update.active,
+    churchAccess: update.active
+      ? ChurchAccessStatus.ACTIVE
+      : ChurchAccessStatus.SUSPENDED,
+  };
+}
+
+function auditAction(
+  before: MembershipLockRow,
+  next: { roleCode: string; active: boolean; churchAccess: ChurchAccessStatus },
+  intent: StaffMembershipUpdateInput["intent"],
+) {
+  if (intent === "remove") return "CHURCH_ACCESS_REMOVED";
+  if (intent === "suspend") return "CHURCH_ACCESS_SUSPENDED";
+  if (intent === "restore") return "CHURCH_ACCESS_RESTORED";
+  if (intent === "change-access" && next.roleCode === RoleCode.DONOR && before.roleCode !== RoleCode.DONOR) {
+    return "CHURCH_ACCESS_CHANGED_TO_BASIC";
+  }
   const roleChanged = before.roleCode !== next.roleCode;
   const statusChanged = before.active !== next.active;
   if (statusChanged && roleChanged) return "STAFF_MEMBERSHIP_UPDATED";
@@ -256,13 +313,19 @@ export async function applyStaffMembershipChange(input: {
       return fail("SELF", STAFF_MEMBERSHIP_SELF_COPY);
     }
 
-    if (!isStaffAccessDirectoryRoleCode(target.roleCode)) {
+    if (!staffMembershipRoleIsManaged(target.roleCode)) {
       return fail("UNSUPPORTED_ROLE", STAFF_MEMBERSHIP_UNSUPPORTED_COPY);
     }
 
+    const next = nextMembershipState(target, input.update);
+    if (input.update.intent === "restore" && target.churchAccess === ChurchAccessStatus.REMOVED) {
+      return fail("INVALID", "Removed church access stays removed. Invite the person again if they need basic access.");
+    }
+
     if (
-      target.roleCode === input.update.roleCode &&
-      target.active === input.update.active
+      target.roleCode === next.roleCode &&
+      target.active === next.active &&
+      target.churchAccess === next.churchAccess
     ) {
       return {
         ok: true as const,
@@ -279,14 +342,14 @@ export async function applyStaffMembershipChange(input: {
       return fail("CONFLICT", STAFF_MEMBERSHIP_CONFLICT_COPY);
     }
 
-    if (!target.active && input.update.active && !target.userAccountActive) {
+    if (!target.active && next.active && !target.userAccountActive) {
       return fail("INACTIVE_ACCOUNT", STAFF_MEMBERSHIP_INACTIVE_ACCOUNT_COPY);
     }
 
     const wouldRemainUsableAdmin =
-      input.update.active &&
+      next.active &&
       target.userAccountActive &&
-      input.update.roleCode === RoleCode.ORG_ADMIN;
+      next.roleCode === RoleCode.ORG_ADMIN;
     if (isUsableAdmin(target) && !wouldRemainUsableAdmin) {
       const usableAdmins = await countUsableAdmins(db, input.organizationId);
       if (usableAdmins <= 1) {
@@ -295,7 +358,7 @@ export async function applyStaffMembershipChange(input: {
     }
 
     const nextRole = await db.roleType.findUnique({
-      where: { code: input.update.roleCode },
+      where: { code: next.roleCode },
       select: { id: true, code: true },
     });
     if (!nextRole) {
@@ -311,7 +374,8 @@ export async function applyStaffMembershipChange(input: {
       },
       data: {
         roleTypeId: nextRole.id,
-        active: input.update.active,
+        active: next.active,
+        churchAccess: next.churchAccess,
         version: { increment: 1 },
       },
     });
@@ -319,7 +383,7 @@ export async function applyStaffMembershipChange(input: {
       return fail("CONFLICT", STAFF_MEMBERSHIP_CONFLICT_COPY);
     }
 
-    const action = auditAction(target, input.update);
+    const action = auditAction(target, next, input.update.intent);
     await createAuditEvent(
       {
         organizationId: input.organizationId,
@@ -328,21 +392,30 @@ export async function applyStaffMembershipChange(input: {
         entityType: "OrganizationMembership",
         entityId: target.id,
         changes: [
-          ...(target.roleCode !== input.update.roleCode
+          ...(target.roleCode !== next.roleCode
             ? [
                 {
                   field: "roleCode",
                   oldValue: target.roleCode,
-                  newValue: input.update.roleCode,
+                  newValue: next.roleCode,
                 },
               ]
             : []),
-          ...(target.active !== input.update.active
+          ...(target.active !== next.active
             ? [
                 {
                   field: "active",
                   oldValue: target.active ? "true" : "false",
-                  newValue: input.update.active ? "true" : "false",
+                  newValue: next.active ? "true" : "false",
+                },
+              ]
+            : []),
+          ...(target.churchAccess !== next.churchAccess
+            ? [
+                {
+                  field: "churchAccess",
+                  oldValue: target.churchAccess,
+                  newValue: next.churchAccess,
                 },
               ]
             : []),
@@ -380,11 +453,7 @@ export async function updateStaffMembership(
     );
   }
 
-  if (
-    !(STAFF_ACCESS_DIRECTORY_ROLE_CODES as readonly string[]).includes(
-      parsed.data.roleCode,
-    )
-  ) {
+  if (!staffMembershipRoleIsManaged(parsed.data.roleCode)) {
     return fail("UNSUPPORTED_ROLE", STAFF_MEMBERSHIP_UNSUPPORTED_COPY);
   }
 

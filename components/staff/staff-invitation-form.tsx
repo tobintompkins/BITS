@@ -45,7 +45,7 @@ export function StaffInvitationForm({ churchName }: { churchName: string }) {
         />
       </label>
       <label className="block text-sm font-medium text-[var(--bits-navy)]">
-        Approved staff role
+        Access
         <select
           name="roleCode"
           value={roleCode}
@@ -88,7 +88,7 @@ export function StaffInvitationForm({ churchName }: { churchName: string }) {
         <span>{STAFF_INVITATION_CONFIRM_COPY}</span>
       </label>
       <button type="submit" className={buttonClass} disabled={pending}>
-        {pending ? "Authorizing…" : "Send staff invitation"}
+        {pending ? "Saving…" : "Create invitation"}
       </button>
       {state.message ? (
         <p

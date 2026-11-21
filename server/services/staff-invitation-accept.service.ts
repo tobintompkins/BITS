@@ -1,5 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import {
+  ChurchAccessStatus,
   RoleCode,
   StaffInvitationStatus,
   type Prisma,
@@ -15,10 +16,6 @@ import {
   staffInvitationAcceptSchema,
 } from "@/lib/validation/staff-invitation";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
-import {
-  getStaffInvitationProvider,
-  type StaffInvitationProvider,
-} from "@/server/services/staff-invitation-provider";
 
 /**
  * Accept lock order (organization-first, compatible with Core 09):
@@ -175,7 +172,6 @@ async function invitationAuthorityHolds(
 
 export async function previewStaffInvitationAcceptance(input: {
   invitationId?: string;
-  provider?: StaffInvitationProvider;
 }) {
   const { userId } = await auth();
   if (!userId) {
@@ -262,7 +258,6 @@ export async function previewStaffInvitationAcceptance(input: {
 
 export async function acceptStaffInvitation(
   raw: unknown,
-  options: { provider?: StaffInvitationProvider } = {},
 ): Promise<StaffInvitationAcceptResult> {
   const parsed = staffInvitationAcceptSchema.safeParse(
     staffInvitationAcceptFormFromUnknown(raw),
@@ -310,17 +305,6 @@ export async function acceptStaffInvitation(
     return fail("DENIED", STAFF_INVITATION_ACCEPT_DENIED_COPY);
   }
   if (!verifiedEmails.includes(preview.emailNormalized)) {
-    return fail("DENIED", STAFF_INVITATION_ACCEPT_DENIED_COPY);
-  }
-
-  const provider = options.provider ?? getStaffInvitationProvider();
-  const membershipEvidence = await provider.getOrganizationMembership({
-    clerkOrganizationId: preview.clerkOrganizationId,
-    clerkUserId: userId,
-  });
-  if (!membershipEvidence.ok || !membershipEvidence.member ||
-      membershipEvidence.clerkUserId !== userId ||
-      membershipEvidence.clerkOrganizationId !== preview.clerkOrganizationId) {
     return fail("DENIED", STAFF_INVITATION_ACCEPT_DENIED_COPY);
   }
 
@@ -390,7 +374,7 @@ export async function acceptStaffInvitation(
       if (!(await invitationAuthorityHolds(db, invitation))) {
         return fail("DENIED", STAFF_INVITATION_ACCEPT_DENIED_COPY);
       }
-      if (existing) {
+      if (existing && existing.churchAccess !== ChurchAccessStatus.REMOVED) {
         return fail(
           "EXISTING_MEMBER",
           "This account already has a membership in this church. An administrator must use existing membership controls.",
@@ -405,14 +389,25 @@ export async function acceptStaffInvitation(
         return fail("DENIED", STAFF_INVITATION_ACCEPT_DENIED_COPY);
       }
 
-      const created = await db.organizationMembership.create({
-        data: {
-          organizationId: invitation.organizationId,
-          userAccountId: userAccount.id,
-          roleTypeId: role.id,
-          active: true,
-        },
-      });
+      const membership = existing
+        ? await db.organizationMembership.update({
+            where: { id: existing.id },
+            data: {
+              roleTypeId: role.id,
+              active: true,
+              churchAccess: ChurchAccessStatus.ACTIVE,
+              version: { increment: 1 },
+            },
+          })
+        : await db.organizationMembership.create({
+            data: {
+              organizationId: invitation.organizationId,
+              userAccountId: userAccount.id,
+              roleTypeId: role.id,
+              active: true,
+              churchAccess: ChurchAccessStatus.ACTIVE,
+            },
+          });
 
       const consumed = await db.staffInvitation.updateMany({
         where: {
@@ -442,8 +437,8 @@ export async function acceptStaffInvitation(
           entityId: invitation.id,
           changes: [
             { field: "status", oldValue: invitation.status, newValue: StaffInvitationStatus.ACCEPTED },
-            { field: "membershipId", oldValue: null, newValue: created.id },
-            { field: "roleCode", oldValue: null, newValue: invitation.roleCode },
+            { field: "membershipId", oldValue: existing?.id ?? null, newValue: membership.id },
+            { field: "roleCode", oldValue: existing?.roleType.code ?? null, newValue: invitation.roleCode },
           ],
         },
         db,
@@ -452,7 +447,7 @@ export async function acceptStaffInvitation(
       return {
         ok: true as const,
         alreadyAccepted: false,
-        membershipId: created.id,
+        membershipId: membership.id,
         invitationId: invitation.id,
         roleCode: invitation.roleCode,
         message: STAFF_INVITATION_ACCEPT_SUCCESS_COPY,

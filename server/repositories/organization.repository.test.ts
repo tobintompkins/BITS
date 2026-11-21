@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
   userAccountFindUnique: vi.fn(),
   memberships: vi.fn(),
+  membershipFindFirst: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -23,6 +24,7 @@ vi.mock("@/lib/db/prisma", () => ({
     },
     organizationMembership: {
       findMany: mocks.memberships,
+      findFirst: mocks.membershipFindFirst,
     },
   },
 }));
@@ -133,6 +135,7 @@ describe("findMemberPortalOrganization", () => {
     vi.resetAllMocks();
     vi.stubEnv("BITS_PUBLIC_ORGANIZATION_SLUG", "public-church");
     mocks.auth.mockResolvedValue({ userId: null, orgId: null });
+    mocks.membershipFindFirst.mockResolvedValue(null);
   });
 
   it("uses the public church for a signed-in account with no membership", async () => {
@@ -171,5 +174,28 @@ describe("findMemberPortalOrganization", () => {
     mocks.findFirst.mockResolvedValue(ORG_A);
     await expect(findPrimaryOrganization()).resolves.toBeNull();
     await expect(findMemberPortalOrganization()).resolves.toEqual(ORG_A);
+  });
+
+  it("does not open the public church when this account's access is suspended", async () => {
+    mocks.auth.mockResolvedValue({ userId: "user-1", orgId: null });
+    mocks.userAccountFindUnique.mockResolvedValue({ id: "account-1" });
+    mocks.memberships.mockResolvedValue([]);
+    mocks.findFirst.mockResolvedValue(ORG_A);
+    mocks.membershipFindFirst.mockResolvedValue({
+      active: false,
+      churchAccess: "SUSPENDED",
+    });
+    await expect(findMemberPortalOrganization()).resolves.toBeNull();
+  });
+
+  it("does not open a selected Clerk church after access is removed", async () => {
+    mocks.auth.mockResolvedValue({ userId: "user-1", orgId: "clerk-org" });
+    mocks.findFirst.mockResolvedValue(ORG_A);
+    mocks.userAccountFindUnique.mockResolvedValue({ id: "account-1" });
+    mocks.membershipFindFirst.mockResolvedValue({
+      active: false,
+      churchAccess: "REMOVED",
+    });
+    await expect(findMemberPortalOrganization()).resolves.toBeNull();
   });
 });

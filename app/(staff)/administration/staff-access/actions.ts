@@ -59,10 +59,10 @@ export async function createStaffInvitationAction(
   return {
     message:
       result.status === "SENT"
-        ? "Invitation authorized and submitted to the identity provider. Provider acceptance is not proof the email arrived."
+        ? "Invitation saved in BITS. The person signs in with this email and accepts the link in the list. Church access is granted here."
         : result.status === "UNKNOWN"
-          ? "Invitation authorized, but the provider result is unknown. Reconcile before retrying."
-          : "Invitation authorized, but the provider did not accept it as sent.",
+          ? "Invitation saved in BITS, but delivery to the sign-in provider is not confirmed. The person can still accept the link in the list."
+          : "Invitation saved in BITS. The person can accept the link in the list after signing in with this email.",
     ok: true,
   };
 }

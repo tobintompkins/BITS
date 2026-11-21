@@ -88,7 +88,7 @@ describe("createStaffInvitationAction", () => {
       createStaffInvitationAction({ message: "" }, form),
     ).resolves.toEqual({
       message:
-        "Invitation authorized, but the provider did not accept it as sent.",
+        "Invitation saved in BITS. The person can accept the link in the list after signing in with this email.",
       ok: true,
     });
   });

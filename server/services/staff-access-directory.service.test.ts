@@ -336,6 +336,7 @@ describe("staff access directory", () => {
       "ann@church.test",
       "blake@church.test",
       "casey@church.test",
+      "donor@church.test",
     ]);
     expect(result.rows.find((row) => row.primaryEmail === "ann@church.test")?.canManage).toBe(
       false,
@@ -396,6 +397,7 @@ describe("staff access directory", () => {
     expect(active.rows.map((row) => row.primaryEmail)).toEqual([
       "ann@church.test",
       "blake@church.test",
+      "donor@church.test",
     ]);
 
     const inactive = await getStaffAccessDirectory({ status: "INACTIVE" });
@@ -409,7 +411,7 @@ describe("staff access directory", () => {
       expect.objectContaining({
         primaryEmail: "casey@church.test",
         membershipActive: false,
-        membershipStatusLabel: "Inactive",
+        membershipStatusLabel: "Suspended",
       }),
     ]);
   });

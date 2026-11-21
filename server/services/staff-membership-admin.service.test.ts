@@ -7,7 +7,6 @@ import {
   STAFF_MEMBERSHIP_LAST_ADMIN_COPY,
   STAFF_MEMBERSHIP_NOT_FOUND_COPY,
   STAFF_MEMBERSHIP_SELF_COPY,
-  STAFF_MEMBERSHIP_UNSUPPORTED_COPY,
 } from "@/lib/validation/staff-membership-admin";
 
 type Account = {
@@ -23,6 +22,7 @@ type Membership = {
   roleTypeId: string;
   roleCode: RoleCode;
   active: boolean;
+  churchAccess?: "ACTIVE" | "SUSPENDED" | "REMOVED";
   version: number;
   updatedAt: Date;
 };
@@ -104,6 +104,7 @@ const prismaMock = vi.hoisted(() => {
       version: row.version,
       updatedAt: row.updatedAt,
       roleCode: row.roleCode,
+      churchAccess: row.churchAccess ?? (row.active ? "ACTIVE" : "SUSPENDED"),
       userAccountActive: Boolean(account?.active),
     };
   }
@@ -170,6 +171,7 @@ const prismaMock = vi.hoisted(() => {
           data: {
             roleTypeId: string;
             active: boolean;
+            churchAccess?: "ACTIVE" | "SUSPENDED" | "REMOVED";
             version: { increment: number };
           };
         }) => {
@@ -187,6 +189,7 @@ const prismaMock = vi.hoisted(() => {
           row.roleTypeId = data.roleTypeId;
           row.roleCode = roleCode;
           row.active = data.active;
+          if (data.churchAccess) row.churchAccess = data.churchAccess;
           row.version += data.version.increment;
           row.updatedAt = new Date(row.updatedAt.getTime() + 1);
           return { count: 1 };
@@ -420,7 +423,7 @@ describe("updateStaffMembership authorization", () => {
     });
   });
 
-  it("refuses to mutate a donor membership in the same church", async () => {
+  it("promotes a basic user in the same church", async () => {
     store.memberships.push(
       membership({
         id: "00000000-0000-4000-8000-00000000b004",
@@ -428,6 +431,7 @@ describe("updateStaffMembership authorization", () => {
         userAccountId: DANA,
         roleCode: RoleCode.DONOR,
         active: true,
+        churchAccess: "ACTIVE",
       }),
     );
     await expect(
@@ -435,18 +439,13 @@ describe("updateStaffMembership authorization", () => {
         change({
           membershipId: "00000000-0000-4000-8000-00000000b004",
           roleCode: RoleCode.TREASURER,
+          intent: "change-access",
         }),
       ),
-    ).resolves.toEqual({
-      ok: false,
-      code: "UNSUPPORTED_ROLE",
-      message: STAFF_MEMBERSHIP_UNSUPPORTED_COPY,
-    });
+    ).resolves.toMatchObject({ ok: true, action: "STAFF_MEMBERSHIP_ROLE_CHANGED" });
     expect(
-      store.memberships.find(
-        (row) => row.id === "00000000-0000-4000-8000-00000000b004",
-      )?.roleCode,
-    ).toBe(RoleCode.DONOR);
+      store.memberships.find((row) => row.id === "00000000-0000-4000-8000-00000000b004"),
+    ).toMatchObject({ roleCode: RoleCode.TREASURER, active: true, churchAccess: "ACTIVE" });
   });
 
   it("does not reveal a target from another selected church", async () => {
@@ -603,6 +602,89 @@ describe("updateStaffMembership edits", () => {
     expect(store.memberships.find((row) => row.id === BLAKE_MEM_A)?.roleCode).toBe(
       RoleCode.ORG_ADMIN,
     );
+  });
+
+  it("demotes staff to a basic user and keeps the membership", async () => {
+    const result = await updateStaffMembership(
+      change({ roleCode: RoleCode.DONOR, intent: "change-access" }),
+    );
+    expect(result).toMatchObject({ ok: true, action: "CHURCH_ACCESS_CHANGED_TO_BASIC" });
+    expect(store.memberships.find((row) => row.id === BLAKE_MEM_A)).toMatchObject({
+      roleCode: RoleCode.DONOR,
+      active: true,
+      churchAccess: "ACTIVE",
+    });
+  });
+
+  it("suspends and restores church access without changing the role", async () => {
+    const suspended = await updateStaffMembership(
+      change({ roleCode: RoleCode.TREASURER, intent: "suspend" }),
+    );
+    expect(suspended).toMatchObject({ ok: true, action: "CHURCH_ACCESS_SUSPENDED" });
+    const blake = store.memberships.find((row) => row.id === BLAKE_MEM_A)!;
+    expect(blake).toMatchObject({
+      roleCode: RoleCode.TREASURER,
+      active: false,
+      churchAccess: "SUSPENDED",
+    });
+    const restored = await updateStaffMembership(
+      change({
+        roleCode: RoleCode.TREASURER,
+        intent: "restore",
+        expectedVersion: blake.version,
+        expectedUpdatedAt: blake.updatedAt.toISOString(),
+      }),
+    );
+    expect(restored).toMatchObject({ ok: true, action: "CHURCH_ACCESS_RESTORED" });
+    expect(store.memberships.find((row) => row.id === BLAKE_MEM_A)).toMatchObject({
+      roleCode: RoleCode.TREASURER,
+      active: true,
+      churchAccess: "ACTIVE",
+    });
+  });
+
+  it("removes church access without deleting the membership row", async () => {
+    const result = await updateStaffMembership(
+      change({ roleCode: RoleCode.TREASURER, intent: "remove" }),
+    );
+    expect(result).toMatchObject({ ok: true, action: "CHURCH_ACCESS_REMOVED" });
+    expect(store.memberships.find((row) => row.id === BLAKE_MEM_A)).toMatchObject({
+      roleCode: RoleCode.DONOR,
+      active: false,
+      churchAccess: "REMOVED",
+    });
+    expect(store.memberships.find((row) => row.id === BLAKE_MEM_B)?.roleCode).toBe(
+      RoleCode.TREASURER,
+    );
+  });
+
+  it("does not restore a removed membership back into staff access", async () => {
+    const blake = store.memberships.find((row) => row.id === BLAKE_MEM_A)!;
+    blake.active = false;
+    blake.churchAccess = "REMOVED";
+    blake.roleCode = RoleCode.DONOR;
+    await expect(
+      updateStaffMembership(
+        change({ roleCode: RoleCode.DONOR, intent: "restore", active: "false" }),
+      ),
+    ).resolves.toMatchObject({ ok: false, code: "INVALID" });
+    expect(store.memberships.find((row) => row.id === BLAKE_MEM_A)?.churchAccess).toBe(
+      "REMOVED",
+    );
+  });
+
+  it("refuses to suspend or remove the last usable administrator", async () => {
+    const blake = store.memberships.find((row) => row.id === BLAKE_MEM_A)!;
+    blake.roleCode = RoleCode.ORG_ADMIN;
+    blake.roleTypeId = ROLE_IDS[RoleCode.ORG_ADMIN];
+    store.countOverride = 1;
+    await expect(
+      updateStaffMembership(change({ roleCode: RoleCode.ORG_ADMIN, intent: "suspend" })),
+    ).resolves.toMatchObject({ ok: false, code: "LAST_ADMIN" });
+    await expect(
+      updateStaffMembership(change({ roleCode: RoleCode.ORG_ADMIN, intent: "remove" })),
+    ).resolves.toMatchObject({ ok: false, code: "LAST_ADMIN" });
+    expect(blake).toMatchObject({ roleCode: RoleCode.ORG_ADMIN, active: true });
   });
 
   it("allows a valid two-admin role change", async () => {

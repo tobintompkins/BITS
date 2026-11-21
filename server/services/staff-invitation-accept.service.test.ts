@@ -44,6 +44,7 @@ const store = vi.hoisted(() => ({
     userAccountId: string;
     roleCode: RoleCode;
     active: boolean;
+    churchAccess?: "ACTIVE" | "SUSPENDED" | "REMOVED";
   }>,
   audits: [] as Array<{ action: string; entityId: string }>,
   orgs: [
@@ -128,6 +129,20 @@ const prismaMock = vi.hoisted(() => {
           };
           store.memberships.push(created);
           return created;
+        },
+        update: async ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: { active?: boolean; churchAccess?: "ACTIVE" | "SUSPENDED" | "REMOVED"; roleTypeId?: string };
+        }) => {
+          const row = store.memberships.find((item) => item.id === where.id);
+          if (!row) return null;
+          if (typeof data.active === "boolean") row.active = data.active;
+          if (data.churchAccess) row.churchAccess = data.churchAccess;
+          if (data.roleTypeId) row.roleCode = RoleCode.TREASURER;
+          return row;
         },
       },
       roleType: {
@@ -282,7 +297,7 @@ beforeEach(() => {
 });
 
 describe("acceptStaffInvitation", () => {
-  it("denies forged ids, unverified email, and wrong-org provider evidence", async () => {
+  it("denies forged ids, unverified email, and a different verified email", async () => {
     await expect(
       acceptStaffInvitation({
         invitationId: "00000000-0000-4000-8000-00000000e099",
@@ -315,23 +330,19 @@ describe("acceptStaffInvitation", () => {
       acceptStaffInvitation({ invitationId: INVITE, confirm: "on" }),
     ).resolves.toMatchObject({ ok: false, code: "DENIED" });
 
-    mocks.currentUser.mockResolvedValue({
-      primaryEmailAddress: {
-        emailAddress: "pat@church.test",
-        verification: { status: "verified" },
-      },
-      emailAddresses: [],
-    });
+  });
+
+  it("grants the chosen church access without a Clerk organization membership", async () => {
     mocks.providerMembership.mockResolvedValue({
       ok: true,
       member: false,
       clerkUserId: "user_pat",
       clerkOrganizationId: "org_a",
     });
-    await expect(
-      acceptStaffInvitation({ invitationId: INVITE, confirm: "on" }),
-    ).resolves.toMatchObject({ ok: false, code: "DENIED" });
-    expect(store.memberships).toHaveLength(1);
+    const result = await acceptStaffInvitation({ invitationId: INVITE, confirm: "on" });
+    expect(result.ok).toBe(true);
+    expect(store.memberships.filter((row) => row.userAccountId === PAT)).toHaveLength(1);
+    expect(mocks.providerMembership).not.toHaveBeenCalled();
   });
 
   it("creates the approved BITS role once and replays safely", async () => {
@@ -422,6 +433,28 @@ describe("acceptStaffInvitation", () => {
       acceptStaffInvitation({ invitationId: INVITE, confirm: "on" }),
     ).resolves.toMatchObject({ ok: false, code: "EXISTING_MEMBER" });
   });
+
+  it("reopens a removed membership with the newly invited access", async () => {
+    store.memberships.push({
+      id: "mem-pat-removed",
+      organizationId: ORG_A,
+      userAccountId: PAT,
+      roleCode: RoleCode.DONOR,
+      active: false,
+      churchAccess: "REMOVED",
+    });
+    const result = await acceptStaffInvitation({ invitationId: INVITE, confirm: "on" });
+    expect(result).toMatchObject({ ok: true, roleCode: RoleCode.TREASURER });
+    expect(store.memberships.filter((row) => row.userAccountId === PAT)).toEqual([
+      expect.objectContaining({
+        id: "mem-pat-removed",
+        roleCode: RoleCode.TREASURER,
+        active: true,
+        churchAccess: "ACTIVE",
+      }),
+    ]);
+    expect(store.invitations[0]?.status).toBe(StaffInvitationStatus.ACCEPTED);
+  });
 });
 
 
@@ -435,8 +468,13 @@ describe("invitation preview privacy", () => {
   it("shows a pending invitation to its verified recipient", async () => {
     expect(await previewStaffInvitationAcceptance({ invitationId: INVITE })).toMatchObject({ status: "READY", email: "pat@church.test" });
   });
-  it("rejects provider evidence for a different identity even when member=true", async () => {
+  it("grants the signed-in verified recipient even when Clerk organization membership names someone else", async () => {
     mocks.providerMembership.mockResolvedValue({ ok: true, member: true, clerkUserId: "user_other", clerkOrganizationId: "org_a" });
+    expect(await acceptStaffInvitation({ invitationId: INVITE, confirm: "on" })).toMatchObject({ ok: true });
+    expect(store.memberships.some((row) => row.userAccountId === PAT)).toBe(true);
+  });
+  it("does not grant an unrelated verified user", async () => {
+    mocks.currentUser.mockResolvedValue({ emailAddresses: [{ emailAddress: "other@example.test", verification: { status: "verified" } }] });
     expect(await acceptStaffInvitation({ invitationId: INVITE, confirm: "on" })).toMatchObject({ ok: false, code: "DENIED" });
     expect(store.memberships.some((row) => row.userAccountId === PAT)).toBe(false);
   });

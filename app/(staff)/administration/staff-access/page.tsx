@@ -6,9 +6,7 @@ import { StaffInvitationList } from "@/components/staff/staff-invitation-list";
 import { StaffMembershipEditForm } from "@/components/staff/staff-membership-edit-form";
 import {
   STAFF_ACCESS_DIRECTORY_EMPTY_COPY,
-  STAFF_ACCESS_DIRECTORY_FILTER_LABELS,
   STAFF_ACCESS_DIRECTORY_FILTERS,
-  STAFF_ACCESS_DIRECTORY_NOTICE,
 } from "@/lib/validation/staff-access-directory";
 import {
   STAFF_INVITATION_FILTER_LABELS,
@@ -80,10 +78,10 @@ export default async function StaffAccessDirectoryPage({
           Administration
         </p>
         <h1 className="mt-1 text-3xl font-semibold text-[var(--bits-navy)]">
-          Staff Access
+          People
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
-          {STAFF_ACCESS_DIRECTORY_NOTICE}
+          Invite people, change access, suspend or restore church access, and remove church access from this page. You do not need the Clerk dashboard or an API key. Sign-in providers stay with the application owner. Basic user means they can sign in and use personal features, with no staff access. Suspended means this church is closed until you restore it. Removing a person ends access to this church only and keeps their sign-in, gifts, statements, and audit history.
         </p>
         {invitationGapNotice ? (
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
@@ -121,10 +119,10 @@ export default async function StaffAccessDirectoryPage({
             defaultValue={filterStatus ?? ""}
             className={fieldClass}
           >
-            <option value="">All staff accounts</option>
+            <option value="">All people</option>
             {STAFF_ACCESS_DIRECTORY_FILTERS.map((status) => (
               <option key={status} value={status}>
-                {STAFF_ACCESS_DIRECTORY_FILTER_LABELS[status]}
+                {status === "INACTIVE" ? "Closed" : "Active"}
               </option>
             ))}
           </select>
@@ -141,11 +139,17 @@ export default async function StaffAccessDirectoryPage({
 
       <section className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm">
         <h2 className="text-xl font-semibold text-[var(--bits-navy)]">
-          Leadership Portal accounts
+          Church people
         </h2>
         <p className="mt-1 text-sm text-[var(--bits-muted)]">
-          {total} matching staff memberships
+          {total} matching {total === 1 ? "person" : "people"}
         </p>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-[var(--bits-navy)]">
+          <li>Change access promotes someone or makes them a basic user. A basic user can sign in and use personal features, with no staff access.</li>
+          <li>Suspend closes this church until you restore the same access. Suspended is not the same as a basic user.</li>
+          <li>Remove ends access to this church only. The sign-in, gifts, statements, and audit history stay, and another church is unchanged.</li>
+          <li>Every change asks for confirmation, is checked on the server, and is written to the audit history. The last usable administrator cannot be suspended, removed, or demoted.</li>
+        </ul>
         {rows.length === 0 ? (
           <p className="mt-4 text-sm leading-6 text-[var(--bits-muted)]">
             {STAFF_ACCESS_DIRECTORY_EMPTY_COPY}
@@ -295,8 +299,8 @@ export default async function StaffAccessDirectoryPage({
             Staff invitations
           </h2>
           <p className="mt-1 text-sm text-[var(--bits-muted)]">
-            Authorized administrators invite original staff roles. An invitation
-            is not access until the recipient signs in and explicitly accepts.
+            Invite someone and choose their access. An invitation is not access
+            until the recipient signs in and explicitly accepts.
           </p>
           {invitations.canMutate ? (
             <StaffInvitationForm churchName={invitations.churchName} />
