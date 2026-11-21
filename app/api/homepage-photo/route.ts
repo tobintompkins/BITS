@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       bytes += part.value.length;
       if (bytes > MAX_HOMEPAGE_UPLOAD) {
         await reader.cancel();
-        return NextResponse.json({ error: "Choose a photo smaller than 5 MB." }, { status: 413 });
+        return NextResponse.json({ error: "Choose a photo smaller than 12 MB." }, { status: 413 });
       }
       chunks.push(part.value);
     }
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     try {
       prepared = await prepareHomepagePhoto(Buffer.concat(chunks), decodeURIComponent(request.headers.get("x-photo-description") ?? ""));
     } catch {
-      return NextResponse.json({ error: "Choose a still JPEG, PNG, or WebP under 5 MB, and add a description (1–200 characters)." }, { status: 400 });
+      return NextResponse.json({ error: "Choose a still JPEG, PNG, or WebP under 12 MB, and add a description (1–200 characters)." }, { status: 400 });
     }
     const version = await saveHomepagePhoto({ ...prepared, expectedVersion: Number(versionText) });
     revalidatePath("/");

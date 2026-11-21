@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { MAX_HOMEPAGE_UPLOAD, prepareHomepagePhoto } from "./homepage-photo";
+import { MAX_HOMEPAGE_STORED, MAX_HOMEPAGE_UPLOAD, prepareHomepagePhoto } from "./homepage-photo";
 
 describe("homepage photo upload", () => {
   it("normalizes raster data, bounds dimensions and strips metadata", async () => {
@@ -9,9 +9,9 @@ describe("homepage photo upload", () => {
     const metadata = await sharp(result.image).metadata();
     expect(result.alt).toBe("Church family");
     expect(metadata.format).toBe("webp");
-    expect(metadata.width).toBe(1600);
+    expect(metadata.width).toBe(2000);
     expect(metadata.exif).toBeUndefined();
-    expect(result.image.length).toBeLessThanOrEqual(512 * 1024);
+    expect(result.image.length).toBeLessThanOrEqual(MAX_HOMEPAGE_STORED);
   });
   it("rejects SVG even when it can be decoded", async () => {
     await expect(prepareHomepagePhoto(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>'), "Test")).rejects.toThrow();

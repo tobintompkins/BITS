@@ -142,7 +142,11 @@ export default async function Home() {
           </div>
 
           <div className="flex flex-col overflow-hidden rounded-2xl border border-white/15 bg-white/10 shadow-xl">
-            <div className="min-h-48 flex-1"><ChurchPhotoCarousel photos={churchPhotos} /></div>
+            <div className="relative aspect-[16/9] w-full overflow-hidden">
+              <div className="absolute inset-0">
+                <ChurchPhotoCarousel photos={churchPhotos} />
+              </div>
+            </div>
             {photoAdmin ? <HomepagePhotoEditor version={homepagePhoto?.version ?? 0} description={homepagePhoto?.alt ?? ""} /> : null}
           </div>
         </div>

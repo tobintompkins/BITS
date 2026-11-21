@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
 
 import { DisplayPreferencesRoot } from "@/components/accessibility/display-preferences-root";
 import { DISPLAY_PREFERENCES_BOOT_SCRIPT } from "@/lib/accessibility/display-preferences";
@@ -36,12 +37,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
-        <script
+      <body className="min-h-full flex flex-col">
+        <Script
+          id="bits-display-preferences"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: DISPLAY_PREFERENCES_BOOT_SCRIPT }}
         />
-      </head>
-      <body className="min-h-full flex flex-col">
         <ClerkProvider>
           <DisplayPreferencesRoot />
           {children}

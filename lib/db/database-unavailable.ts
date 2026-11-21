@@ -15,7 +15,7 @@ export function isDatabaseUnavailableError(error: unknown) {
   if (DATABASE_UNAVAILABLE_CODES.has(code)) return true;
   const message =
     "message" in error && error.message != null ? String(error.message) : "";
-  return /econnrefused|can't reach database server|connection refused/i.test(
+  return /econnrefused|can't reach database server|connection refused|server has closed the connection/i.test(
     message,
   );
 }
