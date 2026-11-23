@@ -165,3 +165,21 @@ not signed-in acceptance.
 Original version 1 is not complete. Next feature gap remains authorized
 staff invitations/onboarding. Live Clerk, live storage/restore, broader
 ledger, household locking, and launch verification remain separate.
+
+## App Owner Admin recovery
+
+The protected owner is the `user_accounts.appOwner` designation. The
+People label “App Owner Admin” shows that designation. The label and the
+person’s email are not the permission check.
+
+Ordinary Add user, Change access, Suspend church access, Restore church
+access, and Remove church access actions cannot delete, suspend, remove,
+or demote that account, including an action by the owner. Removing church
+access from an ordinary person keeps gifts, statements, and audit history,
+does not delete the shared sign-in, and does not change another church.
+
+Recovery uses the owner’s existing sign-in. There is no hidden password,
+authentication bypass, or automatic membership in another church. If the
+designation itself must be repaired, a reviewed operator checks the Clerk
+user id already stored on the existing account and sets `appOwner` only
+on that row. That repair is not available from the People page.

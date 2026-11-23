@@ -6,6 +6,7 @@ import {
   STAFF_MEMBERSHIP_INACTIVE_ACCOUNT_COPY,
   STAFF_MEMBERSHIP_LAST_ADMIN_COPY,
   STAFF_MEMBERSHIP_NOT_FOUND_COPY,
+  STAFF_MEMBERSHIP_OWNER_COPY,
   STAFF_MEMBERSHIP_SELF_COPY,
   STAFF_MEMBERSHIP_UNSUPPORTED_COPY,
   staffMembershipFormFromUnknown,
@@ -43,6 +44,7 @@ export type StaffMembershipAdminFailureCode =
   | "NOT_FOUND"
   | "CONFLICT"
   | "SELF"
+  | "PROTECTED_OWNER"
   | "LAST_ADMIN"
   | "INACTIVE_ACCOUNT"
   | "UNSUPPORTED_ROLE";
@@ -73,6 +75,7 @@ type MembershipLockRow = {
   roleCode: RoleCode;
   churchAccess: ChurchAccessStatus;
   userAccountActive: boolean;
+  appOwner: boolean;
 };
 
 type AdminDb = Prisma.TransactionClient | typeof prisma;
@@ -118,7 +121,8 @@ async function lockMembership(
             m."updatedAt",
             r.code AS "roleCode",
             m."churchAccess",
-            u.active AS "userAccountActive"
+            u.active AS "userAccountActive",
+            u."appOwner" AS "appOwner"
           FROM organization_memberships m
           INNER JOIN role_types r ON r.id = m."roleTypeId"
           INNER JOIN user_accounts u ON u.id = m."userAccountId"
@@ -137,7 +141,8 @@ async function lockMembership(
             m."updatedAt",
             r.code AS "roleCode",
             m."churchAccess",
-            u.active AS "userAccountActive"
+            u.active AS "userAccountActive",
+            u."appOwner" AS "appOwner"
           FROM organization_memberships m
           INNER JOIN role_types r ON r.id = m."roleTypeId"
           INNER JOIN user_accounts u ON u.id = m."userAccountId"
@@ -307,6 +312,10 @@ export async function applyStaffMembershipChange(input: {
           });
     if (!target) {
       return fail("NOT_FOUND", STAFF_MEMBERSHIP_NOT_FOUND_COPY);
+    }
+
+    if (target.appOwner) {
+      return fail("PROTECTED_OWNER", STAFF_MEMBERSHIP_OWNER_COPY);
     }
 
     if (target.userAccountId === actor.userAccountId) {

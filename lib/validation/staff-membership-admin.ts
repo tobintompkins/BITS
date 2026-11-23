@@ -42,6 +42,9 @@ export const STAFF_MEMBERSHIP_ADMIN_GRANT_COPY =
 export const STAFF_MEMBERSHIP_SELF_COPY =
   "Another authorized administrator must change your own membership.";
 
+export const STAFF_MEMBERSHIP_OWNER_COPY =
+  "The App Owner Admin is protected. Ordinary staff actions cannot delete, suspend, remove, or demote this account, including an action by the owner.";
+
 export const STAFF_MEMBERSHIP_UNSUPPORTED_COPY =
   "This role cannot be changed from Staff Access.";
 

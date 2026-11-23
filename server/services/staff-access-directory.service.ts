@@ -11,6 +11,7 @@ import {
   type StaffAccessDirectoryRow,
 } from "@/lib/validation/staff-access-directory";
 import {
+  STAFF_MEMBERSHIP_OWNER_COPY,
   STAFF_MEMBERSHIP_SELF_COPY,
   STAFF_MEMBERSHIP_UNSUPPORTED_COPY,
   churchPersonStatusLabel,
@@ -48,6 +49,7 @@ const membershipSelect = {
       displayName: true,
       primaryEmail: true,
       active: true,
+      appOwner: true,
     },
   },
   roleType: {
@@ -71,6 +73,7 @@ function toStaffAccessRow(
       displayName: string | null;
       primaryEmail: string;
       active: boolean;
+      appOwner?: boolean;
     };
     roleType: { name: string; code: string };
   },
@@ -84,10 +87,17 @@ function toStaffAccessRow(
     churchAccess: row.churchAccess,
   });
   const managementSupported = staffMembershipRoleIsManaged(row.roleType.code);
-  const roleName = row.roleType.code === RoleCode.DONOR ? "Basic user" : row.roleType.name;
+  const appOwner = row.userAccount.appOwner === true;
+  const roleName = appOwner
+    ? "App Owner Admin"
+    : row.roleType.code === RoleCode.DONOR
+      ? "Basic user"
+      : row.roleType.name;
   const isSelf = row.userAccountId === actor.userAccountId;
   let managementNote: string | null = null;
-  if (!managementSupported) {
+  if (appOwner) {
+    managementNote = STAFF_MEMBERSHIP_OWNER_COPY;
+  } else if (!managementSupported) {
     managementNote = STAFF_MEMBERSHIP_UNSUPPORTED_COPY;
   } else if (isSelf) {
     managementNote = STAFF_MEMBERSHIP_SELF_COPY;
@@ -105,7 +115,7 @@ function toStaffAccessRow(
     updatedAt: row.updatedAt.toISOString(),
     createdOnLabel: formatStaffAccessDirectoryDate(row.createdAt),
     updatedOnLabel: formatStaffAccessDirectoryDate(row.updatedAt),
-    canManage: actor.canMutate && managementSupported && !isSelf,
+    canManage: actor.canMutate && managementSupported && !isSelf && !appOwner,
     isSelf,
     managementSupported,
     managementNote,

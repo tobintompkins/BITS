@@ -81,7 +81,7 @@ export default async function StaffAccessDirectoryPage({
           People
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
-          Invite people, change access, suspend or restore church access, and remove church access from this page. You do not need the Clerk dashboard or an API key. Sign-in providers stay with the application owner. Basic user means they can sign in and use personal features, with no staff access. Suspended means this church is closed until you restore it. Removing a person ends access to this church only and keeps their sign-in, gifts, statements, and audit history.
+          Add a user, change access, suspend or restore church access, and remove church access from this page. You do not need the Clerk dashboard or an API key. Basic user means they can sign in and use personal features, with no staff access. Suspended means this church is closed until you restore it. Removing a person ends access to this church only and keeps their sign-in, gifts, statements, and audit history. The App Owner Admin cannot be changed from these controls.
         </p>
         {invitationGapNotice ? (
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
@@ -148,7 +148,8 @@ export default async function StaffAccessDirectoryPage({
           <li>Change access promotes someone or makes them a basic user. A basic user can sign in and use personal features, with no staff access.</li>
           <li>Suspend closes this church until you restore the same access. Suspended is not the same as a basic user.</li>
           <li>Remove ends access to this church only. The sign-in, gifts, statements, and audit history stay, and another church is unchanged.</li>
-          <li>Every change asks for confirmation, is checked on the server, and is written to the audit history. The last usable administrator cannot be suspended, removed, or demoted.</li>
+          <li>Change access, Suspend church access, Restore church access, and Remove church access are on each ordinary person. The server checks the action and writes the audit history.</li>
+          <li>The App Owner Admin stays protected. These controls cannot delete, suspend, remove, or demote that account.</li>
         </ul>
         {rows.length === 0 ? (
           <p className="mt-4 text-sm leading-6 text-[var(--bits-muted)]">
@@ -296,11 +297,16 @@ export default async function StaffAccessDirectoryPage({
       {invitations.status === "READY" ? (
         <section className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm">
           <h2 className="text-xl font-semibold text-[var(--bits-navy)]">
-            Staff invitations
+            Add user
           </h2>
+          <h3 className="mt-1 text-base font-semibold text-[var(--bits-navy)]">
+            Staff invitations
+          </h3>
           <p className="mt-1 text-sm text-[var(--bits-muted)]">
-            Invite someone and choose their access. An invitation is not access
-            until the recipient signs in and explicitly accepts.
+            Add user sends an invitation and chooses access. An invitation is
+            not access until the recipient signs in and explicitly accepts.
+            Direct access granted by the App Owner Admin is separate and does
+            not send an invitation.
           </p>
           {invitations.canMutate ? (
             <StaffInvitationForm churchName={invitations.churchName} />

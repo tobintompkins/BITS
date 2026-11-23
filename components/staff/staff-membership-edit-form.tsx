@@ -89,7 +89,7 @@ export function StaffMembershipEditForm({
           <option value="change-access">Change access</option>
           {suspended ? <option value="restore">Restore church access</option> : null}
           {removed ? null : <option value="suspend">Suspend church access</option>}
-          {removed ? null : <option value="remove">Remove from this church</option>}
+          {removed ? null : <option value="remove">Remove church access</option>}
         </select>
       </label>
       {intent === "change-access" ? (

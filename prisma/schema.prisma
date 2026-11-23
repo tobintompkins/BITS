@@ -701,6 +701,7 @@ model UserAccount {
   primaryEmail String
   displayName  String?
   active       Boolean   @default(true)
+  appOwner     Boolean   @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   lastSeenAt   DateTime?

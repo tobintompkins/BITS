@@ -22,6 +22,7 @@ type MembershipRow = {
   primaryEmail: string;
   roleName: string;
   roleCode: RoleCode;
+  appOwner?: boolean;
   publicMetadata: Record<string, unknown>;
   sessionToken: string;
 };
@@ -135,6 +136,7 @@ vi.mock("@/lib/db/prisma", () => ({
               displayName: row.displayName,
               primaryEmail: row.primaryEmail,
               active: row.userAccountActive,
+              appOwner: row.appOwner === true,
             },
             roleType: {
               name: row.roleName,
@@ -344,6 +346,20 @@ describe("staff access directory", () => {
     expect(result.rows.find((row) => row.primaryEmail === "blake@church.test")?.canManage).toBe(
       true,
     );
+  });
+
+  it("labels the protected owner and hides ordinary staff controls", async () => {
+    store.memberships.find((row) => row.primaryEmail === "ann@church.test")!.appOwner = true;
+    const result = await getStaffAccessDirectory();
+    expect(result.status).toBe("READY");
+    if (result.status !== "READY") return;
+    const owner = result.rows.find((row) => row.primaryEmail === "ann@church.test");
+    expect(owner).toMatchObject({
+      roleName: "App Owner Admin",
+      canManage: false,
+      managementNote:
+        "The App Owner Admin is protected. Ordinary staff actions cannot delete, suspend, remove, or demote this account, including an action by the owner.",
+    });
   });
 
   it("lets super administrators list current-organization staff without using canEdit to mutate", async () => {

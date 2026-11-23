@@ -6,6 +6,7 @@ import {
   STAFF_MEMBERSHIP_INACTIVE_ACCOUNT_COPY,
   STAFF_MEMBERSHIP_LAST_ADMIN_COPY,
   STAFF_MEMBERSHIP_NOT_FOUND_COPY,
+  STAFF_MEMBERSHIP_OWNER_COPY,
   STAFF_MEMBERSHIP_SELF_COPY,
 } from "@/lib/validation/staff-membership-admin";
 
@@ -13,6 +14,7 @@ type Account = {
   id: string;
   clerkUserId: string;
   active: boolean;
+  appOwner?: boolean;
 };
 type Org = { id: string; active: boolean };
 type Membership = {
@@ -106,6 +108,7 @@ const prismaMock = vi.hoisted(() => {
       roleCode: row.roleCode,
       churchAccess: row.churchAccess ?? (row.active ? "ACTIVE" : "SUSPENDED"),
       userAccountActive: Boolean(account?.active),
+      appOwner: account?.appOwner === true,
     };
   }
 
@@ -446,6 +449,44 @@ describe("updateStaffMembership authorization", () => {
     expect(
       store.memberships.find((row) => row.id === "00000000-0000-4000-8000-00000000b004"),
     ).toMatchObject({ roleCode: RoleCode.TREASURER, active: true, churchAccess: "ACTIVE" });
+  });
+
+  it("refuses to change, suspend, or remove the protected app owner", async () => {
+    store.accounts.find((row) => row.id === BLAKE)!.appOwner = true;
+    for (const intent of ["change-access", "suspend", "remove"] as const) {
+      const result = await updateStaffMembership(
+        change({
+          intent,
+          active: intent === "change-access",
+          roleCode: RoleCode.DATA_ENTRY,
+        }),
+      );
+      expect(result).toEqual({
+        ok: false,
+        code: "PROTECTED_OWNER",
+        message: STAFF_MEMBERSHIP_OWNER_COPY,
+      });
+    }
+    expect(store.memberships.find((row) => row.id === BLAKE_MEM_A)).toMatchObject({
+      roleCode: RoleCode.TREASURER,
+      active: true,
+      version: 1,
+    });
+    expect(store.audits).toHaveLength(0);
+  });
+
+  it("refuses the owner's own ordinary staff action", async () => {
+    store.accounts.find((row) => row.id === ANN)!.appOwner = true;
+    const result = await updateStaffMembership(
+      change({
+        membershipId: ANN_MEM_A,
+        intent: "suspend",
+        active: false,
+        roleCode: RoleCode.ORG_ADMIN,
+      }),
+    );
+    expect(result).toMatchObject({ ok: false, code: "PROTECTED_OWNER" });
+    expect(store.memberships.find((row) => row.id === ANN_MEM_A)?.active).toBe(true);
   });
 
   it("does not reveal a target from another selected church", async () => {
