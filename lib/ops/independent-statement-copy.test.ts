@@ -22,6 +22,7 @@ import {
   type StatementSourceObject,
   type StoredStatementCopy,
 } from "./independent-statement-copy";
+import { statementStatusKey } from "./statement-backup-status";
 
 const sourceBucket = "bits-statements-app-test-example";
 const now = new Date("2026-11-18T19:30:00.000Z");
@@ -348,6 +349,7 @@ function scheduledClients(input: {
   confirm?: "missing" | "mismatch" | "stored";
 }) {
   const puts: string[] = [];
+  const bodies = new Map<string, Buffer>();
   const stored = [...(input.stored ?? [])];
   const attempts = new Map<string, number>();
   const api: StatementCopyClients = {
@@ -362,6 +364,7 @@ function scheduledClients(input: {
       attempts.set(object.key, seen);
       if (seen <= (input.failures?.[object.key] ?? 0)) throw new BackupGuardError("Put failed.");
       puts.push(object.key);
+      bodies.set(object.key, object.body);
       stored.push({
         key: object.key,
         size: object.body.byteLength,
@@ -381,7 +384,7 @@ function scheduledClients(input: {
       return Buffer.concat([Buffer.from("age"), bytes]);
     },
   };
-  return { api, puts, attempts, stored };
+  return { api, puts, attempts, stored, bodies };
 }
 
 describe("scheduled statement backup", () => {
@@ -417,6 +420,7 @@ describe("scheduled statement backup", () => {
     expect(io.puts).toEqual([
       statementBackupObjectKey(scheduledNow, applicationKey),
       statementManifestKey(scheduledNow),
+      statementStatusKey(scheduledNow),
     ]);
     expect(io.puts.join(" ")).not.toContain("private/statements/");
   });
@@ -442,7 +446,7 @@ describe("scheduled statement backup", () => {
       sleep: async () => undefined,
     });
     expect(report).toMatchObject({ outcome: "unchanged", copied: 0, unchanged: 1, failed: 0, verified: true, upload: false });
-    expect(io.puts).toEqual([]);
+    expect(io.puts).toEqual([statementStatusKey(scheduledNow)]);
     expect(statementCopyExitCode(report)).toBe(0);
   });
 
@@ -515,7 +519,10 @@ describe("scheduled statement backup", () => {
       manifestKey: null,
     });
     expect(failedReport.failedFiles).toEqual([{ sourceKey: secondApplicationKey, reason: "copy" }]);
-    expect(partial.puts).toEqual([statementBackupObjectKey(scheduledNow, applicationKey)]);
+    expect(partial.puts).toEqual([
+      statementBackupObjectKey(scheduledNow, applicationKey),
+      statementStatusKey(scheduledNow),
+    ]);
     expect(partial.attempts.get(blocked)).toBe(backupLimits.maxAttempts);
     expect(statementCopyExitCode(failedReport)).toBe(1);
   });
@@ -541,7 +548,21 @@ describe("scheduled statement backup", () => {
       recoveryProof: false,
     });
     expect(report.label).toContain("not proof");
-    expect(io.puts).toEqual([]);
+    expect(io.puts).toEqual([statementStatusKey(scheduledNow)]);
+    const status = JSON.parse(io.bodies.get(statementStatusKey(scheduledNow))?.toString("utf8") ?? "");
+    expect(status).toEqual({
+      version: 1,
+      kind: "statement-backup-status",
+      day: "2026-11-24",
+      completedAt: "2026-11-24T12:15:00.000Z",
+      outcome: "empty",
+      copied: 0,
+      renewed: 0,
+      unchanged: 0,
+      failed: 0,
+      pdfsPresent: 0,
+    });
+    expect(JSON.stringify(status)).not.toMatch(/private\/statements|donor|secret|@/i);
     expect(statementCopyExitCode(report)).toBe(0);
   });
 
@@ -587,7 +608,7 @@ describe("scheduled statement backup", () => {
     });
     expect(report).toMatchObject({ outcome: "failed", copied: 0, upload: false, deletes: false });
     expect(report.failedFiles).toEqual([{ sourceKey: applicationKey, reason: "overwrite" }]);
-    expect(io.puts).toEqual([]);
+    expect(io.puts).toEqual([statementStatusKey(scheduledNow)]);
     expect(() =>
       assertStatementInvocation({ rehearsal: true, scheduled: true, recover: false, delete: false, schedule: false }),
     ).toThrow("not the recovery rehearsal");
@@ -612,7 +633,10 @@ describe("scheduled statement backup", () => {
     });
     expect(report).toMatchObject({ outcome: "failed", verified: false, manifestKey: null, deletes: false });
     expect(report.failedFiles).toEqual([{ sourceKey: applicationKey, reason: "verification" }]);
-    expect(io.puts).toEqual([statementBackupObjectKey(scheduledNow, applicationKey)]);
+    expect(io.puts).toEqual([
+      statementBackupObjectKey(scheduledNow, applicationKey),
+      statementStatusKey(scheduledNow),
+    ]);
   });
 
   it("stops before an upload that would pass 8 GiB", async () => {
@@ -692,7 +716,7 @@ describe("scheduled statement backup", () => {
       statementScheduleEnabled: false,
     });
     expect(report.label).toContain("Existing backups were not deleted");
-    expect(io.puts).toEqual([renewedKey, statementManifestKey(scheduledNow)]);
+    expect(io.puts).toEqual([renewedKey, statementManifestKey(scheduledNow), statementStatusKey(scheduledNow)]);
     expect(io.puts).not.toContain(oldKey);
     expect(io.stored.some((object) => object.key === oldKey)).toBe(true);
     expect(io.stored.some((object) => object.key === renewedKey)).toBe(true);
@@ -717,7 +741,7 @@ describe("scheduled statement backup", () => {
       sleep: async () => undefined,
     });
     expect(heldReport).toMatchObject({ outcome: "unchanged", copied: 0, renewed: 0, upload: false, deletes: false });
-    expect(held.puts).toEqual([]);
+    expect(held.puts).toEqual([statementStatusKey(scheduledNow)]);
   });
 
   it("keeps the database backup schedule and backup watch unchanged", () => {

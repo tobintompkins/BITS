@@ -13,6 +13,12 @@ import {
   withBoundedRetries,
 } from "./independent-backup-guard";
 import { approvedAgeRecipient, redactBackupError } from "./independent-backup-railway-once";
+import {
+  assertStatementStatusKey,
+  statementStatusBody,
+  statementStatusKey,
+  type StatementStatusOutcome,
+} from "./statement-backup-status";
 
 export const statementAppBucketDisplayName = "bits-statements-app-test";
 export const rehearsalStatementBucketName = "bits-statements-test-hrqzaa";
@@ -64,6 +70,7 @@ export type StatementCopyReport = {
   statementScheduleEnabled: false;
   destinationKeys: string[];
   manifestKey: string | null;
+  statusKey: string | null;
   sourceBucket: string | null;
   destinationBucket: typeof independentBackupBucket;
   lockDays: typeof statementCopyLockDays;
@@ -365,6 +372,7 @@ function reportBase(
     statementScheduleEnabled: false,
     destinationKeys: input.destinationKeys,
     manifestKey: input.manifestKey,
+    statusKey: null,
     sourceBucket: input.sourceBucket,
     destinationBucket: independentBackupBucket,
     lockDays: statementCopyLockDays,
@@ -432,6 +440,44 @@ export async function executeStatementCopy(input: {
   return withBackupTimeout(async (signal) => {
     const guarded = <T>(operation: (child: AbortSignal) => Promise<T>) =>
       withBoundedRetries(() => withBackupTimeout(operation, { signal }), { signal, sleep: input.sleep });
+    const recordStatus = async (report: StatementCopyReport) => {
+      if (!input.scheduled || !input.apply) return report;
+      if (
+        report.outcome !== "empty" &&
+        report.outcome !== "unchanged" &&
+        report.outcome !== "copied" &&
+        report.outcome !== "failed"
+      ) {
+        return report;
+      }
+      const key = assertStatementStatusKey(statementStatusKey(input.now));
+      const outcome: StatementStatusOutcome = report.outcome;
+      await guarded((child) =>
+        input.clients.putDestination(
+          {
+            key,
+            body: statementStatusBody(
+              {
+                outcome,
+                copied: report.copied,
+                renewed: report.renewed,
+                unchanged: report.unchanged,
+                failed: report.failed,
+                pdfsPresent: report.pdfsPresent,
+              },
+              input.now,
+            ),
+            metadata: { kind: "statement-backup-status" },
+          },
+          child,
+        ),
+      );
+      return { ...report, statusKey: key };
+    };
+    const finish = (
+      outcome: StatementCopyReport["outcome"],
+      fields: Parameters<typeof reportBase>[1],
+    ) => recordStatus(reportBase(outcome, fields));
     const sources = await guarded((child) => input.clients.listSource(child));
     if (sources.length > backupLimits.maxStatementObjects) {
       throw new BackupGuardError("Statement copy exceeds 1,000 objects.");
@@ -441,7 +487,7 @@ export async function executeStatementCopy(input: {
       throw new BackupGuardError("The statement rehearsal refuses every object except its synthetic PDF.");
     }
     if (input.rehearsal && sources.length === 0) {
-      return reportBase("missing-rehearsal-pdf", {
+      return finish("missing-rehearsal-pdf", {
         pdfsPresent: 0,
         copied: 0,
         unchanged: 0,
@@ -519,7 +565,7 @@ export async function executeStatementCopy(input: {
       sourceBucket,
     };
     if (sources.length === 0) {
-      return reportBase("empty", {
+      return finish("empty", {
         ...reportInput,
         copied: 0,
         upload: false,
@@ -531,7 +577,7 @@ export async function executeStatementCopy(input: {
       });
     }
     if (copies.length === 0 && failedFiles.length === 0) {
-      return reportBase("unchanged", {
+      return finish("unchanged", {
         ...reportInput,
         copied: 0,
         upload: false,
@@ -548,7 +594,7 @@ export async function executeStatementCopy(input: {
       failedFiles.push({ sourceKey: manifestKey, reason: "overwrite" });
     }
     if (!input.apply || (copies.length === 0 && failedFiles.length > 0)) {
-      return reportBase(failedFiles.length > 0 ? "failed" : "planned", {
+      return finish(failedFiles.length > 0 ? "failed" : "planned", {
         ...reportInput,
         copied: 0,
         renewed: failedFiles.length > 0 ? 0 : renewedCopies,
@@ -637,7 +683,7 @@ export async function executeStatementCopy(input: {
       copies.some((copy) => copy.renewing && copy.destinationKey === key),
     ).length;
     if (failedFiles.length > 0 || destinationKeys.length !== copies.length) {
-      return reportBase("failed", {
+      return finish("failed", {
         ...reportInput,
         copied: destinationKeys.length,
         renewed: storedRenewals,
@@ -663,7 +709,7 @@ export async function executeStatementCopy(input: {
       );
     } catch (error) {
       if (!input.scheduled || isBackupTimeout(error) || signal.aborted) throw error;
-      return reportBase("failed", {
+      return finish("failed", {
         ...reportInput,
         copied: destinationKeys.length,
         renewed: storedRenewals,
@@ -679,7 +725,7 @@ export async function executeStatementCopy(input: {
         confirm(manifestKey, { ciphertextSha256: manifestCiphertextSha256 }, child),
       );
       if (!manifestVerified) {
-        return reportBase("failed", {
+        return finish("failed", {
           ...reportInput,
           copied: destinationKeys.length,
           renewed: storedRenewals,
@@ -691,7 +737,7 @@ export async function executeStatementCopy(input: {
         });
       }
     }
-    return reportBase("copied", {
+    return finish("copied", {
       ...reportInput,
       copied: destinationKeys.length,
       renewed: storedRenewals,

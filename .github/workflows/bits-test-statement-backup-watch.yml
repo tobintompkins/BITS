@@ -1,0 +1,45 @@
+# Read-only check for the TEST daily statement backup.
+# The missing-status drill is manual only and defaults off. It does not change stored PDFs.
+name: TEST statement backup watch
+
+on:
+  schedule:
+    - cron: "45 12 * * *"
+  workflow_dispatch:
+    inputs:
+      missing_status_drill:
+        description: "Manual drill only. Fail because the synthetic day 1900-01-01 has no status record. Does not change stored PDFs."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Check the daily TEST statement backup
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.missing_status_drill != 'true' }}
+        run: npx tsx scripts/statement-backup-watch.ts
+        env:
+          BITS_BACKUP_R2_BUCKET: bits-independent-backups
+          BITS_BACKUP_R2_ENDPOINT: ${{ secrets.BITS_BACKUP_R2_ENDPOINT }}
+          BITS_BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.BITS_BACKUP_R2_ACCESS_KEY_ID }}
+          BITS_BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BITS_BACKUP_R2_SECRET_ACCESS_KEY }}
+      - name: Manual missing-status drill
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.missing_status_drill == 'true' }}
+        run: npx tsx scripts/statement-backup-watch.ts --drill=missing-status
+        env:
+          BITS_BACKUP_R2_BUCKET: bits-independent-backups
+          BITS_BACKUP_R2_ENDPOINT: ${{ secrets.BITS_BACKUP_R2_ENDPOINT }}
+          BITS_BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.BITS_BACKUP_R2_ACCESS_KEY_ID }}
+          BITS_BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BITS_BACKUP_R2_SECRET_ACCESS_KEY }}
