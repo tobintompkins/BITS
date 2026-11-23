@@ -1,15 +1,24 @@
 import { HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir, homedir } from "node:os";
+import { join } from "node:path";
 
 import { BackupGuardError } from "../lib/ops/independent-backup-guard";
 import { runAbortableCommand } from "../lib/ops/independent-backup-railway-once";
 import {
   assertStatementCopyEnvironment,
+  assertStatementDestinationKey,
+  assertStatementInvocation,
+  assertStatementRehearsalRunId,
   executeStatementCopy,
   redactStatementCopyError,
+  statementCopyExitCode,
   statementRehearsalProposal,
+  statementRehearsalRestoreKey,
   type StatementSourceObject,
   type StoredStatementCopy,
 } from "../lib/ops/independent-statement-copy";
+import { executeStatementRecovery } from "../lib/ops/independent-statement-recovery";
 
 function argumentValue(name: string) {
   const prefix = `--${name}=`;
@@ -75,17 +84,145 @@ function destinationClient(config: ReturnType<typeof assertStatementCopyEnvironm
   });
 }
 
+function absentBackup(error: unknown) {
+  const name = error && typeof error === "object" && "name" in error ? String(error.name) : "";
+  const status = error && typeof error === "object" && "$metadata" in error
+    ? (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+    : undefined;
+  return status === 404 || name === "NotFound" || name === "NoSuchKey";
+}
+
+async function recoverStatementBackup() {
+  const apply = process.argv.includes("--apply");
+  const runId = argumentValue("run-id");
+  const manifestKey = argumentValue("manifest");
+  if (!runId || !manifestKey) {
+    throw new BackupGuardError("Statement recovery requires --run-id and --manifest.");
+  }
+  assertStatementRehearsalRunId(runId);
+  const restoreKey = statementRehearsalRestoreKey(runId);
+  let config: ReturnType<typeof assertStatementCopyEnvironment>;
+  try {
+    config = assertStatementCopyEnvironment(process.env);
+  } catch (error) {
+    if (apply) throw error;
+    process.stdout.write(
+      `${JSON.stringify({
+        outcome: "unconfigured",
+        runId,
+        manifestKey,
+        restoreKey,
+        upload: false,
+        deletes: false,
+        scheduleEnabled: false,
+        recoveryProof: false,
+        usedApplicationOriginal: false,
+        message: error instanceof Error ? error.message : "Statement recovery is not configured.",
+      })}\n`,
+    );
+    process.exitCode = 2;
+    return;
+  }
+  const source = sourceClient(config);
+  const destination = destinationClient(config);
+  const identityPath = join(homedir(), "Library/Application Support/BITS/independent-backup/age-identity.txt");
+  try {
+    const report = await executeStatementRecovery({
+      sourceBucket: config.sourceBucket,
+      runId,
+      manifestKey,
+      apply,
+      clients: {
+        async downloadEncrypted(key, signal) {
+          try {
+            const response = await destination.send(
+              new GetObjectCommand({ Bucket: config.destinationBucket, Key: key }),
+              { abortSignal: signal },
+            );
+            return await readBody(response.Body);
+          } catch (error) {
+            if (absentBackup(error)) return null;
+            throw error;
+          }
+        },
+        async decrypt(bytes, signal) {
+          const work = mkdtempSync(join(tmpdir(), "bits-statement-recovery-"));
+          try {
+            const encrypted = join(work, "backup.age");
+            const plain = join(work, "backup");
+            writeFileSync(encrypted, bytes);
+            await runAbortableCommand("age", ["-d", "-i", identityPath, "-o", plain, encrypted], signal);
+            return readFileSync(plain);
+          } finally {
+            rmSync(work, { recursive: true, force: true });
+          }
+        },
+        async restoreExists(key, signal) {
+          if (key !== restoreKey) {
+            throw new BackupGuardError("Statement recovery destination is not this run's restored PDF.");
+          }
+          try {
+            await source.send(
+              new HeadObjectCommand({ Bucket: config.sourceBucket, Key: key }),
+              { abortSignal: signal },
+            );
+            return true;
+          } catch (error) {
+            if (absentBackup(error)) return false;
+            throw error;
+          }
+        },
+        async putRestore(key, body, signal) {
+          if (key !== restoreKey) {
+            throw new BackupGuardError("Statement recovery destination is not this run's restored PDF.");
+          }
+          await source.send(
+            new PutObjectCommand({
+              Bucket: config.sourceBucket,
+              Key: key,
+              Body: body,
+              ContentLength: body.byteLength,
+              ContentType: "application/pdf",
+              IfNoneMatch: "*",
+            }),
+            { abortSignal: signal },
+          );
+        },
+      },
+    });
+    process.stdout.write(`${JSON.stringify(report)}\n`);
+  } finally {
+    source.destroy();
+    destination.destroy();
+  }
+}
+
 async function main() {
-  if (process.argv.includes("--delete") || process.argv.includes("--schedule")) {
-    throw new BackupGuardError("The statement copy does not delete objects or enable a schedule.");
+  const rehearsal = process.argv.includes("--rehearsal");
+  const scheduled = process.argv.includes("--scheduled");
+  const recover = process.argv.includes("--recover");
+  assertStatementInvocation({
+    rehearsal,
+    scheduled,
+    recover,
+    delete: process.argv.includes("--delete"),
+    schedule: process.argv.includes("--schedule"),
+  });
+  if (recover) {
+    if (rehearsal) {
+      throw new BackupGuardError("Statement recovery does not copy the application original.");
+    }
+    await recoverStatementBackup();
+    return;
   }
   const apply = process.argv.includes("--apply");
-  const rehearsal = process.argv.includes("--rehearsal");
-  if (apply && !rehearsal) {
-    throw new BackupGuardError("Applying a statement copy requires the reviewed synthetic rehearsal.");
+  if (apply && !rehearsal && !scheduled) {
+    throw new BackupGuardError("Applying a statement copy requires the reviewed synthetic rehearsal or the scheduled statement backup.");
   }
   const nowValue = argumentValue("now");
   const now = nowValue ? new Date(nowValue) : new Date();
+  const runId = argumentValue("run-id");
+  if (runId) assertStatementRehearsalRunId(runId);
   let config: ReturnType<typeof assertStatementCopyEnvironment>;
   try {
     config = assertStatementCopyEnvironment(process.env);
@@ -111,6 +248,8 @@ async function main() {
       now,
       apply,
       rehearsal,
+      scheduled,
+      runId,
       clients: {
         async listSource(signal) {
           const listed = await listPages(source, config.sourceBucket, "private/statements/", signal);
@@ -137,6 +276,7 @@ async function main() {
               size: head.ContentLength ?? object.size,
               sourceKeySha256: head.Metadata?.["source-key-sha256"],
               sourceSha256: head.Metadata?.["source-sha256"],
+              ciphertextSha256: head.Metadata?.["ciphertext-sha256"],
             });
           }
           const all = await listPages(destination, config.destinationBucket, undefined, signal);
@@ -156,6 +296,23 @@ async function main() {
             { abortSignal: signal },
           );
         },
+        async confirmStored(key, signal) {
+          assertStatementDestinationKey(key);
+          try {
+            const head = await destination.send(
+              new HeadObjectCommand({ Bucket: config.destinationBucket, Key: key }),
+              { abortSignal: signal },
+            );
+            return {
+              sourceKeySha256: head.Metadata?.["source-key-sha256"],
+              sourceSha256: head.Metadata?.["source-sha256"],
+              ciphertextSha256: head.Metadata?.["ciphertext-sha256"],
+            };
+          } catch (error) {
+            if (absentBackup(error)) return null;
+            throw error;
+          }
+        },
         async encrypt(bytes, signal) {
           const { mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");
           const { tmpdir } = await import("node:os");
@@ -174,7 +331,7 @@ async function main() {
       },
     });
     process.stdout.write(`${JSON.stringify(report)}\n`);
-    if (report.outcome === "missing-rehearsal-pdf" || report.outcome === "unconfigured") process.exitCode = 2;
+    process.exitCode = statementCopyExitCode(report);
   } finally {
     source.destroy();
     destination.destroy();
