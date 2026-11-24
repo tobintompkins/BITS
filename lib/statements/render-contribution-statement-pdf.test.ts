@@ -157,6 +157,42 @@ describe("contribution statement PDF renderer", () => {
     expect(text).not.toMatch(/<html[\s>]/i);
   });
 
+  it("prints supplied church contact details and omits empty ones", async () => {
+    const withDetails = decodedPdfText(
+      await renderContributionStatementPdf(
+        baseSnapshot({
+          organization: {
+            name: "First UPC of Saco",
+            address: ADDRESS,
+            ein: "12-3456789",
+            phone: "(207) 555-0100",
+            email: "firstupcsaco@hotmail.com",
+          },
+        }),
+      ),
+    );
+    expect(withDetails).toContain("EIN 12-3456789");
+    expect(withDetails).toContain("Phone (207) 555-0100");
+    expect(withDetails).toContain("Email firstupcsaco@hotmail.com");
+
+    const withoutDetails = decodedPdfText(
+      await renderContributionStatementPdf(
+        baseSnapshot({
+          organization: {
+            name: "First UPC of Saco",
+            address: ADDRESS,
+            ein: "   ",
+            phone: null,
+            email: "firstupcsaco@hotmail.com",
+          },
+        }),
+      ),
+    );
+    expect(withoutDetails).toContain("Email firstupcsaco@hotmail.com");
+    expect(withoutDetails).not.toContain("EIN");
+    expect(withoutDetails).not.toContain("Phone");
+  });
+
   it("does not require browser APIs", async () => {
     expect(typeof window).toBe("undefined");
     expect(typeof document).toBe("undefined");

@@ -49,6 +49,9 @@ export type ContributionStatementPdfSnapshot = {
   organization: {
     name: string;
     address: ContributionStatementPdfAddress;
+    ein?: string | null;
+    phone?: string | null;
+    email?: string | null;
   };
   recipient: {
     name: string;
@@ -297,6 +300,25 @@ export async function renderContributionStatementPdf(
     ),
     { size: 10, font, gap: 2 },
   );
+  const churchDetails = [
+    present(snapshot.organization.ein)
+      ? `EIN ${snapshot.organization.ein?.trim()}`
+      : null,
+    present(snapshot.organization.phone)
+      ? `Phone ${snapshot.organization.phone?.trim()}`
+      : null,
+    present(snapshot.organization.email)
+      ? `Email ${snapshot.organization.email?.trim()}`
+      : null,
+  ].filter((line): line is string => Boolean(line));
+  if (churchDetails.length > 0) {
+    ctx.y -= 4;
+    drawLines(
+      ctx,
+      churchDetails.flatMap((line) => wrapText(line, font, 10, CONTENT_WIDTH)),
+      { size: 10, font, gap: 2 },
+    );
+  }
 
   ctx.y -= 14;
   drawLines(ctx, wrapText("Contribution Statement", bold, 14, CONTENT_WIDTH), {

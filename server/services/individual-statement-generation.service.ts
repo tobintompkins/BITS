@@ -297,6 +297,9 @@ export async function generateIndividualContributionStatement(
         postalCode: organization.postalCode,
         country: organization.country,
       },
+      ein: organization.ein,
+      phone: organization.contactPhone,
+      email: organization.contactEmail,
     },
     recipient: {
       name: `${donor.firstName} ${donor.lastName}`.trim(),
