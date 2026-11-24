@@ -357,8 +357,7 @@ describe("staff access directory", () => {
     expect(owner).toMatchObject({
       roleName: "App Owner Admin",
       canManage: false,
-      managementNote:
-        "The App Owner Admin is protected. Ordinary staff actions cannot delete, suspend, remove, or demote this account, including an action by the owner.",
+      managementNote: null,
     });
   });
 

@@ -11,7 +11,6 @@ import {
   type StaffAccessDirectoryRow,
 } from "@/lib/validation/staff-access-directory";
 import {
-  STAFF_MEMBERSHIP_OWNER_COPY,
   STAFF_MEMBERSHIP_SELF_COPY,
   STAFF_MEMBERSHIP_UNSUPPORTED_COPY,
   churchPersonStatusLabel,
@@ -96,7 +95,7 @@ function toStaffAccessRow(
   const isSelf = row.userAccountId === actor.userAccountId;
   let managementNote: string | null = null;
   if (appOwner) {
-    managementNote = STAFF_MEMBERSHIP_OWNER_COPY;
+    managementNote = null;
   } else if (!managementSupported) {
     managementNote = STAFF_MEMBERSHIP_UNSUPPORTED_COPY;
   } else if (isSelf) {
