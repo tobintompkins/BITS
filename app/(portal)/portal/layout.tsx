@@ -48,7 +48,7 @@ export default async function MemberPortalLayout({
             </span>
             <span>
               <span className="block text-xs font-bold uppercase tracking-[0.18em] text-[var(--bits-gold)]">
-                BITS · Member Portal
+                Member Portal
               </span>
               <span className="block font-semibold">{organization.displayName || organization.name}</span>
             </span>
