@@ -1,16 +1,31 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 
 import { DisplayOptions } from "@/components/accessibility/display-options";
 import { ChurchLeadershipCard } from "@/components/home/church-leadership-card";
-
-import { CHURCH_BOARD_NAMES, CHURCH_MUSIC_TEAM_NAMES } from "@/lib/church/leadership";
+import { ownChurchProfile, publicChurchTeamCards, publicFamilyCards } from "@/server/services/church-person-profile.service";
 
 export const metadata: Metadata = {
   title: "Meet Our Team | First UPC of Saco",
 };
 
-export default function ChurchLeadershipPage() {
+export default async function ChurchLeadershipPage() {
+  await connection();
+  const [sections, family, own] = await Promise.all([
+    publicChurchTeamCards(),
+    publicFamilyCards(),
+    ownChurchProfile(),
+  ]);
+  const ownedKey = own.status === "READY" ? own.profile.rosterKey : null;
+  const withSelf = sections.map((section) => ({
+    ...section,
+    people: section.people.map((person) =>
+      person.key === ownedKey
+        ? { ...person, selfHref: "/church-leadership/my-profile", selfLabel: "Update my photo" }
+        : person,
+    ),
+  }));
   return (
     <main className="min-h-screen bg-[var(--bits-page)]">
       <header className="border-b-4 border-[var(--bits-gold)] bg-[var(--bits-navy)] text-white">
@@ -21,7 +36,7 @@ export default function ChurchLeadershipPage() {
           </Link>
           <div className="flex items-center gap-3">
             <DisplayOptions />
-            <Link href="/" className="rounded-xl border border-white/30 px-4 py-2 text-sm font-semibold hover:bg-white hover:text-[var(--bits-navy)]">
+            <Link href="/" className="rounded-xl border border-white/30 px-4 py-2 text-sm font-semibold hover:bg-white hover:text-[var(--bits-navy)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]">
               Back Home
             </Link>
           </div>
@@ -30,18 +45,27 @@ export default function ChurchLeadershipPage() {
       <div className="mx-auto max-w-7xl px-4 pt-10 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--bits-navy)] sm:text-4xl">Meet Our Team</h1>
         <p className="mt-3 text-[var(--bits-muted)]">First UPC of Saco</p>
+        <Link
+          href="/church-leadership/my-profile"
+          className="mt-6 inline-flex rounded-xl bg-[var(--bits-navy)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--bits-navy-deep)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+        >
+          Update my profile
+        </Link>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--bits-muted)]">
+          Any signed-in church member can change their own photo and introduction. Administrator access is not required.
+        </p>
       </div>
-      <ChurchLeadershipCard />
-      <ChurchLeadershipCard
-        heading="Church Board"
-        names={CHURCH_BOARD_NAMES}
-        headingId="church-board-heading"
-      />
-      <ChurchLeadershipCard
-        heading="Music Team"
-        names={CHURCH_MUSIC_TEAM_NAMES}
-        headingId="music-team-heading"
-      />
+      {withSelf.map((section) => (
+        <ChurchLeadershipCard
+          key={section.headingId}
+          heading={section.heading}
+          headingId={section.headingId}
+          people={section.people}
+        />
+      ))}
+      {family.length ? (
+        <ChurchLeadershipCard heading="Church family" headingId="church-family-heading" people={family} />
+      ) : null}
     </main>
   );
 }

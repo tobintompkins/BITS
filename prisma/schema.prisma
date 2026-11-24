@@ -628,6 +628,7 @@ model Organization {
 
   homepagePhoto             HomepagePhoto?
   homepageSlideshowPhotos   HomepageSlideshowPhoto[]
+  churchPersonProfiles      ChurchPersonProfile[]
   memberships               OrganizationMembership[]
   households                Household[]
   donors                    Donor[]
@@ -707,6 +708,7 @@ model UserAccount {
   lastSeenAt   DateTime?
 
   memberships                 OrganizationMembership[]
+  linkedChurchProfiles        ChurchPersonProfile[]      @relation("ChurchProfileAccount")
   linkedDonors                Donor[]
   createdOfferingBatches      OfferingBatch[]
   generatedStatements         ContributionStatement[]
@@ -2858,6 +2860,59 @@ model HomepagePhoto {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("homepage_photos")
+}
+
+enum ChurchTeam {
+  LEADERSHIP
+  BOARD
+  MUSIC
+}
+
+enum ChurchProfilePublication {
+  HIDDEN
+  PUBLISHED
+}
+
+model ChurchPersonProfile {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  organizationId        String                   @db.Uuid
+  rosterKey             String
+  officialName          String
+  preferredName         String?
+  aboutMe               String?
+  familyIntroduction    String?
+  serviceDescription    String?
+  photo                 Bytes?
+  photoContentType      String?
+  shareWithMembers      Boolean                  @default(false)
+  photoShareWithMembers Boolean                  @default(false)
+  publicConsent         Boolean                  @default(false)
+  photoPublicConsent    Boolean                  @default(false)
+  publication           ChurchProfilePublication @default(HIDDEN)
+  linkedUserAccountId   String?                  @db.Uuid
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  linkedUserAccount UserAccount?           @relation("ChurchProfileAccount", fields: [linkedUserAccountId], references: [id], onDelete: SetNull)
+  assignments       ChurchTeamAssignment[]
+
+  @@unique([organizationId, rosterKey])
+  @@unique([organizationId, linkedUserAccountId])
+  @@index([organizationId, publication])
+  @@map("church_person_profiles")
+}
+
+model ChurchTeamAssignment {
+  id        String     @id @default(uuid()) @db.Uuid
+  profileId String     @db.Uuid
+  team      ChurchTeam
+  sortOrder Int
+  profile   ChurchPersonProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, team])
+  @@index([profileId])
+  @@map("church_team_assignments")
 }
 
 model HomepageSlideshowPhoto {

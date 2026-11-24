@@ -7,7 +7,7 @@ export const CHURCH_LEADERSHIP_NAMES = [
   "Shelia Helmuth",
 ] as const;
 
-export const CHURCH_BOARD_NAMES = ["Terry Tompkins"] as const;
+export const CHURCH_BOARD_NAMES = ["Terry Tompkins", "Casey Helmuth"] as const;
 
 export const CHURCH_MUSIC_TEAM_NAMES = [
   "Tami Tompkins",

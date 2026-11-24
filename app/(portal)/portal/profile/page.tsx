@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { MyChurchProfileForm } from "@/components/church/my-church-profile-form";
 import { toMemberProfileFormValues } from "@/lib/validation/member-profile-preferences";
+import { ownChurchProfile } from "@/server/services/church-person-profile.service";
 import { getMemberProfilePreferences } from "@/server/services/member-profile-preferences.service";
 
 import { MemberProfileForm } from "./member-profile-form";
@@ -19,19 +21,24 @@ export default async function MemberProfilePage() {
   }
 
   if (portal.status === "CONNECTION_PENDING") {
+    const churchProfile = await ownChurchProfile();
     return (
-      <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-[var(--bits-navy)]">
-          My Profile &amp; Preferences
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
-          Your account ({portal.accountEmail}) must be connected to your donor
-          record before personal profile information can appear.
-        </p>
-      </section>
+      <div className="space-y-6">
+        <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-6 shadow-sm">
+          <h1 className="text-2xl font-semibold text-[var(--bits-navy)]">
+            My Profile &amp; Preferences
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
+            Your account ({portal.accountEmail}) must be connected to your donor
+            record before contact preferences can appear. A church profile is separate and does not create a donor.
+          </p>
+        </section>
+        <ChurchProfileSection churchProfile={churchProfile} />
+      </div>
     );
   }
 
+  const churchProfile = await ownChurchProfile();
   const displayName = `${portal.profile.firstName} ${portal.profile.lastName}`.trim();
 
   return (
@@ -72,6 +79,35 @@ export default async function MemberProfilePage() {
           initialValues={toMemberProfileFormValues(portal.profile)}
         />
       </section>
+      <ChurchProfileSection churchProfile={churchProfile} />
     </div>
+  );
+}
+
+function ChurchProfileSection({
+  churchProfile,
+}: {
+  churchProfile: Awaited<ReturnType<typeof ownChurchProfile>>;
+}) {
+  return (
+    <section className="rounded-2xl border border-[var(--bits-border)] border-t-4 border-t-[var(--bits-gold)] bg-white p-5 shadow-sm sm:p-8">
+      <h2 className="text-xl font-semibold text-[var(--bits-navy)]">My church profile</h2>
+      {churchProfile.status === "READY" ? (
+        <div className="mt-4">
+          <MyChurchProfileForm profile={churchProfile.profile} />
+        </div>
+      ) : (
+        <>
+          <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
+            Your church profile is not connected yet. Open the public team page and choose your own profile. A matching name or email does not connect it.
+          </p>
+          <p className="mt-3">
+            <Link href="/church-leadership/my-profile" className="text-sm font-semibold text-[var(--bits-navy)] underline">
+              Update my profile
+            </Link>
+          </p>
+        </>
+      )}
+    </section>
   );
 }

@@ -997,6 +997,10 @@ inside the private Leadership Portal. CMS work must preserve the separation
 between public content, each member's private portal information, and
 role-protected leadership data.
 
+### New roadmap — church profiles and team website
+
+November 24, 2026. This is new profile and website work. It does not change the May 2026 specification and it does not close original version 1. One church profile can appear on Church Leadership, Church Board, and Music Team. Casey Helmuth is on the board beside Terry Tompkins and remains on Church Leadership and Music Team. The public Meet Our Team page links to Update my profile. A signed-in church member can update that person’s own photo and introduction without an administrator role. The public page shows them only after that person chooses to show the profile. A church team is not a security role. Production setup remains the unfinished original requirement.
+
 ### Phase 10 — Launch readiness
 
 1. Pastor and board review.

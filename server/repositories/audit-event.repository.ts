@@ -26,21 +26,44 @@ type AuditWriter = {
   };
 };
 
+const AUDIT_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export class AuditEventInputError extends Error {
+  constructor(field: string) {
+    super(`Audit ${field} must be an id.`);
+    this.name = "AuditEventInputError";
+  }
+}
+
+function requiredAuditId(value: string, field: string) {
+  if (!AUDIT_UUID.test(value)) throw new AuditEventInputError(field);
+  return value;
+}
+
+function optionalAuditId(value: string | null, field: string) {
+  if (value == null || value === "") return null;
+  return requiredAuditId(value, field);
+}
+
 export async function createAuditEvent(
   input: CreateAuditEventInput,
   db: AuditWriter = prisma,
 ) {
+  const organizationId = requiredAuditId(input.organizationId, "organizationId");
+  const actorUserAccountId = optionalAuditId(input.actorUserAccountId, "actorUserAccountId");
+  const entityId = requiredAuditId(input.entityId, "entityId");
   const changeMetadata: Prisma.InputJsonValue = {
     changes: input.changes,
   };
 
   return db.auditEvent.create({
     data: {
-      organizationId: input.organizationId,
-      actorUserAccountId: input.actorUserAccountId,
+      organizationId,
+      actorUserAccountId,
       action: input.action,
       entityType: input.entityType,
-      entityId: input.entityId,
+      entityId,
       changeMetadata,
     },
   });

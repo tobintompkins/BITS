@@ -263,6 +263,9 @@ export default async function StaffLayout({
         ...staffAccessDirectoryNavItems(
           Boolean(engagementAccess?.canManageMinistries),
         ),
+        ...(organizationAccess?.canEdit
+          ? [{ href: "/administration/church-profiles", label: "Church Profiles" }]
+          : []),
         ...leadershipSecurityActivityNavItems(
           Boolean(organizationAccess?.canEdit),
         ),
