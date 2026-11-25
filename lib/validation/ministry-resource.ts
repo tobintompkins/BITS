@@ -49,10 +49,10 @@ export const MEMBER_MINISTRY_RESOURCE_NOTICE =
   "Open the published links for ministries you serve. This page is read-only and does not include drafts or files.";
 
 export const MEMBER_MINISTRY_RESOURCE_EMPTY_COPY =
-  "No published ministry resources are available for your assignments yet. Contact the church office if this information needs correction.";
+  "No published ministry resources are available for your assignments yet. This page does not create an assignment.";
 
 export const MEMBER_MINISTRY_RESOURCE_PENDING_COPY =
-  "Your account must be connected to your church membership record before ministry resources can appear. Contact the church office if this information needs correction.";
+  "An administrator needs to connect your existing church record to this sign-in. A matching name or email is not used, and this page does not create a record.";
 
 export const STAFF_MINISTRY_RESOURCE_ROW_FIELDS = [
   "resourceId",

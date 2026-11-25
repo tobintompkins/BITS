@@ -5,6 +5,7 @@ import {
   MEMBER_PORTAL_NAV_GROUPS,
   MEMBER_PORTAL_PENDING_LINKS,
 } from "@/lib/portal/member-portal-nav";
+import { PERSONAL_RECORD_LINK_PENDING_COPY } from "@/lib/auth/personal-record-connection";
 import { getMemberPortalDashboard } from "@/server/services/member-portal.service";
 
 function formatMoney(value: string) {
@@ -67,9 +68,7 @@ export default async function MemberPortalPage() {
               Your church record is not connected yet
             </h2>
             <p className="mt-2 text-sm leading-6 text-[var(--bits-muted)]">
-              Your sign-in is secure. A church administrator must connect
-              {` ${portal.accountEmail} `}to the correct giving record before
-              personal giving or statements can appear.
+              {PERSONAL_RECORD_LINK_PENDING_COPY}
             </p>
           </div>
           <p className="mt-5 text-sm text-[var(--bits-muted)]">

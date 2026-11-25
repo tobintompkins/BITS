@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { isAllowedCheckoutRequestOrigin } from "@/lib/validation/member-stripe-giving";
-import { prisma } from "@/lib/db/prisma";
-import { RoleCode } from "@/app/generated/prisma/client";
-import type { ChurchProfileViewer } from "@/lib/church/church-profile-access";
 import {
   readChurchProfilePhoto,
   removeChurchProfilePhoto,
@@ -13,30 +9,12 @@ import {
 
 export const runtime = "nodejs";
 
-async function currentViewer(): Promise<ChurchProfileViewer | null> {
-  const account = await getOrCreateUserAccount();
-  if (!account?.active) return null;
-  const membership = await prisma.organizationMembership.findFirst({
-    where: { userAccountId: account.id, active: true, churchAccess: "ACTIVE" },
-    include: { roleType: true },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!membership) return null;
-  return {
-    organizationId: membership.organizationId,
-    userAccountId: account.id,
-    active: true,
-    churchAccess: "ACTIVE",
-    isAdmin: membership.roleType.code === RoleCode.ORG_ADMIN,
-  };
-}
-
 export async function GET(
   _request: Request,
   context: { params: Promise<{ rosterKey: string }> },
 ) {
   const { rosterKey } = await context.params;
-  const photo = await readChurchProfilePhoto(rosterKey, await currentViewer());
+  const photo = await readChurchProfilePhoto(rosterKey);
   if (!photo) return new Response(null, { status: 404 });
   return new Response(new Uint8Array(photo.bytes), {
     headers: {

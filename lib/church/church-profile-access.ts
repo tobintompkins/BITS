@@ -178,7 +178,130 @@ export function planOwnProfileClaim(input: {
   ) {
     return { ok: false as const, reason: "OWNED_BY_SOMEONE_ELSE" };
   }
+  if (input.targetLinkedUserAccountId !== input.actorUserAccountId) {
+    return { ok: false as const, reason: "UNVERIFIED_CLAIM" };
+  }
   return { ok: true as const, rosterKey: input.rosterKey };
+}
+
+export function personalProfileKey(userAccountId: string) {
+  return `account-${userAccountId}`;
+}
+
+/** A new sign-in gets a private profile. It never claims a roster card. */
+export function planPersonalProfileSetup(input: {
+  organizationId: string | null;
+  churchClosed: boolean;
+  existingLinkedRosterKey: string | null;
+  userAccountId: string;
+}) {
+  if (input.churchClosed) {
+    return { action: "skip" as const, reason: "CHURCH_CLOSED" as const };
+  }
+  if (!input.organizationId) {
+    return { action: "skip" as const, reason: "NO_CHURCH" as const };
+  }
+  if (input.existingLinkedRosterKey) {
+    return {
+      action: "reuse" as const,
+      rosterKey: input.existingLinkedRosterKey,
+    };
+  }
+  return {
+    action: "create" as const,
+    rosterKey: personalProfileKey(input.userAccountId),
+    publication: "HIDDEN" as const,
+  };
+}
+
+export function planPhotoChange(input: {
+  actorUserAccountId: string;
+  actorActive: boolean;
+  rosterKey: string;
+  memberships: {
+    organizationId: string;
+    active: boolean;
+    churchAccess: ChurchProfileViewer["churchAccess"];
+    isAdmin: boolean;
+  }[];
+  profiles: {
+    organizationId: string;
+    rosterKey: string;
+    linkedUserAccountId: string | null;
+  }[];
+  portalOrganizationId: string | null;
+  publicOrganizationId: string | null;
+  knownRosterKeys: string[];
+}) {
+  if (!input.actorActive) {
+    return { ok: false as const, reason: "INACTIVE" as const };
+  }
+  const openMemberships = input.memberships.filter(
+    (membership) => membership.active && membership.churchAccess === "ACTIVE",
+  );
+  for (const membership of openMemberships) {
+    const profile = input.profiles.find(
+      (item) =>
+        item.organizationId === membership.organizationId &&
+        item.rosterKey === input.rosterKey,
+    );
+    if (!profile) continue;
+    const owns = profile.linkedUserAccountId === input.actorUserAccountId;
+    if (membership.isAdmin || owns) {
+      return {
+        ok: true as const,
+        action: "update" as const,
+        organizationId: membership.organizationId,
+      };
+    }
+  }
+  if (input.portalOrganizationId) {
+    const closed = input.memberships.some(
+      (membership) =>
+        membership.organizationId === input.portalOrganizationId &&
+        (!membership.active || membership.churchAccess !== "ACTIVE"),
+    );
+    const profile = input.profiles.find(
+      (item) =>
+        item.organizationId === input.portalOrganizationId &&
+        item.rosterKey === input.rosterKey,
+    );
+    if (
+      !closed &&
+      profile?.linkedUserAccountId === input.actorUserAccountId
+    ) {
+      return {
+        ok: true as const,
+        action: "update" as const,
+        organizationId: input.portalOrganizationId,
+      };
+    }
+  }
+  const existingPublic = input.profiles.some(
+    (item) =>
+      item.organizationId === input.publicOrganizationId &&
+      item.rosterKey === input.rosterKey,
+  );
+  const adminOfPublic = openMemberships.some(
+    (membership) =>
+      membership.organizationId === input.publicOrganizationId &&
+      membership.isAdmin,
+  );
+  if (
+    adminOfPublic &&
+    input.publicOrganizationId &&
+    input.knownRosterKeys.includes(input.rosterKey) &&
+    !existingPublic
+  ) {
+    return {
+      ok: true as const,
+      action: "create-hidden" as const,
+      organizationId: input.publicOrganizationId,
+      linkedUserAccountId: null,
+      publication: "HIDDEN" as const,
+    };
+  }
+  return { ok: false as const, reason: "UNAUTHORIZED" as const };
 }
 
 export function planChurchProfileLink(input: {
@@ -222,6 +345,8 @@ export type ChurchTeamCardPerson = {
   photoUrl: string | null;
   selfHref?: string | null;
   selfLabel?: string | null;
+  canEditPhoto?: boolean;
+  editorHasPhoto?: boolean;
 };
 
 export function buildChurchTeamCards(stored: ChurchProfileSnapshot[]) {

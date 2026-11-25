@@ -1,6 +1,8 @@
-import { createLinkedDonorAction, linkExistingDonorAction } from "./actions";
+import { connectPersonRecordsAction, createLinkedDonorAction } from "./actions";
 
 import { getPortalLinkAdminData } from "@/server/services/member-portal-link.service";
+
+const fieldClass = "w-full rounded-lg border border-[var(--bits-border)] px-3 py-2";
 
 export default async function MemberPortalLinksPage({
   searchParams,
@@ -11,7 +13,9 @@ export default async function MemberPortalLinksPage({
     searchParams,
     getPortalLinkAdminData(),
   ]);
-  const unlinked = data.donors.filter((donor) => !donor.userAccount);
+  const unlinkedDonors = data.donors.filter((donor) => !donor.userAccountId);
+  const unlinkedMembers = data.members.filter((member) => !member.userAccountId);
+  const unlinkedProfiles = data.profiles.filter((profile) => !profile.linkedUserAccountId);
 
   return (
     <div className="space-y-6">
@@ -23,9 +27,7 @@ export default async function MemberPortalLinksPage({
           Member Portal Connections
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
-          Connect a signed-in email account to the correct donor record for{" "}
-          {data.organizationName}. Always verify the person before connecting
-          private giving information.
+          Connect one BITS account in {data.organizationName} to the existing donor, membership, and church profile that belong to that person. The connection uses the account id. A matching name or email does not connect a record, and this page does not merge records.
         </p>
       </header>
 
@@ -44,79 +46,103 @@ export default async function MemberPortalLinksPage({
 
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-          Connect an Existing Donor
+          Connect existing records
         </h2>
-        <p className="mt-1 text-sm text-[var(--bits-muted)]">
-          The person must sign in to BITS once before their email can be found.
+        <p className="mt-1 text-sm leading-6 text-[var(--bits-muted)]">
+          Choose the account and every unlinked record that belongs to that person. Giving, statements, household, training, and ministry then use those same links.
         </p>
-        <form action={linkExistingDonorAction} className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <form action={connectPersonRecordsAction} className="mt-4 grid gap-4">
           <label className="space-y-1 text-sm">
-            <span className="font-medium">Unlinked donor</span>
-            <select name="donorId" required className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2">
-              <option value="">Choose a donor</option>
-              {unlinked.map((donor) => (
-                <option key={donor.id} value={donor.id}>
-                  {donor.lastName}, {donor.firstName}
-                  {donor.email ? ` · ${donor.email}` : ""}
+            <span className="font-medium">BITS account</span>
+            <select name="userAccountId" required className={fieldClass}>
+              <option value="">Choose an account</option>
+              {data.accounts.map((membership) => (
+                <option key={membership.userAccount.id} value={membership.userAccount.id}>
+                  {membership.userAccount.displayName || "Church member"}
+                  {membership.userAccount.primaryEmail ? ` · ${membership.userAccount.primaryEmail}` : ""}
+                  {membership.active && membership.churchAccess === "ACTIVE" ? "" : " · closed"}
                 </option>
               ))}
             </select>
           </label>
           <label className="space-y-1 text-sm">
-            <span className="font-medium">Signed-in account email</span>
-            <input name="accountEmail" type="email" required autoComplete="email" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            <span className="font-medium">Donor record</span>
+            <select name="donorId" className={fieldClass}>
+              <option value="">Leave unconnected</option>
+              {unlinkedDonors.map((donor) => (
+                <option key={donor.id} value={donor.id}>
+                  {donor.lastName}, {donor.firstName}
+                </option>
+              ))}
+            </select>
           </label>
-          <button type="submit" className="rounded-lg bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white">
-            Connect Account
+          <label className="space-y-1 text-sm">
+            <span className="font-medium">Membership record</span>
+            <select name="memberId" className={fieldClass}>
+              <option value="">Leave unconnected</option>
+              {unlinkedMembers.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.lastName}, {member.firstName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="font-medium">Church profile</span>
+            <select name="profileId" className={fieldClass}>
+              <option value="">Leave unconnected</option>
+              {unlinkedProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.officialName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-[var(--bits-navy)]">
+            <input type="checkbox" name="confirmed" required />
+            I confirm these records belong to the selected account.
+          </label>
+          <button type="submit" className="w-fit rounded-lg bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white">
+            Connect selected records
           </button>
         </form>
-        {unlinked.length === 0 ? (
-          <p className="mt-4 text-sm text-[var(--bits-muted)]">
-            There are no unlinked donor records yet. Use the form below to
-            create the first one.
-          </p>
-        ) : null}
       </section>
 
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-          Create and Connect a Donor
+          Create a donor when none exists
         </h2>
+        <p className="mt-1 text-sm leading-6 text-[var(--bits-muted)]">
+          Use this only when the person has no donor record. It does not create gifts, a household, training, or a ministry assignment.
+        </p>
         <form action={createLinkedDonorAction} className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="space-y-1 text-sm sm:col-span-2">
-            <span className="font-medium">Signed-in account email</span>
-            <input name="accountEmail" type="email" required autoComplete="email" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            <span className="font-medium">BITS account</span>
+            <select name="userAccountId" required className={fieldClass}>
+              <option value="">Choose an account</option>
+              {data.accounts.filter((membership) => membership.userAccount.active).map((membership) => (
+                <option key={membership.userAccount.id} value={membership.userAccount.id}>
+                  {membership.userAccount.displayName || "Church member"}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="space-y-1 text-sm">
             <span className="font-medium">First name</span>
-            <input name="firstName" required autoComplete="given-name" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            <input name="firstName" required autoComplete="given-name" className={fieldClass} />
           </label>
           <label className="space-y-1 text-sm">
             <span className="font-medium">Last name</span>
-            <input name="lastName" required autoComplete="family-name" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            <input name="lastName" required autoComplete="family-name" className={fieldClass} />
           </label>
           <label className="space-y-1 text-sm sm:col-span-2">
             <span className="font-medium">Phone (optional)</span>
-            <input name="phone" type="tel" autoComplete="tel" className="w-full rounded-lg border border-[var(--bits-border)] px-3 py-2" />
+            <input name="phone" type="tel" autoComplete="tel" className={fieldClass} />
           </label>
           <button type="submit" className="rounded-lg bg-[var(--bits-gold)] px-4 py-3 text-sm font-bold text-[var(--bits-navy-deep)] sm:col-span-2">
-            Create Donor and Connect Account
+            Create donor and connect account
           </button>
         </form>
-      </section>
-
-      <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
-          Current Connections
-        </h2>
-        <ul className="mt-3 divide-y divide-[var(--bits-border)] text-sm">
-          {data.donors.filter((donor) => donor.userAccount).map((donor) => (
-            <li key={donor.id} className="flex flex-wrap justify-between gap-2 py-3">
-              <span className="font-medium">{donor.firstName} {donor.lastName}</span>
-              <span className="text-[var(--bits-muted)]">{donor.userAccount?.primaryEmail}</span>
-            </li>
-          ))}
-        </ul>
       </section>
     </div>
   );

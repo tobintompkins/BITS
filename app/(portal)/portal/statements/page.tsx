@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getMemberPortalStatements } from "@/server/services/member-portal.service";
+import { PERSONAL_RECORD_LINK_PENDING_COPY } from "@/lib/auth/personal-record-connection";
 
 function formatMoney(value: string) {
   return new Intl.NumberFormat("en-US", {
@@ -27,7 +28,7 @@ export default async function MyStatementsPage({
   if (portal.status === "NO_ORGANIZATION") {
     return (
       <p className="rounded-xl bg-white p-5 text-sm">
-        The church organization has not been configured.
+        Choose your church before this section can be shown.
       </p>
     );
   }
@@ -39,8 +40,7 @@ export default async function MyStatementsPage({
           My Statements &amp; Receipts
         </h1>
         <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
-          Your account ({portal.accountEmail}) must be connected to your donor
-          record before personal giving information can appear.
+          {PERSONAL_RECORD_LINK_PENDING_COPY}
         </p>
       </section>
     );

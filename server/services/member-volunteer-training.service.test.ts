@@ -44,7 +44,7 @@ const store = vi.hoisted(() => ({
 
 const mocks = vi.hoisted(() => ({
   getOrCreateUserAccount: vi.fn(),
-  findPrimaryOrganization: vi.fn(),
+  findMemberPortalOrganization: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/user-account", () => ({
@@ -52,7 +52,7 @@ vi.mock("@/lib/auth/user-account", () => ({
 }));
 
 vi.mock("@/server/repositories/organization.repository", () => ({
-  findPrimaryOrganization: mocks.findPrimaryOrganization,
+  findMemberPortalOrganization: mocks.findMemberPortalOrganization,
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
@@ -255,13 +255,13 @@ beforeEach(() => {
   store.lastRecordWhere = null;
   store.lastRecordSelect = null;
   mocks.getOrCreateUserAccount.mockReset();
-  mocks.findPrimaryOrganization.mockReset();
+  mocks.findMemberPortalOrganization.mockReset();
   mocks.getOrCreateUserAccount.mockResolvedValue({
     id: USER_ID,
     primaryEmail: OWN_EMAIL,
     displayName: "Ann Adams",
   });
-  mocks.findPrimaryOrganization.mockResolvedValue({ id: ORG_ID });
+  mocks.findMemberPortalOrganization.mockResolvedValue({ id: ORG_ID });
   seed();
 });
 
@@ -274,7 +274,7 @@ describe("member volunteer training access", () => {
     expect(store.lastMemberWhere).toBeNull();
     expect(store.lastRecordWhere).toBeNull();
 
-    mocks.findPrimaryOrganization.mockResolvedValueOnce(null);
+    mocks.findMemberPortalOrganization.mockResolvedValueOnce(null);
     await expect(getMemberVolunteerTraining(NOW)).resolves.toEqual({
       status: "NO_ORGANIZATION",
     });

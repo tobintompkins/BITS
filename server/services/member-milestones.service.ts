@@ -4,7 +4,7 @@ import {
   membershipMilestoneTypeOptions,
 } from "@/lib/constants/member-engagement";
 import { prisma } from "@/lib/db/prisma";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 export type MemberMilestoneRecord = {
   typeLabel: string;
@@ -36,7 +36,7 @@ export async function getMemberMilestones(): Promise<MemberMilestonesResult> {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" };
 
   const member = await prisma.member.findFirst({

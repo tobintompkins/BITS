@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { MEMBER_MINISTRIES_EMPTY_COPY } from "@/lib/validation/member-ministries";
+import { PERSONAL_RECORD_LINK_PENDING_COPY } from "@/lib/auth/personal-record-connection";
 import { getMemberMinistries } from "@/server/services/member-ministries.service";
 
 function formatJoinedDate(value: Date | null) {
@@ -19,7 +20,7 @@ export default async function MemberMinistriesPage() {
   if (portal.status === "NO_ORGANIZATION") {
     return (
       <p className="rounded-xl bg-white p-5 text-sm">
-        The church organization has not been configured.
+        Choose your church before this section can be shown.
       </p>
     );
   }
@@ -31,8 +32,7 @@ export default async function MemberMinistriesPage() {
           My Ministries
         </h1>
         <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
-          Your account ({portal.accountEmail}) must be connected to your church
-          membership record before ministry assignments can appear.
+          {PERSONAL_RECORD_LINK_PENDING_COPY}
         </p>
         <p className="mt-4">
           <Link

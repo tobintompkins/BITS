@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import type { ChurchProfileSnapshot } from "@/lib/church/church-profile-access";
+import { churchPersonInitials } from "@/lib/church/team-roster";
 import { ProfilePhotoControls } from "@/components/church/profile-photo-controls";
 
 import { saveChurchProfileAction } from "./actions";
@@ -58,7 +59,12 @@ export function ChurchProfileAdminForm({
         <input type="checkbox" name="clearLink" />
         Remove the account link
       </label>
-      <ProfilePhotoControls rosterKey={profile.rosterKey} hasPhoto={profile.hasPhoto} />
+      <ProfilePhotoControls
+        rosterKey={profile.rosterKey}
+        hasPhoto={profile.hasPhoto}
+        initials={churchPersonInitials(profile.preferredName || profile.officialName)}
+        label="Edit photo"
+      />
       <button disabled={pending} className="w-fit rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white">
         Save church profile
       </button>

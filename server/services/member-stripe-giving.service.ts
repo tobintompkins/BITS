@@ -57,61 +57,10 @@ const donorSelect = {
   email: true,
 } as const;
 
-function isUniqueConstraintError(error: unknown) {
-  return Boolean(
-    error &&
-      typeof error === "object" &&
-      "code" in error &&
-      (error as { code?: string }).code === "P2002",
-  );
-}
-
-function accountDonorName(account: { displayName?: string | null; primaryEmail: string }) {
-  const parts = (account.displayName ?? "").trim().split(/\s+/).filter(Boolean);
-  return {
-    firstName: parts[0] || "Member",
-    lastName: parts.slice(1).join(" ") || "Donor",
-  };
-}
-
-async function ensureAccountDonor(
+async function findLinkedDonor(
   organization: { id: string },
-  account: { id: string; displayName?: string | null; primaryEmail: string },
+  account: { id: string },
 ) {
-  const existing = await prisma.donor.findFirst({
-    where: {
-      organizationId: organization.id,
-      userAccountId: account.id,
-      active: true,
-    },
-    select: donorSelect,
-  });
-  if (existing) return existing;
-
-  const name = accountDonorName(account);
-  try {
-    await prisma.$executeRaw`
-      INSERT INTO donors (
-        id, "organizationId", "userAccountId", "firstName", "lastName", email,
-        active, "createdAt", "updatedAt"
-      )
-      VALUES (
-        ${randomUUID()}::uuid,
-        ${organization.id}::uuid,
-        ${account.id}::uuid,
-        ${name.firstName},
-        ${name.lastName},
-        ${account.primaryEmail},
-        true,
-        NOW(),
-        NOW()
-      )
-      ON CONFLICT ("organizationId", "userAccountId") DO NOTHING
-    `;
-  } catch (error) {
-    if (!isUniqueConstraintError(error)) throw error;
-  }
-
   return prisma.donor.findFirst({
     where: {
       organizationId: organization.id,
@@ -144,7 +93,7 @@ export async function getMemberStripeGiving(): Promise<MemberStripeGivingView> {
   const access = await resolveLinkedDonorAccess();
   if (access.status !== "LINKED") return access;
 
-  const donor = await ensureAccountDonor(access.organization, access.userAccount);
+  const donor = await findLinkedDonor(access.organization, access.userAccount);
   if (!donor) {
     return {
       status: "CONNECTION_PENDING",
@@ -180,7 +129,7 @@ export async function createMemberStripeCheckout(
   const access = await resolveLinkedDonorAccess();
   if (access.status !== "LINKED") return access;
 
-  const donor = await ensureAccountDonor(access.organization, access.userAccount);
+  const donor = await findLinkedDonor(access.organization, access.userAccount);
   if (!donor) {
     return {
       status: "CONNECTION_PENDING",

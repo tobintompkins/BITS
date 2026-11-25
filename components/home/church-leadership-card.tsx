@@ -1,3 +1,4 @@
+import { ProfilePhotoControls } from "@/components/church/profile-photo-controls";
 import {
   CHURCH_LEADERSHIP_HEADING,
   CHURCH_LEADERSHIP_NAMES,
@@ -74,26 +75,36 @@ export function ChurchLeadershipCard({
             );
             return (
               <li key={person.key}>
-                {person.href ? (
-                  <Link
-                    href={person.href}
-                    className="flex items-center gap-3 rounded-xl border border-[var(--bits-border)] bg-[var(--bits-page)] p-4 hover:border-[var(--bits-gold)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-                  >
-                    {body}
-                  </Link>
-                ) : (
-                  <div className="flex items-center gap-3 rounded-xl border border-[var(--bits-border)] bg-[var(--bits-page)] p-4">
-                    {body}
-                  </div>
-                )}
-                {person.selfHref ? (
-                  <Link
-                    href={person.selfHref}
-                    className="mt-2 inline-flex rounded-xl px-1 text-sm font-semibold text-[var(--bits-navy)] underline decoration-[var(--bits-gold)] underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
-                  >
-                    {person.selfLabel ?? "Update my profile"}
-                  </Link>
-                ) : null}
+                <div className="rounded-xl border border-[var(--bits-border)] bg-[var(--bits-page)] p-4">
+                  {person.canEditPhoto ? (
+                    <ProfilePhotoControls
+                      rosterKey={person.key}
+                      hasPhoto={Boolean(person.editorHasPhoto || person.photoUrl)}
+                      initials={person.initials}
+                      label="Edit photo"
+                      title={person.name}
+                      subtitle={person.roleLabel}
+                      profileHref={person.href}
+                    />
+                  ) : person.href ? (
+                    <Link
+                      href={person.href}
+                      className="flex items-center gap-3 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+                    >
+                      {body}
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-3">{body}</div>
+                  )}
+                  {person.selfHref ? (
+                    <Link
+                      href={person.selfHref}
+                      className="mt-2 inline-flex rounded-xl px-1 text-sm font-semibold text-[var(--bits-navy)] underline decoration-[var(--bits-gold)] underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+                    >
+                      {person.selfLabel ?? "Update my profile"}
+                    </Link>
+                  ) : null}
+                </div>
               </li>
             );
           })}

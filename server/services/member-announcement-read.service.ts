@@ -3,7 +3,7 @@ import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { prisma } from "@/lib/db/prisma";
 import { markMemberAnnouncementReadSchema } from "@/lib/validation/member-announcement-read";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 function announcementIdFrom(input: unknown) {
   if (typeof input === "string") return input;
@@ -17,7 +17,7 @@ export async function markMemberAnnouncementRead(input: unknown) {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   const parsed = markMemberAnnouncementReadSchema.safeParse({
@@ -77,7 +77,7 @@ export async function getStaffAnnouncementReadTotals() {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   const access = await getAnnouncementAccess(organization.id);

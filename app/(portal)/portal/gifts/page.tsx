@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/money/decimal";
 import { memberGivingHistoryHref } from "@/lib/validation/member-giving-history";
 import { memberGiftReceiptHref } from "@/lib/validation/member-gift-receipt";
 import { getMemberGivingHistory } from "@/server/services/member-giving-history.service";
+import { PERSONAL_RECORD_LINK_PENDING_COPY } from "@/lib/auth/personal-record-connection";
 
 function formatUtcDate(value: Date) {
   return new Intl.DateTimeFormat("en-US", {
@@ -25,7 +26,7 @@ export default async function MemberGivingHistoryPage({
   if (portal.status === "NO_ORGANIZATION") {
     return (
       <p className="rounded-xl bg-white p-5 text-sm">
-        The church organization has not been configured.
+        Choose your church before this section can be shown.
       </p>
     );
   }
@@ -37,8 +38,7 @@ export default async function MemberGivingHistoryPage({
           My Giving History
         </h1>
         <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
-          Your account ({portal.accountEmail}) must be connected to your donor
-          record before personal giving information can appear.
+          {PERSONAL_RECORD_LINK_PENDING_COPY}
         </p>
       </section>
     );

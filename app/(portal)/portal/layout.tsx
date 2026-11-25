@@ -10,6 +10,7 @@ import { AccountMenu } from "@/components/account/account-menu";
 import { DisplayOptions } from "@/components/accessibility/display-options";
 import { MemberPortalNav } from "@/components/portal/member-portal-nav";
 import { memberHasLeadershipPortalAccess } from "@/server/services/member-portal.service";
+import { ensureOwnPersonalProfile } from "@/server/services/church-person-profile.service";
 
 export default async function MemberPortalLayout({
   children,
@@ -35,6 +36,7 @@ export default async function MemberPortalLayout({
   }
   const organization = await findMemberPortalOrganization();
   if (!organization) redirect("/select-organization");
+  await ensureOwnPersonalProfile();
   const showLeadershipPortal = await memberHasLeadershipPortalAccess();
 
   return (

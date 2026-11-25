@@ -1,4 +1,4 @@
 export const MEMBER_MINISTRIES_EMPTY_COPY =
-  "You do not have any active ministry assignments yet. Contact the church office if you believe this is incorrect.";
+  "No ministry assignments have been recorded for you yet. This page does not create an assignment.";
 
 export const memberMinistriesHref = "/portal/ministries";

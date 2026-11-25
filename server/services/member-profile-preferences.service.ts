@@ -5,7 +5,7 @@ import {
   memberProfilePreferencesSchema,
 } from "@/lib/validation/member-profile-preferences";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 const profileSelect = {
   firstName: true,
@@ -35,7 +35,7 @@ async function resolveLinkedDonor() {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   return {

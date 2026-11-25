@@ -4,7 +4,7 @@ import { connection } from "next/server";
 
 import { DisplayOptions } from "@/components/accessibility/display-options";
 import { ChurchLeadershipCard } from "@/components/home/church-leadership-card";
-import { ownChurchProfile, publicChurchTeamCards, publicFamilyCards } from "@/server/services/church-person-profile.service";
+import { ownChurchProfile, publicChurchPhotoEditors, publicChurchTeamCards, publicFamilyCards } from "@/server/services/church-person-profile.service";
 
 export const metadata: Metadata = {
   title: "Meet Our Team | First UPC of Saco",
@@ -12,19 +12,26 @@ export const metadata: Metadata = {
 
 export default async function ChurchLeadershipPage() {
   await connection();
-  const [sections, family, own] = await Promise.all([
+  const [sections, family, own, editors] = await Promise.all([
     publicChurchTeamCards(),
     publicFamilyCards(),
     ownChurchProfile(),
+    publicChurchPhotoEditors(),
   ]);
   const ownedKey = own.status === "READY" ? own.profile.rosterKey : null;
+  const withEditor = (people: typeof sections[number]["people"]) =>
+    people.map((person) => ({
+      ...person,
+      ...(person.key === ownedKey
+        ? { selfHref: "/church-leadership/my-profile", selfLabel: "Update my photo" }
+        : {}),
+      ...(editors
+        ? { canEditPhoto: true, editorHasPhoto: editors.get(person.key) === true }
+        : {}),
+    }));
   const withSelf = sections.map((section) => ({
     ...section,
-    people: section.people.map((person) =>
-      person.key === ownedKey
-        ? { ...person, selfHref: "/church-leadership/my-profile", selfLabel: "Update my photo" }
-        : person,
-    ),
+    people: withEditor(section.people),
   }));
   return (
     <main className="min-h-screen bg-[var(--bits-page)]">
@@ -64,7 +71,7 @@ export default async function ChurchLeadershipPage() {
         />
       ))}
       {family.length ? (
-        <ChurchLeadershipCard heading="Church family" headingId="church-family-heading" people={family} />
+        <ChurchLeadershipCard heading="Church family" headingId="church-family-heading" people={withEditor(family)} />
       ) : null}
     </main>
   );

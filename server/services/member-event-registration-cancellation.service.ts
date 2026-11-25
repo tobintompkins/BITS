@@ -4,7 +4,7 @@ import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { prisma } from "@/lib/db/prisma";
 import { isRegistrationError } from "@/lib/errors/registration-errors";
 import { memberEventRegistrationCancellationSchema } from "@/lib/validation/member-event-registration-cancellation";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 import { cancelRegistration } from "@/server/services/event-registration.service";
 
 export type CancelMemberEventRegistrationResult =
@@ -33,7 +33,7 @@ export async function cancelMemberEventRegistration(input: {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" };
 
   const registrationIdParse = z.string().uuid().safeParse(input.registrationId);

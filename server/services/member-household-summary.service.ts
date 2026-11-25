@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { formatHouseholdRelationship } from "@/lib/constants/household-relationships";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 export const HOUSEHOLD_STATEMENT_AUTHORIZATION_EXPLANATION =
   "Household contribution statements appear in My Statements only when the church has designated you as the household statement recipient. Being listed in a household does not by itself grant access to household statements.";
@@ -75,7 +75,7 @@ export async function getMemberHouseholdSummary(): Promise<MemberHouseholdSummar
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" };
 
   const donor = await prisma.donor.findFirst({

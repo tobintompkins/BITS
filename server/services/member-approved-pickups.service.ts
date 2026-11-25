@@ -21,7 +21,7 @@ import {
   findMemberIdInOrganization,
   updateApprovedPickup,
 } from "@/server/repositories/member-approved-pickup.repository";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 export type MemberApprovedPickupsView =
   | { status: "SIGNED_OUT" }
@@ -52,7 +52,7 @@ async function requireApprovedPickupAccess() {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   const [memberAccess, eventAccess] = await Promise.all([

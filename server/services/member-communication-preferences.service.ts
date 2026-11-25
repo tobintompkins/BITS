@@ -6,7 +6,7 @@ import {
   type MemberCommunicationPreferences,
 } from "@/lib/validation/member-communication-preferences";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 const preferenceSelect = {
   allowEmail: true,
@@ -56,7 +56,7 @@ async function resolveLinkedMemberAccess() {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   return {

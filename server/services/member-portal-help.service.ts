@@ -5,7 +5,7 @@ import {
   sanitizeMemberHelpPhone,
   sanitizeMemberHelpWebsite,
 } from "@/lib/validation/member-portal-help";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 export type MemberPortalHelpContact = {
   name: string;
@@ -37,7 +37,7 @@ export async function getMemberPortalHelp(): Promise<MemberPortalHelpResult> {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" };
 
   const name = organization.name.trim();

@@ -2,38 +2,19 @@
 
 import { useActionState } from "react";
 
-import {
-  claimOwnChurchProfileAction,
-  createOwnPersonalProfileAction,
-} from "@/app/church-leadership/my-profile/actions";
+import { createOwnPersonalProfileAction } from "@/app/church-leadership/my-profile/actions";
 
 const buttonClass =
   "rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]";
 
-export function ClaimChurchProfileForm({
-  rosterKey,
-  name,
-}: {
-  rosterKey: string;
-  name: string;
-}) {
-  const [state, action, pending] = useActionState(claimOwnChurchProfileAction, {
-    ok: true,
-    message: "",
-  });
+export function ClaimChurchProfileForm({ name }: { rosterKey: string; name: string }) {
   return (
-    <form action={action} className="grid gap-3 rounded-2xl border border-[var(--bits-border)] bg-white p-4">
+    <section className="grid gap-3 rounded-2xl border border-[var(--bits-border)] bg-white p-4">
       <h2 className="text-lg font-semibold text-[var(--bits-navy)]">{name}</h2>
-      <input type="hidden" name="rosterKey" value={rosterKey} />
-      <label className="flex items-start gap-2 text-sm text-[var(--bits-navy)]">
-        <input type="checkbox" name="claimConfirmed" />
-        I am {name}. Connect this profile to my signed-in account.
-      </label>
-      <button type="submit" disabled={pending} className={buttonClass}>
-        Use this profile
-      </button>
-      {state.message ? <p className="text-sm text-[var(--bits-navy)]">{state.message}</p> : null}
-    </form>
+      <p className="text-sm leading-6 text-[var(--bits-navy)]">
+        An administrator connects this church card. A checkbox, name, or email cannot claim it.
+      </p>
+    </section>
   );
 }
 

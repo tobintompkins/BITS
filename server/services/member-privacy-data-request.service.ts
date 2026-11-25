@@ -7,7 +7,7 @@ import {
   updateStaffPrivacyDataRequestSchema,
 } from "@/lib/validation/member-privacy-data-request";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 const memberHistorySelect = {
   requestType: true,
@@ -59,7 +59,7 @@ export async function getMemberPrivacyDataRequests() {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   const requests = await prisma.memberPrivacyDataRequest.findMany({
@@ -82,7 +82,7 @@ export async function submitMemberPrivacyDataRequest(input: unknown) {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   const parsed = submitMemberPrivacyDataRequestSchema.safeParse(input);
@@ -149,7 +149,7 @@ export async function listStaffPrivacyDataRequests() {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   const access = await getPrivacyRequestAccess(organization.id);
@@ -174,7 +174,7 @@ export async function updateStaffPrivacyDataRequestStatus(input: unknown) {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   const access = await getPrivacyRequestAccess(organization.id);

@@ -5,7 +5,7 @@ import {
   memberRegistrationCanAddToCalendar,
   sanitizeCalendarFileName,
 } from "@/lib/validation/member-event-calendar";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 import { prisma } from "@/lib/db/prisma";
 
 const publicLocationSelect = {
@@ -75,7 +75,7 @@ export async function getMemberEventCalendar(
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" };
 
   const parsed = memberEventCalendarRegistrationSchema.safeParse({

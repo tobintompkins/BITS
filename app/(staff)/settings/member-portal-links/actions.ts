@@ -4,12 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import {
+  connectPersonRecordsSchema,
   createLinkedDonorSchema,
-  linkExistingDonorSchema,
 } from "@/lib/validation/member-portal-link";
 import {
+  connectExistingPersonRecords,
   createLinkedDonor,
-  linkExistingDonorToAccount,
 } from "@/server/services/member-portal-link.service";
 
 function resultUrl(type: "success" | "error", message: string) {
@@ -17,17 +17,26 @@ function resultUrl(type: "success" | "error", message: string) {
   return `/settings/member-portal-links?${params.toString()}`;
 }
 
-export async function linkExistingDonorAction(formData: FormData) {
-  const parsed = linkExistingDonorSchema.safeParse({
-    donorId: formData.get("donorId"),
-    accountEmail: formData.get("accountEmail"),
+export async function connectPersonRecordsAction(formData: FormData) {
+  const parsed = connectPersonRecordsSchema.safeParse({
+    userAccountId: formData.get("userAccountId"),
+    donorId: formData.get("donorId") || "",
+    memberId: formData.get("memberId") || "",
+    profileId: formData.get("profileId") || "",
+    confirmed: formData.get("confirmed"),
   });
   if (!parsed.success) {
-    redirect(resultUrl("error", "Enter a valid account email and choose a donor."));
+    redirect(resultUrl("error", "Choose the BITS account, select a record, and confirm the connection."));
   }
   try {
-    await linkExistingDonorToAccount(parsed.data);
+    await connectExistingPersonRecords(parsed.data);
     revalidatePath("/portal");
+    revalidatePath("/portal/profile");
+    revalidatePath("/portal/gifts");
+    revalidatePath("/portal/statements");
+    revalidatePath("/portal/household");
+    revalidatePath("/portal/training");
+    revalidatePath("/portal/ministries");
     revalidatePath("/settings/member-portal-links");
   } catch (error) {
     redirect(
@@ -37,18 +46,18 @@ export async function linkExistingDonorAction(formData: FormData) {
       ),
     );
   }
-  redirect(resultUrl("success", "The donor and portal account are now connected."));
+  redirect(resultUrl("success", "The selected records are connected to that account."));
 }
 
 export async function createLinkedDonorAction(formData: FormData) {
   const parsed = createLinkedDonorSchema.safeParse({
-    accountEmail: formData.get("accountEmail"),
+    userAccountId: formData.get("userAccountId"),
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
     phone: formData.get("phone") || undefined,
   });
   if (!parsed.success) {
-    redirect(resultUrl("error", "Enter the account email, first name, and last name."));
+    redirect(resultUrl("error", "Choose the BITS account and enter the donor name."));
   }
   try {
     await createLinkedDonor(parsed.data);

@@ -5,7 +5,7 @@ import {
   MEMBER_ANNOUNCEMENTS_PAGE_SIZE,
   parseMemberAnnouncementsQuery,
 } from "@/lib/validation/member-announcements";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 export type MemberAnnouncement = {
   id: string;
@@ -44,7 +44,7 @@ export async function getMemberAnnouncements(
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" };
 
   const parsed = parseMemberAnnouncementsQuery(input);

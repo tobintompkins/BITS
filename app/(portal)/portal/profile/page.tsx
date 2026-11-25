@@ -5,6 +5,7 @@ import { MyChurchProfileForm } from "@/components/church/my-church-profile-form"
 import { toMemberProfileFormValues } from "@/lib/validation/member-profile-preferences";
 import { ownChurchProfile } from "@/server/services/church-person-profile.service";
 import { getMemberProfilePreferences } from "@/server/services/member-profile-preferences.service";
+import { PERSONAL_RECORD_LINK_PENDING_COPY } from "@/lib/auth/personal-record-connection";
 
 import { MemberProfileForm } from "./member-profile-form";
 
@@ -15,7 +16,7 @@ export default async function MemberProfilePage() {
   if (portal.status === "NO_ORGANIZATION") {
     return (
       <p className="rounded-xl bg-white p-5 text-sm">
-        The church organization has not been configured.
+        Choose your church before this section can be shown.
       </p>
     );
   }
@@ -29,8 +30,7 @@ export default async function MemberProfilePage() {
             My Profile &amp; Preferences
           </h1>
           <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
-            Your account ({portal.accountEmail}) must be connected to your donor
-            record before contact preferences can appear. A church profile is separate and does not create a donor.
+            {PERSONAL_RECORD_LINK_PENDING_COPY} Your personal church profile is separate and does not create a donor.
           </p>
         </section>
         <ChurchProfileSection churchProfile={churchProfile} />
@@ -99,7 +99,7 @@ function ChurchProfileSection({
       ) : (
         <>
           <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
-            Your church profile is not connected yet. Open the public team page and choose your own profile. A matching name or email does not connect it.
+            Your personal church profile is separate from donor contact preferences. Choose your church if it is not selected yet. An existing leadership card is connected by an administrator, not by a matching name or email.
           </p>
           <p className="mt-3">
             <Link href="/church-leadership/my-profile" className="text-sm font-semibold text-[var(--bits-navy)] underline">

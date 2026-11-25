@@ -19,7 +19,7 @@ export default async function MemberMinistryResourcesPage() {
   if (portal.status === "NO_ORGANIZATION") {
     return (
       <p className="rounded-xl bg-white p-5 text-sm">
-        The church organization has not been configured.
+        Choose your church before this section can be shown.
       </p>
     );
   }

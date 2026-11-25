@@ -6,6 +6,7 @@ import {
   MEMBER_STRIPE_GIVING_NOTICE,
   MEMBER_STRIPE_GIVING_SECURITY_COPY,
 } from "@/lib/validation/member-stripe-giving";
+import { PERSONAL_RECORD_LINK_PENDING_COPY } from "@/lib/auth/personal-record-connection";
 import { getMemberStripeGiving } from "@/server/services/member-stripe-giving.service";
 
 const focusClass =
@@ -28,7 +29,7 @@ export default async function MemberGivePage({
   if (portal.status === "NO_ORGANIZATION") {
     return (
       <p className="rounded-xl bg-white p-5 text-sm">
-        The church organization has not been configured.
+        Choose your church before this section can be shown.
       </p>
     );
   }
@@ -40,12 +41,7 @@ export default async function MemberGivePage({
           Give Online
         </h1>
         <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
-          Church staff must connect your account
-          {portal.status === "CONNECTION_PENDING"
-            ? ` (${portal.accountEmail})`
-            : ""}{" "}
-          to your giving record before member-attributed online giving can be
-          used. Guests can still give without signing in.
+          {PERSONAL_RECORD_LINK_PENDING_COPY} Guests can still give without signing in.
         </p>
         <p className="mt-4">
           <Link

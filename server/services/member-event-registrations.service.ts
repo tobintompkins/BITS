@@ -12,7 +12,7 @@ import {
   memberEventRegistrationStatusFilterMap,
   parseMemberEventRegistrationsQuery,
 } from "@/lib/validation/member-event-registrations";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 const publicLocationSelect = {
   name: true,
@@ -92,7 +92,7 @@ export async function getMemberEventRegistrations(
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" };
 
   const parsed = parseMemberEventRegistrationsQuery(input);

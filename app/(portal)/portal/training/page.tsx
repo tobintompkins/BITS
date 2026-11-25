@@ -18,7 +18,7 @@ export default async function MemberVolunteerTrainingPage() {
   if (portal.status === "NO_ORGANIZATION") {
     return (
       <p className="rounded-xl bg-white p-5 text-sm">
-        The church organization has not been configured.
+        The church for this sign-in has not been chosen, so training cannot be shown. Training stays on a connected church membership record and is not created here.
       </p>
     );
   }

@@ -35,11 +35,25 @@ export async function getOrCreateUserAccount() {
       ? joinedName
       : null;
 
-  return prisma.userAccount.create({
-    data: {
-      clerkUserId: userId,
-      primaryEmail,
-      displayName,
-    },
-  });
+  try {
+    return await prisma.userAccount.create({
+      data: {
+        clerkUserId: userId,
+        primaryEmail,
+        displayName,
+      },
+    });
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2002"
+    ) {
+      return prisma.userAccount.findUnique({
+        where: { clerkUserId: userId },
+      });
+    }
+    throw error;
+  }
 }

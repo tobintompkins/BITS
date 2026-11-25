@@ -26,6 +26,7 @@ export async function memberHasLeadershipPortalAccess() {
         organizationId: organization.id,
         userAccountId: userAccount.id,
         active: true,
+        churchAccess: "ACTIVE",
       },
       include: { roleType: { select: { code: true } } },
     });
@@ -79,6 +80,7 @@ async function loadMemberPortalDashboard() {
         organizationId: organization.id,
         userAccountId: userAccount.id,
         active: true,
+        churchAccess: "ACTIVE",
       },
       include: { roleType: { select: { code: true } } },
     }),

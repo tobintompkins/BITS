@@ -49,6 +49,7 @@ vi.mock("@/lib/auth/user-account", () => ({
 
 vi.mock("@/server/repositories/organization.repository", () => ({
   findPrimaryOrganization: mocks.findPrimaryOrganization,
+  findMemberPortalOrganization: mocks.findPrimaryOrganization,
 }));
 
 vi.mock("@/server/repositories/audit-event.repository", () => ({

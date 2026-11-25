@@ -10,6 +10,8 @@ import {
   planChurchProfilePublication,
   planOwnProfileClaim,
   planOwnPublicChoice,
+  planPersonalProfileSetup,
+  planPhotoChange,
   publicChurchProfile,
   publicUnassignedCards,
   type ChurchProfileSnapshot,
@@ -30,6 +32,7 @@ import {
   type CreateAuditEventInput,
 } from "@/server/repositories/audit-event.repository";
 import { findPublicOrganization } from "@/server/repositories/public-organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 const TEAM_TO_KEY: Record<ChurchTeam, ChurchTeamKey> = {
   LEADERSHIP: "leadership",
@@ -182,26 +185,113 @@ async function viewerForAccount(organizationId: string): Promise<
   };
 }
 
+async function ownProfileEditor(organizationId: string): Promise<
+  | { status: "SIGNED_OUT" }
+  | { status: "FORBIDDEN" }
+  | { status: "OK"; accountId: string; viewer: ChurchProfileViewer }
+> {
+  const account = await getOrCreateUserAccount();
+  if (!account?.active) return { status: account ? "FORBIDDEN" : "SIGNED_OUT" };
+  const membership = await prisma.organizationMembership.findFirst({
+    where: { organizationId, userAccountId: account.id },
+    include: { roleType: true },
+  });
+  if (membership && (!membership.active || membership.churchAccess !== "ACTIVE")) {
+    return { status: "FORBIDDEN" };
+  }
+  return {
+    status: "OK",
+    accountId: account.id,
+    viewer: {
+      organizationId,
+      userAccountId: account.id,
+      active: true,
+      churchAccess: "ACTIVE",
+      isAdmin: Boolean(
+        membership?.active &&
+          membership.churchAccess === "ACTIVE" &&
+          membership.roleType.code === RoleCode.ORG_ADMIN,
+      ),
+    },
+  };
+}
+
+export async function ensureOwnPersonalProfile() {
+  const account = await getOrCreateUserAccount();
+  if (!account) return { status: "SIGNED_OUT" as const };
+  if (!account.active) return { status: "INACTIVE" as const };
+  const organization = await findMemberPortalOrganization();
+  const membership = organization
+    ? await prisma.organizationMembership.findFirst({
+        where: { userAccountId: account.id, organizationId: organization.id },
+      })
+    : null;
+  const churchClosed = Boolean(
+    membership && (!membership.active || membership.churchAccess !== "ACTIVE"),
+  );
+  let existingRosterKey: string | null = null;
+  if (organization && !churchClosed) {
+    try {
+      const existing = await prisma.churchPersonProfile.findFirst({
+        where: { organizationId: organization.id, linkedUserAccountId: account.id },
+        select: { rosterKey: true },
+      });
+      existingRosterKey = existing?.rosterKey ?? null;
+    } catch (error) {
+      if (!isMissingTable(error)) throw error;
+      return { status: "UNAVAILABLE" as const };
+    }
+  }
+  const plan = planPersonalProfileSetup({
+    organizationId: organization?.id ?? null,
+    churchClosed,
+    existingLinkedRosterKey: existingRosterKey,
+    userAccountId: account.id,
+  });
+  if (plan.action === "skip") return { status: "SKIPPED" as const, reason: plan.reason };
+  if (plan.action === "reuse") return { status: "READY" as const, rosterKey: plan.rosterKey };
+  try {
+    const created = await prisma.churchPersonProfile.create({
+      data: {
+        organizationId: organization!.id,
+        rosterKey: plan.rosterKey,
+        officialName: account.displayName?.trim() || "Church member",
+        linkedUserAccountId: account.id,
+      },
+    });
+    await recordProfileAudit({
+      organizationId: organization!.id,
+      actorUserAccountId: account.id,
+      action: "CHURCH_PROFILE_LINK",
+      entityType: "ChurchPersonProfile",
+      entityId: created.id,
+      changes: [{ field: "linkedUserAccountId", oldValue: null, newValue: account.id }],
+    });
+    return { status: "READY" as const, rosterKey: plan.rosterKey };
+  } catch (error) {
+    if (isUniqueConflict(error)) return { status: "READY" as const, rosterKey: plan.rosterKey };
+    if (isMissingTable(error)) return { status: "UNAVAILABLE" as const };
+    return { status: "ERROR" as const };
+  }
+}
+
 export async function ownChurchProfile() {
   const account = await getOrCreateUserAccount();
   if (!account) return { status: "SIGNED_OUT" as const };
-  const membership = await prisma.organizationMembership.findFirst({
-    where: { userAccountId: account.id, active: true, churchAccess: "ACTIVE" },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!membership) return { status: "NO_PROFILE" as const, accountName: account.displayName };
+  const ensured = await ensureOwnPersonalProfile();
+  if (ensured.status !== "READY") {
+    return { status: "NO_PROFILE" as const, accountName: account.displayName };
+  }
+  const organization = await findMemberPortalOrganization();
+  if (!organization) return { status: "NO_PROFILE" as const, accountName: account.displayName };
   let stored: Awaited<ReturnType<typeof loadProfiles>> = [];
   try {
-    stored = await loadProfiles(membership.organizationId);
+    stored = await loadProfiles(organization.id);
   } catch (error) {
     if (!isMissingTable(error)) throw error;
   }
-  const match = stored.find(
-    (item) => item.snapshot.linkedUserAccountId === account.id,
-  );
-  if (!match) {
-    return { status: "NO_PROFILE" as const, accountName: account.displayName };
-  }
+  const match = stored.find((item) => item.snapshot.linkedUserAccountId === account.id);
+  if (!match) return { status: "NO_PROFILE" as const, accountName: account.displayName };
   return {
     status: "READY" as const,
     profile: match.snapshot,
@@ -220,7 +310,7 @@ function textField(value: FormDataEntryValue | null, limit: number) {
 export async function saveOwnChurchProfile(formData: FormData) {
   const current = await ownChurchProfile();
   if (current.status !== "READY") return { ok: false as const, message: "A church profile has not been linked to this account." };
-  const viewerResult = await viewerForAccount(current.profile.organizationId);
+  const viewerResult = await ownProfileEditor(current.profile.organizationId);
   if (viewerResult.status !== "OK" || !canEditOwnChurchProfile(current.profile, viewerResult.viewer)) {
     return { ok: false as const, message: "You can edit only your own church profile." };
   }
@@ -312,89 +402,28 @@ export async function claimOwnChurchProfile(formData: FormData) {
     targetLinkedUserAccountId: target?.snapshot.linkedUserAccountId ?? null,
     actorUserAccountId: access.account.id,
   });
-  if (!plan.ok || !person) {
-    return { ok: false as const, message: "Choose your own unclaimed profile and confirm that it is you." };
+  if (!plan.ok || target?.snapshot.linkedUserAccountId !== access.account.id) {
+    return {
+      ok: false as const,
+      message: "An administrator must connect an existing church card. A name, email, or checkbox cannot claim someone else's profile.",
+    };
   }
-  let profileId = target?.row.id ?? null;
-  try {
-    if (target) {
-      await prisma.churchPersonProfile.update({
-        where: { id: target.row.id },
-        data: { linkedUserAccountId: access.account.id },
-      });
-    } else {
-      const created = await prisma.churchPersonProfile.create({
-        data: {
-          organizationId: access.membership.organizationId,
-          rosterKey: person.key,
-          officialName: person.officialName,
-          linkedUserAccountId: access.account.id,
-          assignments: {
-            create: person.teams.map((team) => ({
-              team: KEY_TO_TEAM[team.team],
-              sortOrder: team.sortOrder,
-            })),
-          },
-        },
-      });
-      profileId = created.id;
-    }
-  } catch (error) {
-    if (isMissingTable(error) || isUniqueConflict(error)) {
-      return { ok: false as const, message: "That profile is already connected to an account." };
-    }
-    return { ok: false as const, message: PROFILE_SAVE_ERROR };
-  }
-  if (!profileId) {
-    return { ok: false as const, message: "Your profile could not be saved." };
-  }
-  const auditError = await recordProfileAudit({
-    organizationId: access.membership.organizationId,
-    actorUserAccountId: access.account.id,
-    action: "CHURCH_PROFILE_LINK",
-    entityType: "ChurchPersonProfile",
-    entityId: profileId,
-    changes: [{ field: "linkedUserAccountId", oldValue: null, newValue: access.account.id }],
-  });
-  if (auditError) return { ok: false as const, message: auditError };
-  return { ok: true as const, message: "This profile is yours. You can update the photo and description." };
+  return { ok: true as const, message: "Your profile is ready." };
 }
 
 export async function createOwnPersonalProfile() {
-  const access = await activeMemberAccount();
-  if (access.status !== "OK") {
+  const ensured = await ensureOwnPersonalProfile();
+  if (ensured.status === "SIGNED_OUT" || ensured.status === "INACTIVE") {
     return { ok: false as const, message: "Sign in with active church access to update your own profile." };
   }
-  const stored = await loadProfiles(access.membership.organizationId);
-  const current = stored.find((item) => item.snapshot.linkedUserAccountId === access.account.id);
-  if (current) return { ok: true as const, message: "Your profile is ready." };
-  const rosterKey = `account-${access.account.id}`;
-  try {
-    const created = await prisma.churchPersonProfile.create({
-      data: {
-        organizationId: access.membership.organizationId,
-        rosterKey,
-        officialName: access.account.displayName?.trim() || "Church member",
-        linkedUserAccountId: access.account.id,
-      },
-    });
-    const auditError = await recordProfileAudit({
-      organizationId: access.membership.organizationId,
-      actorUserAccountId: access.account.id,
-      action: "CHURCH_PROFILE_LINK",
-      entityType: "ChurchPersonProfile",
-      entityId: created.id,
-      changes: [{ field: "linkedUserAccountId", oldValue: null, newValue: access.account.id }],
-    });
-    if (auditError) return { ok: false as const, message: auditError };
-    return { ok: true as const, message: "Your profile is ready." };
-  } catch (error) {
-    if (isMissingTable(error)) {
-      return { ok: false as const, message: "Apply the local church-profile migration before saving." };
-    }
-    if (isUniqueConflict(error)) return { ok: true as const, message: "Your profile is ready." };
-    return { ok: false as const, message: PROFILE_SAVE_ERROR };
+  if (ensured.status === "UNAVAILABLE") {
+    return { ok: false as const, message: "Apply the local church-profile migration before saving." };
   }
+  if (ensured.status === "READY") return { ok: true as const, message: "Your profile is ready." };
+  if (ensured.status === "SKIPPED" && ensured.reason === "CHURCH_CLOSED") {
+    return { ok: false as const, message: "This church has closed your access." };
+  }
+  return { ok: false as const, message: "Choose your church before a personal profile can be created." };
 }
 
 function checkedTeams(formData: FormData): ChurchTeamKey[] {
@@ -565,48 +594,160 @@ export async function adminChurchProfiles(organizationId: string) {
   return { status: "READY" as const, profiles: [...roster, ...extras] };
 }
 
-export async function readChurchProfilePhoto(
-  rosterKey: string,
-  viewer: ChurchProfileViewer | null,
-) {
-  const organization = await findPublicOrganization();
-  const organizationId = viewer?.organizationId ?? organization?.id;
-  if (!organizationId) return null;
-  const stored = await loadProfiles(organizationId);
-  const match = stored.find((item) => item.snapshot.rosterKey === rosterKey);
-  if (!match?.row.photo || !canReadProfilePhoto(match.snapshot, viewer)) return null;
-  return {
-    bytes: match.row.photo,
-    contentType: match.row.photoContentType || "image/webp",
-  };
-}
-
-async function profileForPhotoChange(rosterKey: string) {
+export async function readChurchProfilePhoto(rosterKey: string) {
   const account = await getOrCreateUserAccount();
-  if (!account) return null;
-  const memberships = await prisma.organizationMembership.findMany({
-    where: { userAccountId: account.id, active: true, churchAccess: "ACTIVE" },
-    include: { roleType: true },
-  });
-  for (const membership of memberships) {
-    const stored = await loadProfiles(membership.organizationId);
+  const organizationIds = new Set<string>();
+  const publicOrganization = await findPublicOrganization();
+  if (publicOrganization) organizationIds.add(publicOrganization.id);
+  const memberships = account?.active
+    ? await prisma.organizationMembership.findMany({
+        where: { userAccountId: account.id, active: true, churchAccess: "ACTIVE" },
+        include: { roleType: true },
+      })
+    : [];
+  for (const membership of memberships) organizationIds.add(membership.organizationId);
+  if (account?.active) {
+    const portal = await findMemberPortalOrganization();
+    if (portal) organizationIds.add(portal.id);
+  }
+  for (const organizationId of organizationIds) {
+    let stored: Awaited<ReturnType<typeof loadProfiles>> = [];
+    try {
+      stored = await loadProfiles(organizationId);
+    } catch (error) {
+      if (isMissingTable(error)) continue;
+      throw error;
+    }
     const match = stored.find((item) => item.snapshot.rosterKey === rosterKey);
-    if (!match) continue;
-    const viewer: ChurchProfileViewer = {
-      organizationId: membership.organizationId,
-      userAccountId: account.id,
-      active: true,
-      churchAccess: "ACTIVE",
-      isAdmin: membership.roleType.code === RoleCode.ORG_ADMIN,
-    };
-    const owns = match.snapshot.linkedUserAccountId === account.id;
-    if (viewer.isAdmin || owns) return { accountId: account.id, row: match.row, viewer };
+    if (!match?.row.photo) continue;
+    if (publicChurchProfile(match.snapshot)?.photo) {
+      return { bytes: match.row.photo, contentType: match.row.photoContentType || "image/webp" };
+    }
+    if (!account?.active) continue;
+    const membership = memberships.find((item) => item.organizationId === organizationId);
+    const viewer: ChurchProfileViewer | null = membership
+      ? {
+          organizationId,
+          userAccountId: account.id,
+          active: true,
+          churchAccess: "ACTIVE",
+          isAdmin: membership.roleType.code === RoleCode.ORG_ADMIN,
+        }
+      : match.snapshot.linkedUserAccountId === account.id
+        ? {
+            organizationId,
+            userAccountId: account.id,
+            active: true,
+            churchAccess: "ACTIVE",
+            isAdmin: false,
+          }
+        : null;
+    if (viewer && canReadProfilePhoto(match.snapshot, viewer)) {
+      return { bytes: match.row.photo, contentType: match.row.photoContentType || "image/webp" };
+    }
   }
   return null;
 }
 
+async function photoChangeTarget(rosterKey: string, createIfMissing: boolean) {
+  const account = await getOrCreateUserAccount();
+  if (!account) return null;
+  const memberships = await prisma.organizationMembership.findMany({
+    where: { userAccountId: account.id },
+    include: { roleType: true },
+  });
+  const portal = await findMemberPortalOrganization();
+  const publicOrganization = await findPublicOrganization();
+  const organizationIds = new Set<string>(memberships.map((item) => item.organizationId));
+  if (portal) organizationIds.add(portal.id);
+  if (publicOrganization) organizationIds.add(publicOrganization.id);
+  const profiles: {
+    organizationId: string;
+    rosterKey: string;
+    linkedUserAccountId: string | null;
+    row: ProfileRow;
+  }[] = [];
+  for (const organizationId of organizationIds) {
+    const stored = await loadProfiles(organizationId);
+    for (const item of stored) {
+      profiles.push({
+        organizationId,
+        rosterKey: item.snapshot.rosterKey,
+        linkedUserAccountId: item.snapshot.linkedUserAccountId,
+        row: item.row,
+      });
+    }
+  }
+  const plan = planPhotoChange({
+    actorUserAccountId: account.id,
+    actorActive: account.active,
+    rosterKey,
+    memberships: memberships.map((membership) => ({
+      organizationId: membership.organizationId,
+      active: membership.active,
+      churchAccess: membership.churchAccess,
+      isAdmin: membership.roleType.code === RoleCode.ORG_ADMIN,
+    })),
+    profiles,
+    portalOrganizationId: portal?.id ?? null,
+    publicOrganizationId: publicOrganization?.id ?? null,
+    knownRosterKeys: churchRoster().map((person) => person.key),
+  });
+  if (!plan.ok) return null;
+  if (plan.action === "update") {
+    const match = profiles.find(
+      (item) => item.organizationId === plan.organizationId && item.rosterKey === rosterKey,
+    );
+    return match ? { accountId: account.id, row: match.row } : null;
+  }
+  if (!createIfMissing) return null;
+  const person = churchRoster().find((item) => item.key === rosterKey);
+  if (!person || !publicOrganization || plan.organizationId !== publicOrganization.id) return null;
+  const created = await prisma.churchPersonProfile.create({
+    data: {
+      organizationId: plan.organizationId,
+      rosterKey: person.key,
+      officialName: person.officialName,
+      publication: "HIDDEN",
+      publicConsent: false,
+      photoPublicConsent: false,
+      shareWithMembers: false,
+      photoShareWithMembers: false,
+      linkedUserAccountId: null,
+      assignments: {
+        create: person.teams.map((team) => ({
+          team: KEY_TO_TEAM[team.team],
+          sortOrder: team.sortOrder,
+        })),
+      },
+    },
+  });
+  return {
+    accountId: account.id,
+    row: { ...created, assignments: person.teams.map((team) => ({ team: KEY_TO_TEAM[team.team], sortOrder: team.sortOrder })) },
+  };
+}
+
+export async function publicChurchPhotoEditors() {
+  const account = await getOrCreateUserAccount();
+  const organization = await findPublicOrganization();
+  if (!account?.active || !organization) return null;
+  const membership = await prisma.organizationMembership.findFirst({
+    where: {
+      organizationId: organization.id,
+      userAccountId: account.id,
+      active: true,
+      churchAccess: "ACTIVE",
+      roleType: { code: RoleCode.ORG_ADMIN },
+    },
+  });
+  if (!membership) return null;
+  const stored = await loadProfiles(organization.id);
+  return new Map(stored.map((item) => [item.snapshot.rosterKey, item.snapshot.hasPhoto]));
+}
+
 export async function saveChurchProfilePhoto(rosterKey: string, bytes: Uint8Array) {
-  const target = await profileForPhotoChange(rosterKey);
+  const target = await photoChangeTarget(rosterKey, true);
   if (!target) return { ok: false as const, message: "You cannot change this photo." };
   const prepared = await prepareChurchProfilePhoto(bytes);
   await prisma.churchPersonProfile.update({
@@ -626,7 +767,7 @@ export async function saveChurchProfilePhoto(rosterKey: string, bytes: Uint8Arra
 }
 
 export async function removeChurchProfilePhoto(rosterKey: string) {
-  const target = await profileForPhotoChange(rosterKey);
+  const target = await photoChangeTarget(rosterKey, false);
   if (!target) return { ok: false as const, message: "You cannot change this photo." };
   await prisma.churchPersonProfile.update({
     where: { id: target.row.id },

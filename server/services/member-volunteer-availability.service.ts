@@ -8,7 +8,7 @@ import {
   type MemberVolunteerAvailabilityInput,
 } from "@/lib/validation/member-volunteer-availability";
 import { createAuditEvent } from "@/server/repositories/audit-event.repository";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 export type MemberVolunteerAvailabilityAccessResult =
   | { status: "SIGNED_OUT" }
@@ -43,7 +43,7 @@ async function resolveLinkedMemberAccess() {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   return {

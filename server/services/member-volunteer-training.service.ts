@@ -6,7 +6,7 @@ import {
   volunteerTrainingStatus,
 } from "@/lib/validation/volunteer-training";
 import type { VolunteerTrainingStatus } from "@/lib/validation/volunteer-training";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 export type MemberVolunteerTrainingRow = {
   title: string;
@@ -41,7 +41,7 @@ export async function getMemberVolunteerTraining(
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" };
 
   const member = await prisma.member.findFirst({

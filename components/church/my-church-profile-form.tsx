@@ -4,6 +4,7 @@ import { useActionState } from "react";
 
 import type { ChurchProfileSnapshot } from "@/lib/church/church-profile-access";
 import { saveOwnChurchProfileAction } from "@/app/(portal)/portal/profile/church-profile-actions";
+import { churchPersonInitials } from "@/lib/church/team-roster";
 import { ProfilePhotoControls } from "@/components/church/profile-photo-controls";
 
 const fieldClass =
@@ -17,8 +18,14 @@ export function MyChurchProfileForm({ profile }: { profile: ChurchProfileSnapsho
   return (
     <form action={action} className="grid gap-4">
       <p className="text-sm leading-6 text-[var(--bits-muted)]">
-        Your descriptions are personal. Church teams and titles stay with the administrator and are not security permissions.
+        Your descriptions are personal. Changing a photo does not publish it. Church teams and titles stay with the administrator and are not security permissions.
       </p>
+      <ProfilePhotoControls
+        rosterKey={profile.rosterKey}
+        hasPhoto={profile.hasPhoto}
+        initials={churchPersonInitials(profile.preferredName || profile.officialName)}
+        label="Change photo"
+      />
       <label className="text-sm font-medium text-[var(--bits-navy)]">
         Preferred display name
         <input name="preferredName" defaultValue={profile.preferredName ?? ""} maxLength={80} className={fieldClass} />
@@ -63,7 +70,6 @@ export function MyChurchProfileForm({ profile }: { profile: ChurchProfileSnapsho
           )) : <li className="text-sm text-[var(--bits-muted)]">No church team is assigned.</li>}
         </ul>
       </div>
-      <ProfilePhotoControls rosterKey={profile.rosterKey} hasPhoto={profile.hasPhoto} />
       <button type="submit" disabled={pending} className="w-fit rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]">
         Save profile
       </button>

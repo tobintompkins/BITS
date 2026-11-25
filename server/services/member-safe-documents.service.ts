@@ -14,7 +14,7 @@ import {
   isSafeMemberDocumentType,
   memberSafeDocumentIdSchema,
 } from "@/lib/validation/member-safe-documents";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 export type MemberSafeDocumentRow = {
   id: string;
@@ -79,7 +79,7 @@ async function resolveLinkedMember() {
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" as const };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" as const };
 
   const member = await prisma.member.findFirst({

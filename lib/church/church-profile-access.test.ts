@@ -9,6 +9,8 @@ import {
   planChurchProfileLink,
   planChurchProfilePublication,
   planOwnProfileClaim,
+  planPersonalProfileSetup,
+  planPhotoChange,
   planOwnPublicChoice,
   publicChurchProfile,
   publicChurchProfileKeys,
@@ -204,8 +206,56 @@ describe("church profile visibility", () => {
         currentLinkedRosterKey: null,
         targetLinkedUserAccountId: null,
         actorUserAccountId: OWNER,
+      }),
+    ).toMatchObject({ ok: false, reason: "UNVERIFIED_CLAIM" });
+    expect(
+      planOwnProfileClaim({
+        confirmed: true,
+        active: true,
+        churchAccess: "ACTIVE",
+        rosterKey: "casey-helmuth",
+        allowedRosterKeys: ["casey-helmuth"],
+        currentLinkedRosterKey: "casey-helmuth",
+        targetLinkedUserAccountId: OWNER,
+        actorUserAccountId: OWNER,
       }).ok,
     ).toBe(true);
+    expect(
+      planPersonalProfileSetup({
+        organizationId: ORG,
+        churchClosed: false,
+        existingLinkedRosterKey: "account-owner",
+        userAccountId: OWNER,
+      }),
+    ).toEqual({ action: "reuse", rosterKey: "account-owner" });
+    expect(
+      planPersonalProfileSetup({
+        organizationId: ORG,
+        churchClosed: false,
+        existingLinkedRosterKey: null,
+        userAccountId: OWNER,
+      }),
+    ).toMatchObject({
+      action: "create",
+      rosterKey: `account-${OWNER}`,
+      publication: "HIDDEN",
+    });
+    expect(
+      planPersonalProfileSetup({
+        organizationId: ORG,
+        churchClosed: true,
+        existingLinkedRosterKey: null,
+        userAccountId: OWNER,
+      }),
+    ).toEqual({ action: "skip", reason: "CHURCH_CLOSED" });
+    expect(
+      planPersonalProfileSetup({
+        organizationId: null,
+        churchClosed: false,
+        existingLinkedRosterKey: null,
+        userAccountId: OWNER,
+      }),
+    ).toEqual({ action: "skip", reason: "NO_CHURCH" });
     expect(
       planOwnProfileClaim({
         confirmed: false,
@@ -273,6 +323,7 @@ describe("church profile visibility", () => {
     const casey = board?.people.find((person) => person.key === "casey-helmuth");
     expect(casey?.photoUrl).toBeNull();
     expect(casey?.href).toBe("/church-leadership/casey-helmuth");
+    expect(casey?.canEditPhoto).toBeUndefined();
     expect(casey?.name).toBe("Casey Helmuth");
     const hidden = buildChurchTeamCards([profile()]);
     expect(
@@ -280,5 +331,103 @@ describe("church profile visibility", () => {
         .flatMap((section) => section.people)
         .find((person) => person.key === "casey-helmuth")?.href,
     ).toBeNull();
+  });
+
+  it("keeps photo changes inside an authorized church and does not claim another person", () => {
+    const owner = {
+      actorUserAccountId: OWNER,
+      actorActive: true,
+      rosterKey: `account-${OWNER}`,
+      memberships: [],
+      profiles: [
+        {
+          organizationId: ORG,
+          rosterKey: `account-${OWNER}`,
+          linkedUserAccountId: OWNER,
+        },
+      ],
+      portalOrganizationId: ORG,
+      publicOrganizationId: ORG,
+      knownRosterKeys: ["casey-helmuth"],
+    };
+    expect(planPhotoChange(owner)).toMatchObject({
+      ok: true,
+      action: "update",
+      organizationId: ORG,
+    });
+    expect(
+      planPhotoChange({
+        ...owner,
+        rosterKey: "casey-helmuth",
+        profiles: [
+          {
+            organizationId: ORG,
+            rosterKey: "casey-helmuth",
+            linkedUserAccountId: null,
+          },
+        ],
+      }),
+    ).toMatchObject({ ok: false, reason: "UNAUTHORIZED" });
+    expect(
+      planPhotoChange({
+        ...owner,
+        rosterKey: "casey-helmuth",
+        profiles: [],
+        memberships: [
+          {
+            organizationId: ORG,
+            active: true,
+            churchAccess: "ACTIVE",
+            isAdmin: true,
+          },
+        ],
+      }),
+    ).toMatchObject({
+      ok: true,
+      action: "create-hidden",
+      linkedUserAccountId: null,
+      publication: "HIDDEN",
+    });
+    expect(
+      planPhotoChange({
+        ...owner,
+        rosterKey: "casey-helmuth",
+        profiles: [
+          {
+            organizationId: OTHER,
+            rosterKey: "casey-helmuth",
+            linkedUserAccountId: null,
+          },
+        ],
+        memberships: [
+          {
+            organizationId: ORG,
+            active: true,
+            churchAccess: "ACTIVE",
+            isAdmin: true,
+          },
+        ],
+        publicOrganizationId: OTHER,
+      }),
+    ).toMatchObject({ ok: false, reason: "UNAUTHORIZED" });
+    expect(
+      planPhotoChange({
+        ...owner,
+        actorActive: false,
+      }),
+    ).toMatchObject({ ok: false, reason: "INACTIVE" });
+    expect(
+      planPhotoChange({
+        ...owner,
+        memberships: [
+          {
+            organizationId: ORG,
+            active: true,
+            churchAccess: "SUSPENDED",
+            isAdmin: false,
+          },
+        ],
+      }),
+    ).toMatchObject({ ok: false, reason: "UNAUTHORIZED" });
   });
 });

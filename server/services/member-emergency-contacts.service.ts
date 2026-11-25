@@ -1,7 +1,7 @@
 import { getOrCreateUserAccount } from "@/lib/auth/user-account";
 import { prisma } from "@/lib/db/prisma";
 import { emergencyContactPrimaryStatusLabel } from "@/lib/validation/member-emergency-contacts";
-import { findPrimaryOrganization } from "@/server/repositories/organization.repository";
+import { findMemberPortalOrganization } from "@/server/repositories/organization.repository";
 
 export type MemberEmergencyContactRow = {
   name: string;
@@ -35,7 +35,7 @@ export async function getMemberEmergencyContacts(): Promise<MemberEmergencyConta
   const userAccount = await getOrCreateUserAccount();
   if (!userAccount) return { status: "SIGNED_OUT" };
 
-  const organization = await findPrimaryOrganization();
+  const organization = await findMemberPortalOrganization();
   if (!organization) return { status: "NO_ORGANIZATION" };
 
   const member = await prisma.member.findFirst({

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { PERSONAL_RECORD_LINK_PENDING_COPY } from "@/lib/auth/personal-record-connection";
 import { getMemberHouseholdSummary } from "@/server/services/member-household-summary.service";
 
 function formatAddress(row: {
@@ -61,7 +62,7 @@ export default async function MemberHouseholdPage() {
   if (portal.status === "NO_ORGANIZATION") {
     return (
       <p className="rounded-xl bg-white p-5 text-sm">
-        The church organization has not been configured.
+        Choose your church before this section can be shown.
       </p>
     );
   }
@@ -73,8 +74,7 @@ export default async function MemberHouseholdPage() {
           Contact &amp; Family
         </h1>
         <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
-          Your account ({portal.accountEmail}) must be connected to your donor
-          record before household information can appear.
+          {PERSONAL_RECORD_LINK_PENDING_COPY}
         </p>
       </section>
     );
@@ -97,8 +97,8 @@ export default async function MemberHouseholdPage() {
         <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-6 shadow-sm">
           <p className="text-sm leading-6 text-[var(--bits-muted)]">
             We do not currently have an active household connection on your
-            giving record. Please contact the church office if you believe this
-            is incorrect.
+            donor record. This page does not create a household. Contact the
+            church office if this information needs correction.
           </p>
           <div className="mt-4">
             <StaffChangeNote />

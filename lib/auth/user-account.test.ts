@@ -111,6 +111,17 @@ describe("getOrCreateUserAccount does not grant membership", () => {
     expect(mocks.membershipUpsert).not.toHaveBeenCalled();
   });
 
+  it("reuses the account when a simultaneous sign-in already created it", async () => {
+    mocks.userAccountFindUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(ACCOUNT);
+    mocks.userAccountCreate.mockRejectedValueOnce({ code: "P2002" });
+
+    await expect(getOrCreateUserAccount()).resolves.toEqual(ACCOUNT);
+    expect(mocks.membershipCreate).not.toHaveBeenCalled();
+    expect(mocks.membershipUpsert).not.toHaveBeenCalled();
+  });
+
   it("does not grant ORG_ADMIN to a selected-org Clerk member with no BITS membership", async () => {
     mocks.auth.mockResolvedValue({ userId: "user-1", orgId: "clerk-org-a" });
 
