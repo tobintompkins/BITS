@@ -73,7 +73,7 @@ export default async function MemberPortalHelpPage() {
           href="/portal"
           className={`text-sm font-medium text-[var(--bits-navy)] underline ${focusClass}`}
         >
-          Member Portal Home
+          My Home
         </Link>
       </header>
 
@@ -99,7 +99,7 @@ export default async function MemberPortalHelpPage() {
           <HelpLink href="/portal/profile">My Profile</HelpLink>. Name,
           household membership, and mailing-address changes require church
           staff. See your household connection on{" "}
-          <HelpLink href="/portal/household">My Household</HelpLink>.
+          <HelpLink href="/portal/household">Contact &amp; Family</HelpLink>.
         </p>
       </section>
 

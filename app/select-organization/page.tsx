@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
+import { AccountMenu } from "@/components/account/account-menu";
 import { prisma } from "@/lib/db/prisma";
 import { isDatabaseUnavailableError } from "@/lib/db/database-unavailable";
 import { ChurchSelection } from "@/components/auth/church-selection";
@@ -26,7 +26,7 @@ export default async function SelectOrganizationPage() {
     unavailable = true;
   }
   return <main className="mx-auto max-w-xl space-y-6 p-8 text-[var(--bits-navy)]">
-    <div className="flex items-center justify-between"><h1 className="text-2xl font-semibold">Choose your church</h1><UserButton /></div>
+    <div className="flex items-center justify-between"><h1 className="text-2xl font-semibold">Choose your church</h1><AccountMenu /></div>
     {unavailable ? (
       <p role="alert">Church records are temporarily unavailable. Refresh this page to try again.</p>
     ) : (

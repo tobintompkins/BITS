@@ -1,4 +1,4 @@
-import { UserButton } from "@clerk/nextjs";
+import { AccountMenu } from "@/components/account/account-menu";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -87,10 +87,12 @@ export default async function StaffLayout({
   const navGroups: NavGroup[] = [
     {
       label: "Home",
+      description: "Open the leadership home for this church.",
       items: [{ href: "/dashboard", label: "Leadership Home" }, { href: "/select-organization", label: "Choose Church" }],
     },
     {
       label: "People",
+      description: "Manage church members and their approved access.",
       items: [
         { href: "/members", label: "Members" },
         { href: "/households", label: "Households" },
@@ -107,6 +109,7 @@ export default async function StaffLayout({
     },
     {
       label: "Ministry",
+      description: "Review ministries, volunteer schedules, training, and resources.",
       items: [
         ...(engagementAccess?.canViewMinistries
           ? [
@@ -130,6 +133,7 @@ export default async function StaffLayout({
     },
     {
       label: "Pastoral Care",
+      description: "Review prayer requests, follow-ups, and pastoral care notes.",
       items: [
         ...(careAccess?.canViewPrayerRequests
           ? [{ href: "/prayer-requests", label: "Prayer Requests" }]
@@ -144,6 +148,7 @@ export default async function StaffLayout({
     },
     {
       label: "Church Life",
+      description: "Manage events, attendance, announcements, and church facilities.",
       items: [
         ...(eventAccess?.canView
           ? [
@@ -180,6 +185,7 @@ export default async function StaffLayout({
     },
     {
       label: "Giving",
+      description: "Review donors, gifts, and offering batches.",
       items: [
         ...(givingAccess?.canViewGiving
           ? [
@@ -198,6 +204,7 @@ export default async function StaffLayout({
     },
     {
       label: "Statements",
+      description: "Prepare and review contribution statements.",
       items: [
         ...(givingAccess?.canViewStatements
           ? [
@@ -227,6 +234,7 @@ export default async function StaffLayout({
     },
     {
       label: "Reports",
+      description: "Open giving reports for authorized church staff.",
       items: [
         ...(givingAccess?.canExportGiving
           ? [{ href: "/reports", label: "Reports" }]
@@ -238,6 +246,7 @@ export default async function StaffLayout({
     },
     {
       label: "Administration",
+      description: "Update church settings and staff access. A church title does not grant these permissions.",
       items: [
         { href: "/settings/organization", label: "Organization Settings" },
         ...staffLeadershipDocumentNavItems(Boolean(organizationAccess?.canEdit)),
@@ -326,11 +335,11 @@ export default async function StaffLayout({
             <DisplayOptions />
             <Link
               href="/"
-              className="hidden text-sm font-medium text-white/85 underline-offset-4 hover:text-white hover:underline sm:inline"
+              className="bits-nav-link hidden rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)] sm:inline"
             >
-              Public site
+              Church Home
             </Link>
-            <UserButton />
+            <AccountMenu />
           </div>
         </div>
       </header>

@@ -6,12 +6,14 @@ export type MemberPortalNavItem = {
 
 export type MemberPortalNavGroup = {
   heading: string;
+  description: string;
   items: MemberPortalNavItem[];
 };
 
 export const MEMBER_PORTAL_NAV_GROUPS: MemberPortalNavGroup[] = [
   {
     heading: "Giving",
+    description: "Give and review your own recorded gifts and statements.",
     items: [
       {
         href: "/portal/give",
@@ -30,16 +32,11 @@ export const MEMBER_PORTAL_NAV_GROUPS: MemberPortalNavGroup[] = [
         description:
           "Open published contribution statements when they are available.",
       },
-      {
-        href: "/portal/household",
-        label: "My Household",
-        description:
-          "See your household connection and whether you are authorized to receive household statements.",
-      },
     ],
   },
   {
     heading: "Church Life",
+    description: "See your church activity, service schedule, training, and resources.",
     items: [
       {
         href: "/portal/events",
@@ -97,35 +94,48 @@ export const MEMBER_PORTAL_NAV_GROUPS: MemberPortalNavGroup[] = [
         href: "/portal/training",
         label: "My Training",
         description:
-          "Review your recorded ministry training and expiration dates.",
+          "See your recorded training and anything due for renewal.",
       },
       {
         href: "/portal/resources",
         label: "My Ministry Resources",
         description:
-          "Open published resource links for ministries you serve.",
+          "Open the published links for ministries you serve.",
       },
       {
         href: "/portal/volunteer-time-off",
         label: "Request Time Off",
         description:
-          "Ask church leadership for dates when you cannot volunteer.",
+          "Tell church leadership when you cannot serve—for example, during a vacation. A request does not cancel current assignments.",
       },
     ],
   },
   {
     heading: "My Account",
+    description: "Update your profile, contact details, and sign-in settings.",
     items: [
       {
+        href: "/portal/account",
+        label: "My Account",
+        description: "Start here for your profile, contacts, and sign-in settings.",
+      },
+      {
         href: "/portal/profile",
-        label: "My Profile & Preferences",
-        description: "Update your email, phone, and preferred contact method.",
+        label: "My Profile",
+        description:
+          "Update your photo, introduction, and who can see your church profile. Church roles stay with the church.",
+      },
+      {
+        href: "/portal/household",
+        label: "Contact & Family",
+        description:
+          "Review your household connection. Email and phone stay on My Profile. This does not open another adult’s profile or children’s information.",
       },
       {
         href: "/portal/emergency-contacts",
-        label: "My Emergency Contacts",
+        label: "Emergency Contacts",
         description:
-          "Review the emergency contacts recorded on your membership.",
+          "Review the emergency contacts recorded on your membership. This page is read-only.",
       },
       {
         href: "/portal/documents",
@@ -164,7 +174,7 @@ export const MEMBER_PORTAL_NAV_GROUPS: MemberPortalNavGroup[] = [
 export const MEMBER_PORTAL_PENDING_LINKS: MemberPortalNavItem[] = [
   { href: "/portal/announcements", label: "Church Announcements" },
   { href: "/portal/help", label: "Help & Contact" },
-  { href: "/", label: "Public Home" },
+  { href: "/", label: "Church Home" },
 ];
 
 export function listMemberPortalNavItems() {

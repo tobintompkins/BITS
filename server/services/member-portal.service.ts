@@ -15,6 +15,27 @@ const LEADERSHIP_ROLES: RoleCode[] = [
   RoleCode.REPORT_VIEWER,
 ];
 
+export async function memberHasLeadershipPortalAccess() {
+  try {
+    const userAccount = await getOrCreateUserAccount();
+    if (!userAccount) return false;
+    const organization = await findMemberPortalOrganization();
+    if (!organization) return false;
+    const membership = await prisma.organizationMembership.findFirst({
+      where: {
+        organizationId: organization.id,
+        userAccountId: userAccount.id,
+        active: true,
+      },
+      include: { roleType: { select: { code: true } } },
+    });
+    return Boolean(membership && LEADERSHIP_ROLES.includes(membership.roleType.code));
+  } catch (error) {
+    if (isDatabaseUnavailableError(error)) return false;
+    throw error;
+  }
+}
+
 export async function getMemberPortalDashboard() {
   try {
     return await loadMemberPortalDashboard();

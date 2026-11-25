@@ -43,7 +43,13 @@ export default function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: DISPLAY_PREFERENCES_BOOT_SCRIPT }}
         />
-        <ClerkProvider>
+        <ClerkProvider
+          localization={{
+            userButton: {
+              action__manageAccount: "Sign-in & Security",
+            },
+          }}
+        >
           <DisplayPreferencesRoot />
           {children}
         </ClerkProvider>

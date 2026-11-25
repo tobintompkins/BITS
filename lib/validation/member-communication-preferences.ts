@@ -28,7 +28,7 @@ export const MEMBER_COMMUNICATION_PREFERENCE_LABELS: Record<
 };
 
 export const MEMBER_COMMUNICATION_PREFERENCES_NOTICE =
-  "These settings apply to ordinary church communication. They do not prevent necessary legal or safety contact when applicable.";
+  "Choose how the church may contact you. These settings apply to ordinary church communication and do not prevent necessary legal or safety contact when applicable.";
 
 export type MemberCommunicationPreferencesActionState = {
   status: "idle" | "success" | "error";

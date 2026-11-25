@@ -1,4 +1,6 @@
-import { Show, SignInButton, UserButton } from "@clerk/nextjs";
+import { Show, SignInButton } from "@clerk/nextjs";
+
+import { AccountMenu } from "@/components/account/account-menu";
 import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -99,7 +101,7 @@ export default async function Home() {
               <SignInButton mode="redirect">
                 <button
                   type="button"
-                  className="rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white hover:text-[var(--bits-navy)]"
+                  className="bits-button rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
                 >
                   Member Sign In
                 </button>
@@ -108,11 +110,11 @@ export default async function Home() {
             <Show when="signed-in">
               <Link
                 href="/portal"
-                className="rounded-xl bg-[var(--bits-gold)] px-4 py-2 text-sm font-bold text-[var(--bits-navy-deep)] transition hover:bg-white"
+                className="bits-button rounded-xl bg-[var(--bits-gold)] px-4 py-2 text-sm font-bold text-[var(--bits-navy)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
                 Member Portal
               </Link>
-              <UserButton />
+              <AccountMenu />
             </Show>
           </div>
         </div>

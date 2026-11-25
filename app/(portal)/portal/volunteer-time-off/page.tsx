@@ -82,7 +82,7 @@ export default async function MemberVolunteerTimeOffPage({
           href="/portal"
           className={`text-sm font-medium text-[var(--bits-navy)] underline ${focusClass}`}
         >
-          Member Portal Home
+          My Home
         </Link>
       </header>
 
@@ -187,7 +187,7 @@ export default async function MemberVolunteerTimeOffPage({
                     />
                     <button
                       type="submit"
-                      className={`rounded-xl border border-[var(--bits-border)] px-3 py-1.5 text-sm font-semibold text-[var(--bits-navy)] ${focusClass}`}
+                      className={`bits-danger bits-button rounded-xl px-3 py-1.5 text-sm font-semibold ${focusClass}`}
                     >
                       Cancel request
                     </button>

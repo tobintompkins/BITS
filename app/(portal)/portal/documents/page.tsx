@@ -69,7 +69,7 @@ export default async function MemberSafeDocumentsPage() {
           href="/portal"
           className={`text-sm font-medium text-[var(--bits-navy)] underline ${focusClass}`}
         >
-          Member Portal Home
+          My Home
         </Link>
       </header>
 

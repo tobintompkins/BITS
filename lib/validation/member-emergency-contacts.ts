@@ -1,5 +1,5 @@
 export const MEMBER_EMERGENCY_CONTACTS_NOTICE =
-  "These are the emergency contacts currently recorded on your membership. This page is read-only.";
+  "Review the emergency contacts recorded for you. This page is read-only and does not show another person’s profile.";
 
 export const MEMBER_EMERGENCY_CONTACTS_CORRECTION_COPY =
   "Need to add or correct an emergency contact? Please contact the church office.";

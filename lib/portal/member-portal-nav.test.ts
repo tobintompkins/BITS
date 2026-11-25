@@ -17,7 +17,6 @@ const expectedRoutes = [
   { heading: "Giving", href: "/portal/give", label: "Give Online" },
   { heading: "Giving", href: "/portal/gifts", label: "My Giving History" },
   { heading: "Giving", href: "/portal/statements", label: "My Statements" },
-  { heading: "Giving", href: "/portal/household", label: "My Household" },
   {
     heading: "Church Life",
     href: "/portal/events",
@@ -76,13 +75,23 @@ const expectedRoutes = [
   },
   {
     heading: "My Account",
+    href: "/portal/account",
+    label: "My Account",
+  },
+  {
+    heading: "My Account",
     href: "/portal/profile",
-    label: "My Profile & Preferences",
+    label: "My Profile",
+  },
+  {
+    heading: "My Account",
+    href: "/portal/household",
+    label: "Contact & Family",
   },
   {
     heading: "My Account",
     href: "/portal/emergency-contacts",
-    label: "My Emergency Contacts",
+    label: "Emergency Contacts",
   },
   {
     heading: "My Account",
@@ -110,6 +119,9 @@ describe("member portal navigation groups", () => {
       "Church Life",
       "My Account",
     ]);
+    expect(MEMBER_PORTAL_NAV_GROUPS.find((group) => group.heading === "My Account")?.description).toContain(
+      "sign-in settings",
+    );
   });
 
   it("includes every existing portal route exactly once in the right group", () => {

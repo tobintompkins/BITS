@@ -11,6 +11,7 @@ export type NavItem = {
 
 export type NavGroup = {
   label: string;
+  description?: string;
   items: NavItem[];
 };
 
@@ -64,7 +65,7 @@ function Group({
         aria-expanded={isOpen}
         aria-controls={panelId}
         onClick={() => setExpanded((open) => !open)}
-        className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.14em] text-white/70 transition hover:bg-white/10 hover:text-white"
+        className="bits-nav-heading flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.14em] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
       >
         {group.label}
         <span
@@ -75,6 +76,9 @@ function Group({
         </span>
       </button>
       <div id={panelId} hidden={!isOpen} className="mt-1 space-y-1">
+        {group.description ? (
+          <p className="px-3 pb-1 text-xs leading-5 text-[var(--bits-gold-on-navy)]">{group.description}</p>
+        ) : null}
         {group.items.map((item) => {
           const isActive = isNavItemActive(pathname, item.href);
 
@@ -84,10 +88,10 @@ function Group({
               href={item.href}
               onClick={onNavigate}
               aria-current={isActive ? "page" : undefined}
-              className={`block rounded-lg border-l-4 px-3 py-2 text-sm font-medium transition-colors ${
+              className={`bits-nav-link block rounded-lg border-l-4 px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)] ${
                 isActive
-                  ? "border-[var(--bits-gold)] bg-white text-[var(--bits-navy-deep)] shadow-sm"
-                  : "border-transparent text-white/85 hover:bg-white/10 hover:text-white"
+                  ? "border-[var(--bits-navy)] bg-[var(--bits-gold)] text-[var(--bits-navy)]"
+                  : "border-transparent"
               }`}
             >
               {item.label}
@@ -148,7 +152,7 @@ export function AppShellNav({ groups }: AppShellNavProps) {
         aria-expanded={mobileOpen}
         aria-controls={drawerId}
         onClick={() => setMobileOpen((open) => !open)}
-        className="inline-flex w-full items-center justify-between rounded-xl bg-[var(--bits-navy)] px-4 py-3 text-sm font-semibold text-white shadow-sm lg:hidden"
+        className="bits-button inline-flex w-full items-center justify-between rounded-xl bg-[var(--bits-navy)] px-4 py-3 text-sm font-semibold text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)] lg:hidden"
       >
         {mobileLabel}
         <span aria-hidden="true">{mobileOpen ? "Close" : "Menu"}</span>

@@ -48,6 +48,66 @@ body {
   outline-offset: 3px;
 }
 
+:root {
+  --bits-gold-on-navy: #f6de9a;
+  --bits-danger: #7f1d1d;
+}
+
+.bits-nav-heading {
+  color: var(--bits-gold-on-navy);
+  background: transparent;
+}
+
+.bits-nav-heading:hover,
+.bits-nav-heading:active,
+.bits-nav-heading[aria-expanded="true"] {
+  background: var(--bits-gold);
+  color: var(--bits-navy);
+}
+
+.bits-nav-link {
+  color: rgb(255 255 255 / 0.92);
+  background: transparent;
+}
+
+.bits-nav-link:hover,
+.bits-nav-link:active,
+.bits-nav-link[aria-current="page"] {
+  background: var(--bits-gold);
+  color: var(--bits-navy);
+}
+
+.bits-button:hover,
+.bits-button:active {
+  background: var(--bits-gold);
+  color: var(--bits-navy);
+}
+
+.bits-button:disabled,
+.bits-button[aria-disabled="true"] {
+  background: transparent;
+  color: inherit;
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.bits-danger {
+  color: var(--bits-danger);
+  background: #fff;
+  border: 1px solid var(--bits-danger);
+}
+
+.bits-danger:hover,
+.bits-danger:active {
+  background: var(--bits-danger);
+  color: #fff;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

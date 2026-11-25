@@ -49,12 +49,12 @@ export default async function MemberProfilePage() {
             Private Member Access
           </p>
           <h1 className="mt-1 text-3xl font-semibold text-[var(--bits-navy)]">
-            My Profile &amp; Preferences
+            My Profile
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
-            You can update your email, phone, and preferred contact method.
-            Name, household, and mailing-address changes still require church
-            staff.
+            Update your photo, introduction, and who can see your church profile.
+            You can also update your email, phone, and preferred contact method.
+            Name, household, and mailing-address changes still require church staff.
           </p>
           <p className="mt-3">
             <Link
@@ -69,7 +69,7 @@ export default async function MemberProfilePage() {
           href="/portal"
           className="text-sm font-medium text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
         >
-          Member Portal Home
+          My Home
         </Link>
       </header>
 

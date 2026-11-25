@@ -45,7 +45,7 @@ export default async function MemberAnnouncementsPage({
           href="/portal"
           className="text-sm font-medium text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
         >
-          Member Portal Home
+          My Home
         </Link>
       </header>
 

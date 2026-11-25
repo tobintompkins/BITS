@@ -46,7 +46,7 @@ export const STAFF_MINISTRY_RESOURCE_EMPTY_COPY =
   "No ministry resources match this view.";
 
 export const MEMBER_MINISTRY_RESOURCE_NOTICE =
-  "These are published resource links for ministries you serve. This page is read-only and does not include drafts or files.";
+  "Open the published links for ministries you serve. This page is read-only and does not include drafts or files.";
 
 export const MEMBER_MINISTRY_RESOURCE_EMPTY_COPY =
   "No published ministry resources are available for your assignments yet. Contact the church office if this information needs correction.";

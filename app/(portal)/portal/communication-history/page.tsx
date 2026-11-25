@@ -76,7 +76,7 @@ export default async function MemberCommunicationHistoryPage() {
             href="/portal"
             className={`text-sm font-medium text-[var(--bits-navy)] underline ${focusClass}`}
           >
-            Member Portal Home
+            My Home
           </Link>
         </div>
       </header>

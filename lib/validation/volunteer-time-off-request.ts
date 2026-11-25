@@ -24,7 +24,7 @@ export const VOLUNTEER_TIME_OFF_MAX_SPAN_DAYS = 90;
 export const VOLUNTEER_TIME_OFF_MAX_LEAD_DAYS = 365;
 
 export const MEMBER_VOLUNTEER_TIME_OFF_NOTICE =
-  "Request dates when you cannot volunteer. Submitting a request does not cancel current assignments. Church staff will review it before changing any schedule.";
+  "Tell church leadership when you cannot serve—for example, during a vacation. Submitting a request does not cancel current assignments. Church staff will review it before changing any schedule.";
 
 export const MEMBER_VOLUNTEER_TIME_OFF_EMPTY_COPY =
   "You have not submitted any volunteer time-off requests yet.";

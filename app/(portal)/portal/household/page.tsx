@@ -38,7 +38,7 @@ function HouseholdPageLinks() {
         href="/portal/profile"
         className="text-[var(--bits-navy)] underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
       >
-        My Profile &amp; Preferences
+        My Profile
       </Link>
     </div>
   );
@@ -70,7 +70,7 @@ export default async function MemberHouseholdPage() {
     return (
       <section className="rounded-2xl border border-[var(--bits-border)] bg-white p-6 shadow-sm">
         <h1 className="text-2xl font-semibold text-[var(--bits-navy)]">
-          My Household
+          Contact &amp; Family
         </h1>
         <p className="mt-3 text-sm leading-6 text-[var(--bits-muted)]">
           Your account ({portal.accountEmail}) must be connected to your donor
@@ -89,7 +89,7 @@ export default async function MemberHouseholdPage() {
               Private Member Access
             </p>
             <h1 className="mt-1 text-3xl font-semibold text-[var(--bits-navy)]">
-              My Household
+              Contact &amp; Family
             </h1>
           </div>
           <HouseholdPageLinks />
@@ -117,7 +117,7 @@ export default async function MemberHouseholdPage() {
               Private Member Access
             </p>
             <h1 className="mt-1 text-3xl font-semibold text-[var(--bits-navy)]">
-              My Household
+              Contact &amp; Family
             </h1>
           </div>
           <HouseholdPageLinks />
@@ -152,11 +152,12 @@ export default async function MemberHouseholdPage() {
             Private Member Access
           </p>
           <h1 className="mt-1 text-3xl font-semibold text-[var(--bits-navy)]">
-            My Household
+            Contact &amp; Family
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--bits-muted)]">
-            This page shows your current household connection. It does not list
-            other household members.
+            Review your household connection. Email and phone stay on My Profile.
+            This page does not list other household members, another adult’s profile,
+            or children’s information.
           </p>
         </div>
         <HouseholdPageLinks />

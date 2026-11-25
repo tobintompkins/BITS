@@ -62,7 +62,7 @@ export default async function MyStatementsPage({
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           <Link href="/portal" className="text-sm font-medium text-[var(--bits-navy)] underline">
-            Member Portal Home
+            My Home
           </Link>
           <Link
             href="/portal/gifts"

@@ -89,7 +89,7 @@ export default async function MemberPortalPage() {
           {portal.hasLeadershipAccess ? (
             <Link
               href="/dashboard"
-              className="mt-6 inline-flex rounded-xl bg-[var(--bits-navy)] px-5 py-3 text-sm font-semibold text-white"
+              className="bits-button mt-6 inline-flex rounded-xl bg-[var(--bits-navy)] px-5 py-3 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
             >
               Open Leadership Portal
             </Link>
@@ -128,7 +128,7 @@ export default async function MemberPortalPage() {
             {portal.hasLeadershipAccess ? (
               <Link
                 href="/dashboard"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
+                className="bits-button rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]"
               >
                 Leadership Portal
               </Link>
@@ -143,12 +143,12 @@ export default async function MemberPortalPage() {
             My Training
           </h2>
           <p className="mt-1 text-sm leading-6 text-[var(--bits-muted)]">
-            Review your recorded ministry training and whether it is current
-            or expiring soon.
+            See your recorded training and anything due for renewal. This page
+            does not change your training record.
           </p>
           <Link
             href="/portal/training"
-            className={`mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
+            className={`bits-button mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
           >
             My Training
           </Link>
@@ -158,11 +158,12 @@ export default async function MemberPortalPage() {
             My Ministry Resources
           </h2>
           <p className="mt-1 text-sm leading-6 text-[var(--bits-muted)]">
-            Open published resource links for ministries you serve.
+            Open the published links for ministries you serve. Drafts and files
+            stay with church staff.
           </p>
           <Link
             href="/portal/resources"
-            className={`mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
+            className={`bits-button mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
           >
             My Ministry Resources
           </Link>
@@ -172,12 +173,12 @@ export default async function MemberPortalPage() {
             Request Time Off
           </h2>
           <p className="mt-1 text-sm leading-6 text-[var(--bits-muted)]">
-            Tell church leadership when you cannot volunteer. This does not
-            cancel current assignments.
+            Tell church leadership when you cannot serve—for example, during a
+            vacation. This does not cancel current assignments.
           </p>
           <Link
             href="/portal/volunteer-time-off"
-            className={`mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
+            className={`bits-button mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
           >
             Request Time Off
           </Link>
@@ -212,12 +213,13 @@ export default async function MemberPortalPage() {
             <h2 className="text-lg font-semibold text-[var(--bits-navy)]">
               {group.heading}
             </h2>
+            <p className="mt-1 text-sm leading-5 text-[var(--bits-muted)]">{group.description}</p>
             <ul className="mt-3 divide-y divide-[var(--bits-border)]">
               {group.items.map((item) => (
                 <li key={item.href} className="py-2.5 first:pt-0 last:pb-0">
                   <Link
                     href={item.href}
-                    className={`block rounded-md ${focusClass}`}
+                    className={`bits-button block rounded-md ${focusClass}`}
                   >
                     <span className="font-semibold text-[var(--bits-navy)]">
                       {item.label}
@@ -307,9 +309,9 @@ export default async function MemberPortalPage() {
         </p>
         <Link
           href="/portal/emergency-contacts"
-          className={`mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
+          className={`bits-button mt-3 inline-flex rounded-xl bg-[var(--bits-navy)] px-4 py-2 text-sm font-semibold text-white ${focusClass}`}
         >
-          My Emergency Contacts
+          Emergency Contacts
         </Link>
       </section>
 
@@ -332,7 +334,7 @@ export default async function MemberPortalPage() {
             href="/portal/profile"
             className={`text-sm font-semibold text-[var(--bits-navy)] underline ${focusClass}`}
           >
-            My Profile &amp; Preferences
+            My Profile
           </Link>
         </p>
       </section>

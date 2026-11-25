@@ -13,14 +13,16 @@ const focusClass =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--bits-gold)]";
 
 function headerLinkClass(active: boolean) {
-  return `rounded-lg px-3 py-2 text-sm font-semibold ${focusClass} ${
-    active
-      ? "bg-white text-[var(--bits-navy-deep)]"
-      : "text-white/85 hover:bg-white/10 hover:text-white"
+  return `bits-nav-link rounded-lg px-3 py-2 text-sm font-semibold ${focusClass} ${
+    active ? "bg-[var(--bits-gold)] text-[var(--bits-navy)]" : ""
   }`;
 }
 
-export function MemberPortalNav() {
+export function MemberPortalNav({
+  showLeadershipPortal = false,
+}: {
+  showLeadershipPortal?: boolean;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const menuId = useId();
@@ -55,7 +57,7 @@ export function MemberPortalNav() {
           onClick={() => setOpen(false)}
           className={`hidden sm:inline-flex ${headerLinkClass(pathname === "/portal")}`}
         >
-          Home
+          My Home
         </Link>
         <Link
           href="/portal/gifts"
@@ -77,21 +79,26 @@ export function MemberPortalNav() {
           aria-controls={menuId}
           aria-haspopup="true"
           onClick={() => setOpen((value) => !value)}
-          className={`inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold ${focusClass} ${
-            open
-              ? "bg-[var(--bits-gold)] text-[var(--bits-navy-deep)]"
-              : "text-white/85 hover:bg-white/10 hover:text-white"
-          }`}
+          className={`bits-button inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold text-white ${focusClass}`}
         >
           {open ? "Close menu" : "Menu"}
         </button>
         <Link
           href="/"
           onClick={() => setOpen(false)}
-          className={`hidden text-sm text-white/80 hover:text-white md:inline ${focusClass}`}
+          className={`bits-nav-link hidden rounded-lg px-3 py-2 text-sm font-semibold md:inline ${focusClass}`}
         >
-          Public Home
+          Church Home
         </Link>
+        {showLeadershipPortal ? (
+          <Link
+            href="/dashboard"
+            onClick={() => setOpen(false)}
+            className={`bits-nav-link hidden rounded-lg px-3 py-2 text-sm font-semibold lg:inline ${focusClass}`}
+          >
+            Leadership Portal
+          </Link>
+        ) : null}
       </nav>
 
       <div
@@ -107,7 +114,7 @@ export function MemberPortalNav() {
               onClick={() => setOpen(false)}
               className={headerLinkClass(pathname === "/portal")}
             >
-              Home
+              My Home
             </Link>
             <Link
               href="/portal/gifts"
@@ -127,9 +134,10 @@ export function MemberPortalNav() {
           <div className="grid gap-4 sm:grid-cols-3">
             {MEMBER_PORTAL_NAV_GROUPS.map((group) => (
               <section key={group.heading}>
-                <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--bits-gold)]">
+                <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--bits-gold-on-navy)]">
                   {group.heading}
                 </h2>
+                <p className="mt-1 text-xs leading-5 text-white/80">{group.description}</p>
                 <ul className="mt-2 space-y-1">
                   {group.items.map((item) => {
                     const active = isMemberPortalNavActive(pathname, item.href);
@@ -139,10 +147,8 @@ export function MemberPortalNav() {
                           href={item.href}
                           aria-current={active ? "page" : undefined}
                           onClick={() => setOpen(false)}
-                          className={`block rounded-lg px-2 py-1.5 text-sm ${focusClass} ${
-                            active
-                              ? "bg-white font-semibold text-[var(--bits-navy-deep)]"
-                              : "text-white/85 hover:bg-white/10 hover:text-white"
+                          className={`bits-nav-link block rounded-lg px-2 py-1.5 text-sm ${focusClass} ${
+                            active ? "bg-[var(--bits-gold)] font-semibold text-[var(--bits-navy)]" : ""
                           }`}
                         >
                           {item.label}
@@ -154,15 +160,24 @@ export function MemberPortalNav() {
               </section>
             ))}
           </div>
-          <p className="mt-4 border-t border-white/10 pt-3 md:hidden">
+          <div className="mt-4 border-t border-white/10 pt-3 md:hidden">
             <Link
               href="/"
               onClick={() => setOpen(false)}
-              className={`text-sm font-semibold text-[var(--bits-gold)] underline ${focusClass}`}
+              className={`bits-nav-link rounded-lg px-2 py-1.5 text-sm font-semibold ${focusClass}`}
             >
-              Public Home
+              Church Home
             </Link>
-          </p>
+            {showLeadershipPortal ? (
+              <Link
+                href="/dashboard"
+                onClick={() => setOpen(false)}
+                className={`bits-nav-link mt-2 block rounded-lg px-2 py-1.5 text-sm font-semibold md:hidden ${focusClass}`}
+              >
+                Leadership Portal
+              </Link>
+            ) : null}
+          </div>
         </nav>
       </div>
     </div>

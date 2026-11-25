@@ -2,13 +2,14 @@ import {
   describeChurchPortalBlock,
   findMemberPortalOrganization,
 } from "@/server/repositories/organization.repository";
-import { UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { AccountMenu } from "@/components/account/account-menu";
 import { DisplayOptions } from "@/components/accessibility/display-options";
 import { MemberPortalNav } from "@/components/portal/member-portal-nav";
+import { memberHasLeadershipPortalAccess } from "@/server/services/member-portal.service";
 
 export default async function MemberPortalLayout({
   children,
@@ -34,6 +35,7 @@ export default async function MemberPortalLayout({
   }
   const organization = await findMemberPortalOrganization();
   if (!organization) redirect("/select-organization");
+  const showLeadershipPortal = await memberHasLeadershipPortalAccess();
 
   return (
     <div className="min-h-screen bg-[var(--bits-page)]">
@@ -55,8 +57,8 @@ export default async function MemberPortalLayout({
           </Link>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <DisplayOptions />
-            <MemberPortalNav />
-            <UserButton />
+            <MemberPortalNav showLeadershipPortal={showLeadershipPortal} />
+            <AccountMenu />
           </div>
         </div>
       </header>

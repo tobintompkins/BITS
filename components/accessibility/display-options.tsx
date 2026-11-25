@@ -108,18 +108,14 @@ export function DisplayOptions() {
         aria-expanded={open}
         aria-controls={dialogId}
         aria-haspopup="dialog"
-        aria-label="Display options"
+        aria-label="Text and display options"
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex items-center rounded-xl border px-2.5 py-2 text-sm font-semibold ${focusClass} ${
-          open
-            ? "border-[var(--bits-gold)] bg-[var(--bits-gold)] text-[var(--bits-navy-deep)]"
-            : "border-white/30 bg-white/10 text-white hover:bg-white hover:text-[var(--bits-navy)]"
-        }`}
+        className={`bits-button inline-flex items-center rounded-xl border border-white/30 bg-white/10 px-2.5 py-2 text-sm font-semibold text-white ${focusClass}`}
       >
         <span aria-hidden="true" className="sm:hidden">
           Aa
         </span>
-        <span className="hidden sm:inline">Display</span>
+        <span className="hidden sm:inline">Text &amp; Display</span>
       </button>
       <div
         ref={dialogRef}
@@ -135,7 +131,7 @@ export function DisplayOptions() {
           id={titleId}
           className="text-sm font-semibold text-[var(--bits-navy)]"
         >
-          Display settings
+          Text &amp; Display
         </h2>
         <p className="mt-1 text-xs leading-5 text-[var(--bits-muted)]">
           These choices stay on this device and do not change church records.
@@ -216,9 +212,9 @@ export function DisplayOptions() {
         <button
           type="button"
           onClick={reset}
-          className={`mt-4 w-full rounded-xl border border-[var(--bits-border)] px-3 py-2 text-sm font-semibold text-[var(--bits-navy)] hover:bg-[var(--bits-page)] ${focusClass}`}
+          className={`bits-button mt-4 w-full rounded-xl border border-[var(--bits-border)] px-3 py-2 text-sm font-semibold text-[var(--bits-navy)] ${focusClass}`}
         >
-          Reset Display Settings
+          Reset text and display
         </button>
       </div>
     </div>
